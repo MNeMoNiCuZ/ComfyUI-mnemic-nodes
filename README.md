@@ -23,3 +23,5 @@ This is a node that loads a GPT2 text inference model with the purpose of inputt
 > It should now look something like this:
 >
 > ![image](https://github.com/MNeMoNiCuZ/ComfyUI-mnemic-nodes/assets/60541708/8deb9cba-2800-4ab9-a391-832661bda7bd)
+
+For further reading, checkout the [project github](https://github.com/MNeMoNiCuZ/NegativePromptGenerator).
