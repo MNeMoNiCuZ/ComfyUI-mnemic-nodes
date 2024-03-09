@@ -203,3 +203,96 @@ class FetchAndSaveImage:
             return None, None, None
 
         return image, width, height
+    
+###############################################################################################
+# Generate Negative Prompt
+###############################################################################################
+import os
+from transformers import GPT2LMHeadModel, GPT2Tokenizer, GPT2Config
+import torch
+import re
+
+class GenerateNegativePrompt:
+    def __init__(self):
+        pass
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "input_prompt": ("STRING", {"forceInput": True}),
+                "max_length": ("INT", {"default": 100, "min": 1, "max": 1024, "step": 1}),
+                "num_beams": ("INT", {"default": 1, "min": 1, "max": 10, "step": 1}),
+                "temperature": ("FLOAT", {"default": 1.0, "min": 0.1, "max": 2.0, "step": 0.1}),
+                "top_k": ("INT", {"default": 50, "min": 0, "max": 100, "step": 1}),
+                "top_p": ("FLOAT", {"default": 0.92, "min": 0.0, "max": 1.0, "step": 0.01}),
+                "blocked_words": ("STRING", {"default": "Blocked words, one per line, remove unwanted embeddings or words", "multiline": True}),
+            }
+        }
+
+    OUTPUT_NODE = True
+    RETURN_TYPES = ("STRING",)
+    FUNCTION = "generate_negative_prompt"
+    CATEGORY = "MNeMiC Nodes"
+
+    def generate_negative_prompt(self, input_prompt, max_length, num_beams, temperature, top_k, top_p, blocked_words):
+        # Define the path to your fine-tuned model and tokenizer
+        current_directory = os.path.dirname(os.path.realpath(__file__))
+        model_directory = 'negativeprompt'  # Name of the model directory
+        model_path = os.path.join(current_directory, model_directory)  # Full path to the model directory
+
+        print(f"Negative Prompt Model Path: {model_path}")
+        
+        # Load the tokenizer
+        tokenizer = GPT2Tokenizer.from_pretrained(model_path)
+        
+        # Load the configuration from file
+        config = GPT2Config.from_json_file(os.path.join(model_path, 'config.json'))
+
+        # Initialize the model with the configuration
+        model = GPT2LMHeadModel(config)
+        
+        # Load the weights into the model
+        model_weights = torch.load(os.path.join(model_path, 'weights.pt'))
+        model.load_state_dict(model_weights)
+
+        model.eval()  # Set the model to evaluation mode
+
+        # Encode the input prompt to tensor
+        input_ids = tokenizer.encode(input_prompt, return_tensors='pt')
+
+        # Generate a sequence of tokens from the input
+        output = model.generate(
+            input_ids,
+            max_length=max_length + input_ids.shape[-1],  # Adjust as needed
+            num_beams=num_beams,
+            temperature=temperature,
+            early_stopping=False,
+            no_repeat_ngram_size=2,
+            num_return_sequences=1,
+            top_k=top_k,
+            top_p=top_p,
+        )
+
+        # Decode the entire generated sequence to a string
+        output_text = tokenizer.decode(output[0], skip_special_tokens=True)
+
+        # Remove the part of the output that matches the input prompt
+        input_text = tokenizer.decode(input_ids[0], skip_special_tokens=True)
+        generated_text = output_text[len(input_text):]
+
+        # Clean up the generated text by removing leading spaces and commas
+        generated_text = re.sub(r'^[,\s]+', '', generated_text)
+
+        # Remove any trailing spaces and commas
+        generated_text = re.sub(r'[,\s]+$', '', generated_text)
+
+        # Remove blocked words if any
+        if blocked_words:
+            blocked_words_list = blocked_words.split('\n')
+            for word in blocked_words_list:
+                if word.strip():
+                    generated_text = generated_text.replace(word, "")
+
+        # Return the cleaned up generated text
+        return generated_text,
