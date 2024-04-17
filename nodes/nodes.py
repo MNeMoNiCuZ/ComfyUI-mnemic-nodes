@@ -4,33 +4,15 @@ import time
 import socket
 import datetime
 import requests
+import torch
+import numpy as np
+import json
 from PIL import Image
 from io import BytesIO
-
-
-###############################################################################################
-# Hello World Test
-###############################################################################################
-class PrintHelloWorld:
-
-    @classmethod
-    def INPUT_TYPES(cls):
-               
-        return {"required": {       
-                    "text": ("STRING", {"multiline": False, "default": "Hello World"}),
-                    }
-                }
-
-    RETURN_TYPES = ()
-    FUNCTION = "print_text"
-    OUTPUT_NODE = True
-    CATEGORY = "MNeMiC Nodes"
-
-    def print_text(self, text):
-
-        print(f"Tutorial Text : {text}")
-        
-        return {}
+from configparser import ConfigParser
+from groq import Groq
+from transformers import GPT2LMHeadModel, GPT2Tokenizer, GPT2Config
+from torchvision.transforms.functional import to_tensor
 
 
 ###############################################################################################
@@ -81,8 +63,9 @@ class SaveTextFile:
 
     OUTPUT_NODE = True
     RETURN_TYPES = ("STRING", "STRING")
+    RETURN_NAMES = ("text", "output_file_name")
     FUNCTION = "save_text_file"
-    CATEGORY = "MNeMiC Nodes"
+    CATEGORY = "⚡ MNeMiC Nodes"
 
     def save_text_file(self, text, path, filename_prefix='ComfyUI', filename_delimiter='_', filename_number_padding=4, overwrite_mode='false'):
     
@@ -109,11 +92,11 @@ class SaveTextFile:
             filename = f"{filename_prefix}{file_extension}"
         file_path = os.path.join(path, filename)
 
-        output_path = f"{filename_prefix}{delimiter}{str(counter).zfill(number_padding)}"
+        output_file_name = f"{filename_prefix}{delimiter}{str(counter).zfill(number_padding)}"
 
         self.writeTextFile(file_path, text)
 
-        return text, output_path
+        return text, output_file_name
         
     def generate_filename(self, path, prefix, delimiter, number_padding, extension):
         pattern = f"{re.escape(prefix)}{re.escape(delimiter)}(\\d{{{number_padding}}})"
@@ -142,76 +125,175 @@ class SaveTextFile:
 ###############################################################################################
 # Save Image From Web
 ###############################################################################################
+def pil2tensor(image):
+    """Convert a PIL Image to a PyTorch tensor."""
+    return torch.from_numpy(np.array(image).astype(np.float32) / 255.0).unsqueeze(0)
+
 class FetchAndSaveImage:
     OUTPUT_NODE = True
     RETURN_TYPES = ("IMAGE", "INT", "INT")  # Image, Width, Height
+    RETURN_NAMES = ("image", "width", "height")
     FUNCTION = "FetchAndSaveImage"
-    CATEGORY = "MNeMiC Nodes"
+    CATEGORY = "⚡ MNeMiC Nodes"
 
     @classmethod
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "image_url": ("STRING", {"forceInput": True}),
-                "save_path": ("STRING", {"default": './input/', "multiline": False})
+                "image_url": ("STRING", {"multiline": False, "default": ""}),
+            },
+            "optional": {
+                "save_file_name_override": ("STRING", {"default": "", "multiline": False}),
+                "save_path": ("STRING", {"default": "", "multiline": False})
             }
         }
 
-    def FetchAndSaveImage(self, image_url, save_path='./input/'):
-        # Check for valid image format before downloading
+    def FetchAndSaveImage(self, image_url, save_path='', save_file_name_override=''):
+        if not image_url:
+            print("Error: No image URL provided.")
+            return None, None, None
+
         file_extension = os.path.splitext(image_url)[1].lower()
         if file_extension not in ['.jpg', '.jpeg', '.png', '.webp']:
-            if file_extension == '':
-                print("Warning: File extension not found in URL, will attempt to fetch image.")
-            else:
-                print(f"Error: Unsupported image format `{file_extension}`")
-                return None, None, None
-
-        # Create the save path directory if it doesn't exist
-        if not os.path.exists(save_path):
-            os.makedirs(save_path, exist_ok=True)
-
-        try:
-            response = requests.get(image_url)
-            response.raise_for_status()  # Will raise an HTTPError if the HTTP request returned an unsuccessful status code
-        except requests.RequestException as e:
-            print(f"Error: Unable to fetch image from URL `{image_url}`. Details: {e}")
+            print(f"Error: Unsupported image format `{file_extension}`")
             return None, None, None
 
         try:
-            image = Image.open(BytesIO(response.content))
+            response = requests.get(image_url)
+            if response.status_code != 200:
+                print(f"Error: Failed to fetch image from URL with status code {response.status_code}")
+                return None, None, None
+
+            image = Image.open(BytesIO(response.content)).convert('RGB')
             width, height = image.size
 
-            # Use a dynamic approach to determine the file extension if not in URL
-            if file_extension == '':
-                file_extension = image.format.lower()
+            if save_path:
+                if save_file_name_override:
+                    filename = save_file_name_override + (file_extension if '.' not in save_file_name_override else '')
+                else:
+                    filename = os.path.basename(image_url)
+                    if '.' not in filename:
+                        filename += '.' + (file_extension if file_extension else 'png')
 
-            filename = os.path.basename(image_url)
-            if '.' not in filename:
-                filename += '.' + file_extension
+                file_path = os.path.join(save_path, filename)
+                if not os.path.exists(save_path):
+                    os.makedirs(save_path, exist_ok=True)
+                image.save(file_path, 'PNG')  # Save as PNG to overwrite if exists
 
-            file_path = os.path.join(save_path, filename)
-            image.save(file_path)
-            print(f"Image saved successfully at `{file_path}`")
-            
+            image_tensor = pil2tensor(image)
+
         except Exception as e:
             print(f"Error processing the image: {e}")
             return None, None, None
 
-        if not isinstance(image, Image.Image):
-            print("Error: The fetched image is not a PIL Image object.")
-            return None, None, None
+        return image_tensor, width, height
 
-        return image, width, height
+###############################################################################################
+# Groq Completion
+###############################################################################################
+class GroqAPICompletion:
+    DEFAULT_PROMPT = "Use [system_message] and [user_input]"
     
+    def __init__(self):
+        current_directory = os.path.dirname(os.path.realpath(__file__))
+        groq_directory = os.path.join(current_directory, 'groq')
+        config_path = os.path.join(groq_directory, 'GroqConfig.ini')
+        self.config = ConfigParser()
+        self.config.read(config_path)
+        self.api_key = self.config.get('API', 'key')
+        self.client = Groq(api_key=self.api_key)
+        self.prompt_options = self.load_prompt_options()
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "model": (["mixtral-8x7b-32768", "llama2-70b-4096", "gemma-7b-it"],),
+                "preset": ([cls.DEFAULT_PROMPT] + list(cls.load_prompt_options().keys()),),
+                "system_message": ("STRING", {"multiline": True, "default": ""}),
+                "user_input": ("STRING", {"multiline": True, "default": ""}),
+                "temperature": ("FLOAT", {"default": 0.85, "min": 0.1, "max": 1.0, "step": 0.05}),
+                "max_tokens": ("INT", {"default": 1024, "min": 1, "max": 4096, "step": 1}),
+                "top_p": ("FLOAT", {"default": 1.0, "min": 0.1, "max": 1.0, "step": 0.01}),
+                "seed": ("INT", {"default": 42, "min": 0}),
+                "max_retries": ("INT", {"default": 2, "min": 1, "max": 10, "step": 1}),
+                "stop": ("STRING", {"default": ""}),
+                "json_mode": ("BOOLEAN", {"default": False})
+            }
+        }
+
+    OUTPUT_NODE = True
+    RETURN_TYPES = ("STRING", "BOOLEAN", "STRING")
+    RETURN_NAMES = ("api_response", "success", "status_code")
+    FUNCTION = "process_completion_request"
+    CATEGORY = "⚡ MNeMiC Nodes"
+
+    def process_completion_request(self, model, preset, system_message, user_input, temperature, max_tokens, top_p, seed, max_retries, stop, json_mode):
+        system_message = system_message if preset == self.DEFAULT_PROMPT else self.get_prompt_content(preset)
+        url = 'https://api.groq.com/openai/v1/chat/completions'
+        headers = {'Authorization': f'Bearer {self.api_key}'}
+        data = {
+            'model': model,
+            'messages': [
+                {"role": "system", "content": system_message},
+                {"role": "user", "content": user_input}
+            ],
+            'temperature': temperature,
+            'max_tokens': max_tokens,
+            'top_p': top_p,
+            'seed': seed
+        }
+        if stop:  # Only add stop if it's not empty
+            data['stop'] = stop
+        if json_mode:  # Only add response_format if JSON mode is True
+            data['response_format'] = {"type": "json_object"}
+
+        print(f"Sending request to {url} with data: {json.dumps(data, indent=4)} and headers: {headers}")
+
+        for attempt in range(max_retries):
+            response = requests.post(url, headers=headers, json=data)
+            print(f"Response status: {response.status_code}, Response body: {response.text}")
+            if response.status_code == 200:
+                try:
+                    response_json = json.loads(response.text)
+                    if 'choices' in response_json and response_json['choices']:
+                        assistant_message = response_json['choices'][0]['message']['content']
+                        print(f"Extracted message: {assistant_message}")
+                        return assistant_message, True, "200 OK"
+                    else:
+                        return "No valid response content found.", False, "200 OK but no content"
+                except Exception as e:
+                    print(f"Error parsing response: {str(e)}")
+                    return "Error parsing JSON response.", False, "200 OK but failed to parse JSON"
+            else:
+                return "ERROR", False, f"{response.status_code} {response.reason}"
+
+            time.sleep(2)
+
+        return "Failed after all retries.", False, "Failed after all retries"
+
+    @classmethod
+    def load_prompt_options(cls):
+        current_directory = os.path.dirname(os.path.realpath(__file__))
+        groq_directory = os.path.join(current_directory, 'groq')
+        prompt_options = {}
+        json_files = ['DefaultPrompts.json', 'UserPrompts.json']
+        for json_file in json_files:
+            json_path = os.path.join(groq_directory, json_file)
+            try:
+                with open(json_path, 'r') as file:
+                    prompts = json.load(file)
+                    prompt_options.update({prompt['name']: prompt['content'] for prompt in prompts})
+            except Exception as e:
+                print(f"Failed to load prompts from {json_path}: {str(e)}")
+        return prompt_options
+
+    def get_prompt_content(self, prompt_name):
+        return self.prompt_options.get(prompt_name, "No content found for selected prompt")
+
 ###############################################################################################
 # Generate Negative Prompt
 ###############################################################################################
-import os
-from transformers import GPT2LMHeadModel, GPT2Tokenizer, GPT2Config
-import torch
-import re
-
 class GenerateNegativePrompt:
     def __init__(self):
         pass
@@ -232,8 +314,10 @@ class GenerateNegativePrompt:
 
     OUTPUT_NODE = True
     RETURN_TYPES = ("STRING",)
+    RETURN_NAMES = ("negative_prompt",)
+    
     FUNCTION = "generate_negative_prompt"
-    CATEGORY = "MNeMiC Nodes"
+    CATEGORY = "⚡ MNeMiC Nodes"
 
     def generate_negative_prompt(self, input_prompt, max_length, num_beams, temperature, top_k, top_p, blocked_words):
         # Define the path to your fine-tuned model and tokenizer
