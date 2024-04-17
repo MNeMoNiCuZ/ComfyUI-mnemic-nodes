@@ -34,6 +34,11 @@ This node makes an API call to groq, and returns the response in text format.
 
 ![image](https://github.com/MNeMoNiCuZ/ComfyUI-mnemic-nodes/assets/60541708/807eb22d-c48b-4156-9d36-d2abdb987910)
 
+### Setup
+You need to manually enter your [groq API key](https://console.groq.com/keys) into the `GroqConfig.ini` file.
+
+Currently, the Groq API can be used for free, with very friendly and generous [rate limits](https://console.groq.com/docs/rate-limits).
+
 
 ### Settings
 **model**: Choose from a drop-down one of the available models. The list need to be manually updated when they add additional models. Currently supports `mixtral-8x7b-32768`, `llama2-70b-4096` and `gemma-7b-it`.
