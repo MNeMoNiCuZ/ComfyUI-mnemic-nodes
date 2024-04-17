@@ -1,0 +1,6 @@
+[
+    {
+        "name": "Add your own presets in UserPrompts.json",
+        "content": "Return just one word. A random word. It can be any word. Do not acknowledge the user at all."
+    }
+]
