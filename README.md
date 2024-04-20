@@ -2,6 +2,18 @@
 
 This repository hosts a collection of nodes developed for ComfyUI. It aims to share useful components that enhance the functionality of ComfyUI projects.
 
+# Installation instructions
+
+You may need to manually install the requirements. They should be listed in `requirements.txt`
+You may need to install the following libraries using `pip install XXX`:
+```
+configparser
+groq
+transformers
+torch
+```
+
+
 ## 💾 Save Text File With Path Node
 
 This node is adapted and enhanced from the Save Text File node found in the [YMC GitHub ymc-node-suite-comfyui pack](https://github.com/YMC-GitHub/ymc-node-suite-comfyui). It was modified to output a file for easier usability. The output pin now includes the input text along with a delimiter and a padded number, offering a versatile solution for file naming and automatic text file generation for captions.
