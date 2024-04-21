@@ -1,4 +1,0 @@
-﻿configparser
-groq
-transformers
-torch
