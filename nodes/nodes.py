@@ -208,7 +208,7 @@ class GroqAPICompletion:
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "model": (["mixtral-8x7b-32768", "llama2-70b-4096", "gemma-7b-it"],),
+                "model": (["mixtral-8x7b-32768", "llama2-70b-4096", "llama3-8b-8192", "gemma-7b-it"],),
                 "preset": ([cls.DEFAULT_PROMPT] + list(cls.load_prompt_options().keys()),),
                 "system_message": ("STRING", {"multiline": True, "default": ""}),
                 "user_input": ("STRING", {"multiline": True, "default": ""}),
