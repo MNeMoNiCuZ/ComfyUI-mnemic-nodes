@@ -53,7 +53,7 @@ Currently, the Groq API can be used for free, with very friendly and generous [r
 
 
 ### Settings
-**model**: Choose from a drop-down one of the available models. The list need to be manually updated when they add additional models. Currently supports `mixtral-8x7b-32768`, `llama2-70b-4096` and `gemma-7b-it`.
+**model**: Choose from a drop-down one of the available models. The list need to be manually updated when they add additional models. Currently supports `mixtral-8x7b-32768`, `llama2-70b-4096`, `llama3-8b-8192` and `gemma-7b-it`.
 
 **preset**: This is a dropdown with a few preset prompts, the user's own presets, or the option to use a fully custom prompt. See examples and presets below.
 
