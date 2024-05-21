@@ -1,6 +1,6 @@
 [project]
 name = "comfyui-mnemic-nodes"
-description = ""
+description = "Nodes:Save Text File"
 version = "1.0.0"
 license = "LICENSE"
 dependencies = ["groq", "configparser"]
