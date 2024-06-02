@@ -1,7 +1,7 @@
 [project]
 name = "comfyui-mnemic-nodes"
-description = "Testing updating via the publish_action"
-version = "1.0.1"
+description = "Moved the suffix output to the end of the list of outputs to prevent old workflows from breaking."
+version = "1.0.2"
 license = "LICENSE"
 dependencies = ["﻿configparser", "groq", "transformers", "torch"]
 

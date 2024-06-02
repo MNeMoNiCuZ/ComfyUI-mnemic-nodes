@@ -13,10 +13,10 @@ class SaveTextFile:
                 "text": ("STRING", {"forceInput": True}),
                 "path": ("STRING", {"default": './output/[time(%Y-%m-%d)]/', "multiline": False}),
                 "filename_prefix": ("STRING", {"default": "ComfyUI"}),
-                "filename_suffix": ("STRING", {"default": "", "multiline": False}),
                 "filename_delimiter": ("STRING", {"default": "_"}),
-                "filename_number_padding": ("INT", {"default": 4, "min": 2, "max": 9, "step": 1}),
+                "filename_number_padding": ("INT", {"default": 3, "min": 2, "max": 9, "step": 1}),
                 "overwrite_mode": (["false", "prefix_as_filename"],),
+                "filename_suffix": ("STRING", {"default": ""}),
             }
         }
 
