@@ -1,0 +1,5 @@
+__pycache__/
+nodes/__pycache__/
+utils/__pycache__/
+nodes/negativeprompt/weights.pt
+nodes/groq/GroqConfig.ini
