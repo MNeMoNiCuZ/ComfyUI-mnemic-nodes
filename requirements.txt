@@ -1,2 +1,4 @@
+﻿configparser
 groq
-configparser
+transformers
+torch
