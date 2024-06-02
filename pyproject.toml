@@ -1,7 +1,7 @@
 [project]
 name = "comfyui-mnemic-nodes"
-description = "Moved the suffix output to the end of the list of outputs to prevent old workflows from breaking."
-version = "1.0.2"
+description = "Updated a bunch of inputs and outputs of the node for safety reasons and improvements. Will likely break workflows."
+version = "1.0.3"
 license = "LICENSE"
 dependencies = ["﻿configparser", "groq", "transformers", "torch"]
 

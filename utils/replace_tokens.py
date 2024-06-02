@@ -16,7 +16,11 @@ def replace_tokens(string, custom_tokens=None):
     matches = re.findall(time_format_pattern, string)
     for match in matches:
         time_token = f'[time({match})]'
-        formatted_time = datetime.datetime.now().strftime(match)
-        string = string.replace(time_token, formatted_time)
+        try:
+            formatted_time = datetime.datetime.now().strftime(match)
+            string = string.replace(time_token, formatted_time)
+        except ValueError as e:
+            print(f"Invalid time format: {match} - {e}")
+            raise
 
     return string
