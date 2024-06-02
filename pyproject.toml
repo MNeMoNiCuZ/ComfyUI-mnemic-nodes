@@ -1,0 +1,15 @@
+[project]
+name = "comfyui-mnemic-nodes"
+description = "Testing updating via the publish_action"
+version = "1.0.1"
+license = "LICENSE"
+dependencies = ["﻿configparser", "groq", "transformers", "torch"]
+
+[project.urls]
+Repository = "https://github.com/MNeMoNiCuZ/ComfyUI-mnemic-nodes"
+#  Used by Comfy Registry https://comfyregistry.org
+
+[tool.comfy]
+PublisherId = "mnemic"
+DisplayName = "ComfyUI-mnemic-nodes"
+Icon = ""
