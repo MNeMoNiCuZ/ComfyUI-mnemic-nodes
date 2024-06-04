@@ -1,6 +1,6 @@
 import os
 import re
-import logging
+from typing import List
 from ..utils.replace_tokens import replace_tokens
 from folder_paths import get_output_directory
 
@@ -12,27 +12,34 @@ class SaveTextFile:
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "input_text": ("STRING", {"forceInput": True}),
+                "file_text": ("STRING", {"forceInput": True}),
                 "path": ("STRING", {"default": '[time(%Y-%m-%d)]/', "multiline": False}),
-                "filename_prefix": ("STRING", {"default": "[time(%Y-%m-%d - %H.%M.%S)]"}),
-                "filename_suffix": ("STRING", {"default": ""}),
-                "filename_padding_delimiter": ("STRING", {"default": "_"}),
-                "filename_padding_length": ("INT", {"default": 3, "min": 0, "max": 24, "step": 1}),
-                "output_file_extension": ("STRING", {"default": "txt"}),
-                "overwrite_mode": (["false", "prefix_as_filename"],)
+                "prefix": ("STRING", {"default": "[time(%Y-%m-%d - %H.%M.%S)]"}),
+                "counter_separator": ("STRING", {"default": "_"}),
+                "counter_length": ("INT", {"default": 3, "min": 0, "max": 24, "step": 1}),
+                "suffix": ("STRING", {"default": ""}),
+                "output_extension": ("STRING", {"default": "txt"})
             }
         }
 
     OUTPUT_NODE = True
     RETURN_TYPES = ("STRING", "STRING", "STRING")
-    RETURN_NAMES = ("output_file_path", "output_file_name", "output_file_extension")
+    RETURN_NAMES = ("output_path", "output_name", "output_extension")
     FUNCTION = "save_text_file"
     CATEGORY = "⚡ MNeMiC Nodes"
 
-    def save_text_file(self, input_text, path, filename_prefix='[time(%Y-%m-%d %H.%M.%S)]', filename_suffix='', filename_padding_delimiter='_', filename_padding_length=3, output_file_extension='txt', overwrite_mode='false'):
+    def save_text_file(self, file_text, path, prefix='[time(%Y-%m-%d %H.%M.%S)]', counter_separator='_', counter_length=3, suffix='', output_extension='txt'):
         path = replace_tokens(path)
-        filename_prefix = replace_tokens(filename_prefix)
-        filename_suffix = replace_tokens(filename_suffix)
+        prefix = replace_tokens(prefix)
+        suffix = replace_tokens(suffix)
+
+        # Safety check to ensure the extension is not empty
+        if not output_extension.strip():
+            raise ValueError("The output extension cannot be empty.")
+
+        # Safety check to prevent directory traversal
+        if '..' in path or any(esc in path for esc in ['..\\', '../']):
+            raise ValueError("The specified path contains invalid characters that navigate outside the output directory.")
 
         # Get the base output directory from folder_paths
         output_base_dir = get_output_directory()
@@ -50,57 +57,67 @@ class SaveTextFile:
             except OSError as e:
                 print(f"Error: The path `{full_path}` could not be created! Is there write access?\n{e}")
 
-        if input_text.strip() == '':
+        if file_text.strip() == '':
             raise ValueError("There is no text specified to save! Text is empty.")
 
-        delimiter = filename_padding_delimiter
-        number_padding = int(filename_padding_length)
-        file_extension = f'.{output_file_extension}'
+        separator = counter_separator
+        number_padding = int(counter_length)
+        file_extension = f'.{output_extension}'
 
-        filename, counter = self.generate_filename(full_path, filename_prefix, filename_suffix, delimiter, number_padding, file_extension, overwrite_mode)
+        filename, counter = self.generate_filename(full_path, prefix, suffix, separator, number_padding, file_extension)
         file_path = os.path.join(full_path, filename)
 
-        # Remove extension from output_file_name
-        output_file_name = os.path.splitext(filename)[0]
+        # Remove extension from output_name
+        output_name = os.path.splitext(filename)[0]
 
-        self.writeTextFile(file_path, input_text)
+        self.writeTextFile(file_path, file_text)
 
-        return file_path, output_file_name, output_file_extension
+        return file_path, output_name, output_extension
 
-    def generate_filename(self, path, prefix, suffix, delimiter, number_padding, extension, overwrite_mode):
-        if overwrite_mode == 'prefix_as_filename':
-            return f"{prefix}{extension}", 0
-
+    def generate_filename(self, path, prefix, suffix, separator, number_padding, extension):
+        """Generate a unique filename based on the provided parameters."""
+        pattern_parts = [re.escape(prefix)]
+        if number_padding > 0:
+            pattern_parts.append(f"{separator}(\\d{{{number_padding}}})")
         if suffix:
-            pattern = f"{re.escape(prefix)}(\\d{{{number_padding}}}){delimiter}{re.escape(suffix)}"
-        else:
-            pattern = f"{re.escape(prefix)}(\\d{{{number_padding}}})"
+            pattern_parts.append(f"{separator}{re.escape(suffix)}")
+        pattern_parts.append(re.escape(extension))
 
-        existing_counters = [
-            int(re.search(pattern, filename).group(1))
-            for filename in os.listdir(path)
-            if re.match(pattern, filename)
-        ]
+        pattern = ''.join(pattern_parts)
+        
+        # Find existing counters
+        existing_counters = []
+        for filename in os.listdir(path):
+            match = re.match(pattern, filename)
+            if match:
+                try:
+                    counter_value = int(match.group(1)) if number_padding > 0 else 0
+                    existing_counters.append(counter_value)
+                except (IndexError, ValueError):
+                    continue
+
         existing_counters.sort(reverse=True)
 
-        if existing_counters:
-            counter = existing_counters[0] + 1
-        else:
-            counter = 1
+        # Determine the next counter value
+        counter = existing_counters[0] + 1 if existing_counters else 1
+        counter_str = f"{counter:0{number_padding}}" if number_padding > 0 else ""
 
+        # Construct the filename
         if number_padding > 0:
             if suffix:
-                filename = f"{prefix}{counter:0{number_padding}}{delimiter}{suffix}{extension}"
+                filename = f"{prefix}{separator}{counter_str}{separator}{suffix}{extension}"
             else:
-                filename = f"{prefix}{counter:0{number_padding}}{extension}"
+                filename = f"{prefix}{separator}{counter_str}{extension}"
         else:
             filename = f"{prefix}{suffix}{extension}"
 
         return filename, counter
 
     def writeTextFile(self, file, content):
+        """Write the content to the specified file."""
         try:
             with open(file, 'w', encoding='utf-8', newline='\n') as f:
                 f.write(content)
-        except OSError:
-            logging.error(f"Unable to save file `{file}`")
+        except OSError as e:
+            print(f"Unable to save file `{file}`: {e}")
+            raise

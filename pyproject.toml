@@ -1,9 +1,9 @@
 [project]
 name = "comfyui-mnemic-nodes"
-description = "Updated a bunch of inputs and outputs of the node for safety reasons and improvements. Will likely break workflows."
-version = "1.0.3"
+description = "Updated a bunch of inputs and outputs of the Save Text File With Path-node. This will break all existing workflows as almost all inputs have been redesigned."
+version = "1.1.0"
 license = "LICENSE"
-dependencies = ["﻿configparser", "groq", "transformers", "torch"]
+dependencies = ["configparser", "groq", "transformers", "torch"]
 
 [project.urls]
 Repository = "https://github.com/MNeMoNiCuZ/ComfyUI-mnemic-nodes"
