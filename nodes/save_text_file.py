@@ -23,8 +23,8 @@ class SaveTextFile:
         }
 
     OUTPUT_NODE = True
-    RETURN_TYPES = ("STRING", "STRING", "STRING")
-    RETURN_NAMES = ("output_path", "output_name", "output_extension")
+    RETURN_TYPES = ("STRING", "STRING")
+    RETURN_NAMES = ("output_full_path", "output_name")
     FUNCTION = "save_text_file"
     CATEGORY = "⚡ MNeMiC Nodes"
 
@@ -72,7 +72,7 @@ class SaveTextFile:
 
         self.writeTextFile(file_path, file_text)
 
-        return file_path, output_name, output_extension
+        return file_path, output_name
 
     def generate_filename(self, path, prefix, suffix, separator, number_padding, extension):
         """Generate a unique filename based on the provided parameters."""

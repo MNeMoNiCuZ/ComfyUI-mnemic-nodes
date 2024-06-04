@@ -1,7 +1,7 @@
 [project]
 name = "comfyui-mnemic-nodes"
-description = "Updated a bunch of inputs and outputs of the Save Text File With Path-node. This will break all existing workflows as almost all inputs have been redesigned."
-version = "1.1.0"
+description = "Removed the extension output and renamed the full path output to make it more clear."
+version = "1.1.1"
 license = "LICENSE"
 dependencies = ["configparser", "groq", "transformers", "torch"]
 
