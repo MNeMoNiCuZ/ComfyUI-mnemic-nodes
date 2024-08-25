@@ -22,14 +22,27 @@ class GroqAPICompletion:
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "model": (["mixtral-8x7b-32768", "llama3-70b-8192", "llama3-8b-8192", "gemma-7b-it"],),
+                "model": ([
+                    "llama-3.1-8b-instant",
+                    "llama-3.1-70b-versatile",
+                    "llama3-8b-8192",
+                    "llama3-70b-8192",
+                    "llama-guard-3-8b",
+                    "llama3-groq-8b-8192-tool-use-preview",
+                    "llama3-groq-70b-8192-tool-use-preview",
+                    "mixtral-8x7b-32768",
+                    "gemma-7b-it",
+                    "gemma2-9b-it",
+                    "whisper-large-v3",
+                    "distil-whisper-large-v3-en"
+                ],),
                 "preset": ([cls.DEFAULT_PROMPT] + list(cls.load_prompt_options().keys()),),
                 "system_message": ("STRING", {"multiline": True, "default": ""}),
                 "user_input": ("STRING", {"multiline": True, "default": ""}),
-                "temperature": ("FLOAT", {"default": 0.85, "min": 0.1, "max": 1.0, "step": 0.05}),
-                "max_tokens": ("INT", {"default": 1024, "min": 1, "max": 4096, "step": 1}),
-                "top_p": ("FLOAT", {"default": 1.0, "min": 0.1, "max": 1.0, "step": 0.01}),
-                "seed": ("INT", {"default": 42, "min": 0}),
+                "temperature": ("FLOAT", {"default": 0.85, "min": 0.1, "max": 2.0, "step": 0.05}), # Max value is 2.0
+                "max_tokens": ("INT", {"default": 1024, "min": 1, "max": 131072, "step": 1}),
+                "top_p": ("FLOAT", {"default": 1.0, "min": 0.1, "max": 1.0, "step": 0.01}), # Max value is 1.0
+                "seed": ("INT", {"default": 42, "min": 0, "max": 4294967295}), # Max value is 4294967295
                 "max_retries": ("INT", {"default": 2, "min": 1, "max": 10, "step": 1}),
                 "stop": ("STRING", {"default": ""}),
                 "json_mode": ("BOOLEAN", {"default": False})
