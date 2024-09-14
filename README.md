@@ -75,7 +75,7 @@ Currently, the Groq API can be used for free, with very friendly and generous [r
 
 
 ### Settings
-**model**: Choose from a drop-down one of the available models. The list need to be manually updated when they add additional models. Currently supports `mixtral-8x7b-32768`, `llama2-70b-4096`, `llama3-8b-8192` and `gemma-7b-it`.
+**model**: Choose from a drop-down one of the available models. The list need to be manually updated when they add additional models.
 
 **preset**: This is a dropdown with a few preset prompts, the user's own presets, or the option to use a fully custom prompt. See examples and presets below.
 
@@ -154,6 +154,11 @@ Follow the existing structure and look at the `DefaultPrompts.json` for examples
 
 This node makes an API call to groq with an attached image and then uses Vision Language Models to return a description of the image, or answer to a question about the image in text format.
 
+### Setup
+You need to manually enter your [groq API key](https://console.groq.com/keys) into the `GroqConfig.ini` file.
+
+Currently, the Groq API can be used for free, with very friendly and generous [rate limits](https://console.groq.com/docs/rate-limits).
+
 ### Restrictions
 **Image Size Limit**: The maximum allowed size for a request containing an image URL as input is 20MB. Requests larger than this limit will return a 400 error.
 
@@ -210,14 +215,29 @@ You can convert the `file_path` to input to use the [Get File Path](https://gith
 [https://www.wikiwand.com/en/articles/List_of_ISO_639_language_codes](https://www.wikiwand.com/en/articles/List_of_ISO_639_language_codes)
 > is tg uz zh ru tr hi la tk haw fr vi cs hu kk he cy bs sw ht mn gl si mg sa es ja pt lt mr fa sl kn uk ms ta hr bg pa yi fo th lv ln ca br sq jv sn gu ba te bn et sd tl ha de hy so oc nn az km yo ko pl da mi ml ka am tt su yue nl no ne mt my ur ps ar id fi el ro as en it sk be lo lb bo sv sr mk eu
 
+### Setup
+You need to manually enter your [groq API key](https://console.groq.com/keys) into the `GroqConfig.ini` file.
+
+Currently, the Groq API can be used for free, with very friendly and generous [rate limits](https://console.groq.com/docs/rate-limits).
+
 ### Example: Transcribe meeting notes
+
 ![image](https://github.com/user-attachments/assets/4b9d2e31-96df-462e-bc18-eba6e381fa34)
 
+-------------------------------
+
 ### Example: Generate image based on voice description or a story
-![image](https://github.com/user-attachments/assets/d0742121-529f-4734-8e4c-8ec77d30afc8)
+
+![image](https://github.com/user-attachments/assets/926a6086-dccc-47dd-9f3b-86326976a62d)
+
+
+-------------------------------
 
 ### Example: Transcribe song lyrics
+
 ![image](https://github.com/user-attachments/assets/2ec34e49-fbea-465a-9653-6bc1fbb34a13)
+
+-------------------------------
 
 ### Karaoke?
 You can use this to generate files to use in a [Karaoke app](https://github.com/MNeMoNiCuZ/whisper-karaoke). 
