@@ -12,6 +12,15 @@ groq
 transformers
 torch
 ```
+## 📁 Get File Path
+
+This node returns the file path of a given file in the \input-folder.
+
+![image](https://github.com/user-attachments/assets/1fd9bfdc-f92d-4f33-a992-a5af66029a9f)
+
+It is meant to have a browse-button so you can browse to any file, but it doesn't yet.
+
+**If you know how to add this, please let me know or do a pull request.**
 
 
 ## 💾 Save Text File With Path Node
@@ -49,9 +58,11 @@ It also outputs the Width/Height of the image.
 
 ![image](https://github.com/MNeMoNiCuZ/ComfyUI-mnemic-nodes/assets/60541708/16401f43-5f7b-4590-908f-a71bbefc467b)
 
+> [!IMPORTANT]
+> #### 2024-09-14 - Version 1.1.3
+> This node was renamed in the code to match the functionality. This may break existing nodes.
 
-
-## ✨ Groq LLM API Node
+## ✨💬 Groq LLM API Node
 
 This node makes an API call to groq, and returns the response in text format.
 
@@ -133,6 +144,85 @@ Edit the `\nodes\groq\UserPrompts.json` file to create your own presets.
 
 Follow the existing structure and look at the `DefaultPrompts.json` for examples.
 
+> [!IMPORTANT]
+> #### 2024-09-14 - Version 1.1.3
+> This node was renamed to match the new VLM and ALM nodes added.
+
+## ✨💬 Groq VLM API Node
+
+[Groq Vision Documentation](https://console.groq.com/docs/vision)
+
+This node makes an API call to groq with an attached image and then uses Vision Language Models to return a description of the image, or answer to a question about the image in text format.
+
+### Restrictions
+**Image Size Limit**: The maximum allowed size for a request containing an image URL as input is 20MB. Requests larger than this limit will return a 400 error.
+
+**Request Size Limit (Base64 Enconded Images)**: The maximum allowed size for a request containing a base64 encoded image is 4MB. Requests larger than this limit will return a 413 error.
+
+### Example: Custom prompt
+![image](https://github.com/user-attachments/assets/783c85ea-cb3e-4338-903c-e8c9b30eaff3)
+
+-------------------------------
+
+### Example: Short Caption
+
+![image](https://github.com/user-attachments/assets/e1c86199-1b1b-4e45-9203-f766bcc1f1ad)
+
+-------------------------------
+
+### Example: Medium Caption
+
+![image](https://github.com/user-attachments/assets/804c38c9-5923-47fd-93a4-1716fff7508c)
+
+-------------------------------
+
+### Example: Long Caption
+
+![image](https://github.com/user-attachments/assets/7cd027b3-a1df-48e3-a699-95d9a15350e9)
+
+-------------------------------
+
+### Example: Primary Color
+
+![image](https://github.com/user-attachments/assets/b5e212f9-8d3f-47c5-8666-7762467cddc2)
+
+
+-------------------------------
+
+
+
+## ✨📝 Groq ALM API Node
+
+[Groq Speech Documentation](https://console.groq.com/docs/speech-text)
+
+This node makes an API call to groq with an attached audio file and then uses Audio Language Models to transcribe the audio and return the text in different output formats.
+
+The model `distil-whisper-large-v3-en` only supports the language `en`.
+The model `whisper-large-v3` supports the languages listed below. It can also be left empty, but this provides worse results than running the model locally.
+
+> [!NOTE]
+> The presets / prompt do very little. They are meant to help you guide the output, but I don't get any relevant results.
+
+You can convert the `file_path` to input to use the [Get File Path](https://github.com/MNeMoNiCuZ/ComfyUI-mnemic-nodes/edit/main/README.md#-get-file-path) node to find your files.
+
+
+### Supported Languages
+[https://www.wikiwand.com/en/articles/List_of_ISO_639_language_codes](https://www.wikiwand.com/en/articles/List_of_ISO_639_language_codes)
+> is tg uz zh ru tr hi la tk haw fr vi cs hu kk he cy bs sw ht mn gl si mg sa es ja pt lt mr fa sl kn uk ms ta hr bg pa yi fo th lv ln ca br sq jv sn gu ba te bn et sd tl ha de hy so oc nn az km yo ko pl da mi ml ka am tt su yue nl no ne mt my ur ps ar id fi el ro as en it sk be lo lb bo sv sr mk eu
+
+### Example: Transcribe meeting notes
+![image](https://github.com/user-attachments/assets/4b9d2e31-96df-462e-bc18-eba6e381fa34)
+
+### Example: Generate image based on voice description or a story
+![image](https://github.com/user-attachments/assets/d0742121-529f-4734-8e4c-8ec77d30afc8)
+
+### Example: Transcribe song lyrics
+![image](https://github.com/user-attachments/assets/2ec34e49-fbea-465a-9653-6bc1fbb34a13)
+
+### Karaoke?
+You can use this to generate files to use in a [Karaoke app](https://github.com/MNeMoNiCuZ/whisper-karaoke). 
+
+![image](https://github.com/user-attachments/assets/e4d7160b-90ab-4630-8568-2a65b7a79575)
 
 
 
