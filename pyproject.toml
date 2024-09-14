@@ -1,7 +1,7 @@
 [project]
 name = "comfyui-mnemic-nodes"
-description = "Updated the version number for the licence requirement"
-version = "1.1.2"
+description = "Added new groq nodes to support vision and audio. Added tooltips to everything. Renamed download image node and removed old groq LLM node."
+version = "1.1.3"
 license = { file = "LICENSE" }
 dependencies = ["configparser", "groq", "transformers", "torch"]
 
