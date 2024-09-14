@@ -12,21 +12,23 @@ class SaveTextFile:
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "file_text": ("STRING", {"forceInput": True}),
-                "path": ("STRING", {"default": '[time(%Y-%m-%d)]/', "multiline": False}),
-                "prefix": ("STRING", {"default": "[time(%Y-%m-%d - %H.%M.%S)]"}),
-                "counter_separator": ("STRING", {"default": "_"}),
-                "counter_length": ("INT", {"default": 3, "min": 0, "max": 24, "step": 1}),
-                "suffix": ("STRING", {"default": ""}),
-                "output_extension": ("STRING", {"default": "txt"})
+                "file_text": ("STRING", {"forceInput": True, "tooltip": "The text to save."}),
+                "path": ("STRING", {"default": '[time(%Y-%m-%d)]/', "multiline": False, "tooltip": "The folder path to save the file to.\n\nThe following creates a date folder:\n[time(%Y-%m-%d)]"}),
+                "prefix": ("STRING", {"default": "[time(%Y-%m-%d - %H.%M.%S)]", "tooltip": "The prefix to add to the file name.\n\nThe following creates a file with a date and timestamp:\n[time(%Y-%m-%d - %H.%M.%S)]"}),
+                "counter_separator": ("STRING", {"default": "_", "tooltip": "The separator to use between the file name and the counter."}),
+                "counter_length": ("INT", {"default": 3, "min": 0, "max": 24, "step": 1, "tooltip": "The number of digits to use in the counter."}),
+                "suffix": ("STRING", {"default": "", "tooltip": "The suffix to add to the file name after the counter."}),
+                "output_extension": ("STRING", {"default": "txt", "tooltip": "The extension to use for the output file."}),
             }
-        }
+        } #{prefix}{separator}{counter_str}{separator}{suffix}{extension}
 
     OUTPUT_NODE = True
     RETURN_TYPES = ("STRING", "STRING")
     RETURN_NAMES = ("output_full_path", "output_name")
+    OUTPUT_TOOLTIPS = ("The full path to the saved file", "The name of the saved file")
     FUNCTION = "save_text_file"
     CATEGORY = "⚡ MNeMiC Nodes"
+    DESCRIPTION = "Saves text to a file with specified parameters."
 
     def save_text_file(self, file_text, path, prefix='[time(%Y-%m-%d %H.%M.%S)]', counter_separator='_', counter_length=3, suffix='', output_extension='txt'):
         path = replace_tokens(path)

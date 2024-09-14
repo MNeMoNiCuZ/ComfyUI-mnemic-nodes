@@ -8,26 +8,28 @@ from io import BytesIO
 def pil2tensor(image):
     return torch.from_numpy(np.array(image).astype(np.float32) / 255.0).unsqueeze(0)
 
-class FetchAndSaveImage:
+class DownloadImageFromURL:
     OUTPUT_NODE = True
     RETURN_TYPES = ("IMAGE", "INT", "INT")  # Image, Width, Height
     RETURN_NAMES = ("image", "width", "height")
-    FUNCTION = "FetchAndSaveImage"
+    OUTPUT_TOOLTIPS = ("The downloaded image", "The width of the image", "The height of the image")
+    FUNCTION = "DownloadImageFromURL"
     CATEGORY = "⚡ MNeMiC Nodes"
+    DESCRIPTION = "Downloads an image from a URL."
 
     @classmethod
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "image_url": ("STRING", {"multiline": False, "default": ""}),
+                "image_url": ("STRING", {"multiline": False, "default": "", "tooltip": "URL of the image to download."}),
             },
             "optional": {
-                "save_file_name_override": ("STRING", {"default": "", "multiline": False}),
-                "save_path": ("STRING", {"default": "", "multiline": False})
+                "save_file_name_override": ("STRING", {"default": "", "multiline": False, "tooltip": "Optional override for the name of the saved image file."}),
+                "save_path": ("STRING", {"default": "", "multiline": False, "tooltip": "Optional path to save the image. Defaults to the current directory."})
             }
         }
 
-    def FetchAndSaveImage(self, image_url, save_path='', save_file_name_override=''):
+    def DownloadImageFromURL(self, image_url, save_path='', save_file_name_override=''):
         if not image_url:
             print("Error: No image URL provided.")
             return None, None, None

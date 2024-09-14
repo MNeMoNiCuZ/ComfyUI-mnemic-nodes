@@ -1,0 +1,6 @@
+[
+    {
+        "name": "Describe the attached image following the [user_input] instruction",
+        "content": "You are a vision-language model. Analyze the attached image and respond to the user request based on their query. If the query is empty, describe the image in a clear and descriptive manner."
+     }
+]
