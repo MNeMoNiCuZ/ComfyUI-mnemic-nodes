@@ -59,7 +59,7 @@ It also outputs the Width/Height of the image.
 ![image](https://github.com/MNeMoNiCuZ/ComfyUI-mnemic-nodes/assets/60541708/16401f43-5f7b-4590-908f-a71bbefc467b)
 
 > [!IMPORTANT]
-> #### 2024-09-14 - Version 1.1.3
+> #### 2024-09-14 - Version 1.2.0
 > This node was renamed in the code to match the functionality. This may break existing nodes.
 
 ## ✨💬 Groq LLM API Node
@@ -145,7 +145,7 @@ Edit the `\nodes\groq\UserPrompts.json` file to create your own presets.
 Follow the existing structure and look at the `DefaultPrompts.json` for examples.
 
 > [!IMPORTANT]
-> #### 2024-09-14 - Version 1.1.3
+> #### 2024-09-14 - Version 1.2.0
 > This node was renamed to match the new VLM and ALM nodes added.
 
 ## ✨💬 Groq VLM API Node
