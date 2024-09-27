@@ -2,3 +2,4 @@ configparser
 groq
 transformers
 torch
+tiktoken
