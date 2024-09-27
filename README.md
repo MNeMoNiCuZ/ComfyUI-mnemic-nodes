@@ -62,7 +62,30 @@ It also outputs the Width/Height of the image.
 > #### 2024-09-14 - Version 1.2.0
 > This node was renamed in the code to match the functionality. This may break existing nodes.
 
+## Tiktoken Tokenizer Info
+This node takes text as input, and returns a bunch of data from the [tiktoken tokenizer](https://github.com/openai/tiktoken).
+
+It returns the following values:
+- token_count: Total number of tokens
+- character_count: Total number of characters
+- word_count: Total number of words
+- split_string: Tokenized list of strings
+- split_string_list: Tokenized list of strings (output as list)
+- split_token_ids: List of token IDs
+- split_token_ids_list: List of token IDs (output as list)
+- text_hash: Text hash
+- special_tokens_used: Special tokens used
+- special_tokens_used_list: Special tokens used (output as list) 
+
+
+![image](https://github.com/user-attachments/assets/2d26ae1e-3874-4919-be30-f88c59219708)
+
+
+
 ## ✨💬 Groq LLM API Node
+> [!IMPORTANT]
+> #### 2024-09-14 - Version 1.2.0
+> This node was renamed to match the new VLM and ALM nodes added.
 
 This node makes an API call to groq, and returns the response in text format.
 
@@ -144,11 +167,10 @@ Edit the `\nodes\groq\UserPrompts.json` file to create your own presets.
 
 Follow the existing structure and look at the `DefaultPrompts.json` for examples.
 
-> [!IMPORTANT]
-> #### 2024-09-14 - Version 1.2.0
-> This node was renamed to match the new VLM and ALM nodes added.
-
 ## ✨💬 Groq VLM API Node
+> [!IMPORTANT]
+> #### 2024-09-27 - Version 1.2.1
+> Added new Llama 3.2 vision model to the list, but this model is not yet officially available. Once it is, this should automatically work.
 
 [Groq Vision Documentation](https://console.groq.com/docs/vision)
 
