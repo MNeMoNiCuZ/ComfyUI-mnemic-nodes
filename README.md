@@ -62,7 +62,7 @@ It also outputs the Width/Height of the image.
 > #### 2024-09-14 - Version 1.2.0
 > This node was renamed in the code to match the functionality. This may break existing nodes.
 
-## Tiktoken Tokenizer Info
+## 🔠 Tiktoken Tokenizer Info
 This node takes text as input, and returns a bunch of data from the [tiktoken tokenizer](https://github.com/openai/tiktoken).
 
 It returns the following values:
