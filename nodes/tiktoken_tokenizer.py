@@ -158,32 +158,31 @@ class TiktokenTokenizer:
                         return chunks
 
                     while i < total_tokens:
-                        max_chunk_size = token_chunk_size  # Do not shrink the chunk size
+                        max_chunk_size = token_chunk_size  # Keep chunk size as user input
 
                         # Select the next chunk of tokens
                         chunk_ids = token_ids[i:i + max_chunk_size]
                         chunk_text = tokenizer.decode(chunk_ids)
 
-                        # Find the last space in the chunk
+                        # Find the last space in the chunk_text
                         last_space = chunk_text.rfind(' ')
 
-                        if last_space > 0 and i + last_space < total_tokens:
-                            # Adjust the chunk to the last space (word boundary)
+                        if last_space > 0:
                             adjusted_chunk_text = chunk_text[:last_space]
                             adjusted_chunk_ids = tokenizer.encode(adjusted_chunk_text)
 
-                            if len(adjusted_chunk_ids) == 0:
-                                # Adjustment resulted in zero tokens, use the untrimmed chunk
-                                adjusted_chunk_text = chunk_text
-                                adjusted_chunk_ids = chunk_ids
-                            i += len(adjusted_chunk_ids)
+                            # Ensure that adjusted_chunk_ids align with the original tokens
+                            if adjusted_chunk_ids == token_ids[i:i + len(adjusted_chunk_ids)]:
+                                i += len(adjusted_chunk_ids)
+                                chunks.append(adjusted_chunk_text)
+                            else:
+                                # If alignment fails, use the unadjusted chunk
+                                i += len(chunk_ids)
+                                chunks.append(chunk_text)
                         else:
-                            # No space found or at the end, use the chunk as is
-                            adjusted_chunk_text = chunk_text
-                            adjusted_chunk_ids = chunk_ids
-                            i += len(adjusted_chunk_ids)
-
-                        chunks.append(adjusted_chunk_text)
+                            # No space found, use the chunk as is
+                            i += len(chunk_ids)
+                            chunks.append(chunk_text)
 
                     return chunks
 
