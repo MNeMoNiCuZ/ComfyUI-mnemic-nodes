@@ -86,7 +86,7 @@ It returns the following values:
 ---
 
 ### Chunking Example
-![image](https://github.com/user-attachments/assets/05c00b04-d3c2-4b4b-917b-f490b065de44)
+![image](https://github.com/user-attachments/assets/74e6ce19-54f8-48eb-9602-ec1fe60200df)
 
 ## String Cleaning Node
 This node helps you quickly clean up and format strings by letting you remove leading or trailing spaces, periods, commas, or custom text, as well as removing linebreaks, or replacing them with a period.
