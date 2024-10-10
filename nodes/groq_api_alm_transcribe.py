@@ -17,6 +17,7 @@ class GroqAPIALMTranscribe:
 
     # Supported models for transcription
     TRANSCRIPTION_MODELS = [
+        "whisper-large-v3-turbo",
         "distil-whisper-large-v3-en",
         "whisper-large-v3",
     ]
