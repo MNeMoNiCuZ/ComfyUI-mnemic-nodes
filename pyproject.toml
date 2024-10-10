@@ -1,7 +1,7 @@
 [project]
 name = "comfyui-mnemic-nodes"
-description = "Added chunking functionality to tokenizer and a new string cleaning node."
-version = "1.2.2"
+description = "Added whisper-large-v3-turbo to transcription models list."
+version = "1.2.3"
 license = { file = "LICENSE" }
 dependencies = ["configparser", "groq", "transformers", "torch", "tiktoken"]
 
