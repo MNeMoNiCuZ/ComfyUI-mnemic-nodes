@@ -27,9 +27,7 @@ class GroqAPILLM:
         "gemma2-9b-it",
         "llama-3.2-1b-preview",
         "llama-3.2-3b-preview",
-        "llama-3.2-11b-text-preview",
         "llama-3.2-90b-text-preview",
-
     ]
     
     def __init__(self):
