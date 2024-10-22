@@ -3,3 +3,4 @@ groq
 transformers
 torch
 tiktoken
+colorama
