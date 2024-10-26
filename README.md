@@ -2,6 +2,25 @@
 
 This repository hosts a collection of nodes developed for ComfyUI. It aims to share useful components that enhance the functionality of ComfyUI projects. Some nodes are forks or versions of  nodes from other packs, some are bespoke and useful, and some are experimental and are quite useless, so they have been marked with a `Caution` label in this document.
 
+[📁 Get File Path](https://github.com/MNeMoNiCuZ/ComfyUI-mnemic-nodes?tab=readme-ov-file#-get-file-path) - Returns the file path in different formats to a file in your /input-folder.
+
+[💾 Save Text File With Path Node](https://github.com/MNeMoNiCuZ/ComfyUI-mnemic-nodes?tab=readme-ov-file#-save-text-file-with-path-node) - Save text file, and return the saved file's path.
+
+[🖼️ Download Image from URL Node](https://github.com/MNeMoNiCuZ/ComfyUI-mnemic-nodes?tab=readme-ov-file#%EF%B8%8F-download-image-from-url-node) - Download an image from the web.
+
+[🔠 Tiktoken Tokenizer Info](https://github.com/MNeMoNiCuZ/ComfyUI-mnemic-nodes?tab=readme-ov-file#-tiktoken-tokenizer-info) - Returns token information about input text and lets you split it.
+
+[🧹 String Cleaning](https://github.com/MNeMoNiCuZ/ComfyUI-mnemic-nodes?tab=readme-ov-file#string-cleaning) - Cleans up text strings.
+
+[✨💬 Groq LLM API Node](https://github.com/MNeMoNiCuZ/ComfyUI-mnemic-nodes?tab=readme-ov-file#-groq-llm-api-node) - Query Groq large language model.
+
+[✨📷 Groq VLM API Node](https://github.com/MNeMoNiCuZ/ComfyUI-mnemic-nodes?tab=readme-ov-file#-groq-vlm-api-node) - Query Groq vision language model.
+
+[✨📝 Groq ALM API Node](https://github.com/MNeMoNiCuZ/ComfyUI-mnemic-nodes?tab=readme-ov-file#-groq-alm-api-node) - Query Groq Audio Model.
+
+[⛔ Generate Negative Prompt Node](https://github.com/MNeMoNiCuZ/ComfyUI-mnemic-nodes?tab=readme-ov-file#-generate-negative-prompt-node) - Generate negative prompts automatically.
+
+
 # Installation instructions
 
 You may need to manually install the requirements. They should be listed in `requirements.txt`
@@ -88,7 +107,7 @@ It returns the following values:
 ### Chunking Example
 ![image](https://github.com/user-attachments/assets/74e6ce19-54f8-48eb-9602-ec1fe60200df)
 
-## String Cleaning Node
+## 🧹 String Cleaning
 This node helps you quickly clean up and format strings by letting you remove leading or trailing spaces, periods, commas, or custom text, as well as removing linebreaks, or replacing them with a period.
 - `input_string`: Your input string. Use [ComfyUI-Easy-Use](https://github.com/yolain/ComfyUI-Easy-Use) for looping through a list of strings.
 - `collapse_sequential_spaces`: Collapses sequential spaces (" ") in a string into one.
@@ -205,7 +224,7 @@ Edit the `\nodes\groq\UserPrompts.json` file to create your own presets.
 
 Follow the existing structure and look at the `DefaultPrompts.json` for examples.
 
-## ✨💬 Groq VLM API Node
+## ✨📷 Groq VLM API Node
 > [!IMPORTANT]
 > #### 2024-09-27 - Version 1.2.1
 > Added new Llama 3.2 vision model to the list, but this model is not yet officially available. Once it is, this should automatically work.
