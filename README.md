@@ -10,7 +10,7 @@ This repository hosts a collection of nodes developed for ComfyUI. It aims to sh
 
 [🔠 Tiktoken Tokenizer Info](https://github.com/MNeMoNiCuZ/ComfyUI-mnemic-nodes?tab=readme-ov-file#-tiktoken-tokenizer-info) - Returns token information about input text and lets you split it.
 
-[🧹 String Cleaning](https://github.com/MNeMoNiCuZ/ComfyUI-mnemic-nodes?tab=readme-ov-file#string-cleaning) - Cleans up text strings.
+[🧹 String Cleaning](https://github.com/MNeMoNiCuZ/ComfyUI-mnemic-nodes?tab=readme-ov-file#-string-cleaning) - Cleans up text strings.
 
 [✨💬 Groq LLM API Node](https://github.com/MNeMoNiCuZ/ComfyUI-mnemic-nodes?tab=readme-ov-file#-groq-llm-api-node) - Query Groq large language model.
 
