@@ -19,14 +19,14 @@ class GetFilePath:
         files = [f for f in os.listdir(input_dir) if os.path.isfile(os.path.join(input_dir, f))]
         return {
             "required": {
-                "file": (sorted(files), {"file_upload": True, "tooltip": "Place your files in the 'input'-folder inside ComfyUI.\n\nBrowsing functionality is not yet supported. Please send help!"}),
+                "image": (sorted(files), {"image_upload": True, "tooltip": "Make sure to select any file type when uploading a non-image file."}),
             }
         }
 
-    def get_file_path(self, file):
+    def get_file_path(self, image):
         try:
             # Handle file upload within the node logic
-            uploaded_file_path = self.upload_file(file)
+            uploaded_file_path = self.upload_file(image)
 
             # Resolve the full file path using folder_paths
             full_file_path = Path(uploaded_file_path)
@@ -54,21 +54,21 @@ class GetFilePath:
             print(f"Error: Failed to process file path. Details: {str(e)}")
             return None, None, None, None
 
-    def upload_file(self, file):
+    def upload_file(self, image):
         try:
             # Define where to save uploaded files (e.g., input directory)
             input_dir = folder_paths.get_input_directory()
-            file_path = os.path.join(input_dir, file)
+            file_path = os.path.join(input_dir, image)
 
             # Check if file already exists in the directory
             if os.path.exists(file_path):
-                print(f"File {file} already exists in {input_dir}. Skipping upload.")
+                print(f"File {image} already exists in {input_dir}. Skipping upload.")
                 return file_path
 
             # Mimic the upload logic
             with open(file_path, "wb") as f:
                 # Here, you would write the file content to disk
-                f.write(file)  # Assuming `file` contains the file data
+                f.write(image)  # Assuming `file` contains the file data
 
             print(f"File uploaded successfully: {file_path}")
             return file_path
