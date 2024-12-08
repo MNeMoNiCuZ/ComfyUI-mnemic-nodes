@@ -16,7 +16,8 @@ class GroqAPILLM:
     
     LLM_MODELS = [
         "llama-3.1-8b-instant",
-        "llama-3.1-70b-versatile",
+        "llama-3.3-70b-versatile",
+        "llama-3.3-70b-specdec",
         "llama3-8b-8192",
         "llama3-70b-8192",
         "llama-guard-3-8b",
@@ -27,7 +28,6 @@ class GroqAPILLM:
         "gemma2-9b-it",
         "llama-3.2-1b-preview",
         "llama-3.2-3b-preview",
-        "llama-3.2-90b-vision-preview,"
     ]
     
     def __init__(self):
