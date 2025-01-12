@@ -31,6 +31,12 @@ groq
 transformers
 torch
 ```
+
+## Configuration (only needed for Groq nodes)
+
+1. Copy `.env.example` to `.env`
+2. Edit `.env` and add any relevant API-keys or other configurations that are available
+
 ## 📁 Get File Path
 
 This node returns the file path of a given file in the \input-folder.
@@ -141,6 +147,8 @@ This node helps you quickly clean up and format strings by letting you remove le
 
 ## ✨💬 Groq LLM API Node
 > [!IMPORTANT]
+> #### 2025-01-12 - Version 1.2.4
+> Moved groq API key to a .env instead of a config.ini-file. This will cause existing config setups to break with an update. Apologies for the inconvenience.
 > #### 2024-09-14 - Version 1.2.0
 > This node was renamed to match the new VLM and ALM nodes added.
 
@@ -349,8 +357,3 @@ This node utilizes a GPT-2 text inference model to generate a negative prompt th
 > ![Installation Directory](https://github.com/MNeMoNiCuZ/ComfyUI-mnemic-nodes/assets/60541708/8deb9cba-2800-4ab9-a391-832661bda7bd)
 
 For additional information, please visit the [project's GitHub page](https://github.com/MNeMoNiCuZ/NegativePromptGenerator).
-
-## Configuration
-
-1. Copy `.env.example` to `.env`
-2. Edit `.env` and add your Groq API key
