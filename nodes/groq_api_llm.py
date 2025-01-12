@@ -4,10 +4,10 @@ import random
 import numpy as np
 import torch
 from colorama import init, Fore, Style
-from configparser import ConfigParser
 from groq import Groq
 
 from ..utils.api_utils import make_api_request, load_prompt_options, get_prompt_content
+from ..utils.env_manager import ensure_env_file, get_api_key
 
 init()  # Initialize colorama
 
@@ -29,12 +29,13 @@ class GroqAPILLM:
     ]
     
     def __init__(self):
+        # Set up directories for prompt files
         current_directory = os.path.dirname(os.path.realpath(__file__))
         groq_directory = os.path.join(current_directory, 'groq')
-        config_path = os.path.join(groq_directory, 'GroqConfig.ini')
-        self.config = ConfigParser()
-        self.config.read(config_path)
-        self.api_key = self.config.get('API', 'key')
+        
+        # Get API key from env file
+        ensure_env_file()
+        self.api_key = get_api_key()
         self.client = Groq(api_key=self.api_key)
         
         # Load prompt options

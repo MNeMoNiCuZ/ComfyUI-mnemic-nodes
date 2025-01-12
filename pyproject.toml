@@ -1,7 +1,7 @@
 [project]
 name = "comfyui-mnemic-nodes"
-description = "Added whisper-large-v3-turbo to transcription models list."
-version = "1.2.3"
+description = "Moved groq API key to a .env instead of a config.ini-file"
+version = "1.2.4"
 license = { file = "LICENSE" }
 dependencies = ["configparser", "groq", "transformers", "torch", "tiktoken"]
 

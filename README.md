@@ -349,3 +349,8 @@ This node utilizes a GPT-2 text inference model to generate a negative prompt th
 > ![Installation Directory](https://github.com/MNeMoNiCuZ/ComfyUI-mnemic-nodes/assets/60541708/8deb9cba-2800-4ab9-a391-832661bda7bd)
 
 For additional information, please visit the [project's GitHub page](https://github.com/MNeMoNiCuZ/NegativePromptGenerator).
+
+## Configuration
+
+1. Copy `.env.example` to `.env`
+2. Edit `.env` and add your Groq API key

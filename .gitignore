@@ -4,3 +4,5 @@ utils/__pycache__/
 nodes/negativeprompt/weights.pt
 nodes/groq/GroqConfig.ini
 node.tar.gz
+.env
+!.env.example

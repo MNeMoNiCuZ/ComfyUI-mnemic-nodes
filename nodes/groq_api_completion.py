@@ -5,23 +5,32 @@ import requests
 import random
 import numpy as np
 import torch
-from configparser import ConfigParser
 from groq import Groq
 import base64
 from PIL import Image
+
+from ..utils.api_utils import load_prompt_options, get_prompt_content
+from ..utils.env_manager import ensure_env_file, get_api_key
 
 class GroqAPICompletion:
     DEFAULT_PROMPT = "Use [system_message] and [user_input]"
     
     def __init__(self):
+        # Set up directories for prompt files
         current_directory = os.path.dirname(os.path.realpath(__file__))
         groq_directory = os.path.join(current_directory, 'groq')
-        config_path = os.path.join(groq_directory, 'GroqConfig.ini')
-        self.config = ConfigParser()
-        self.config.read(config_path)
-        self.api_key = self.config.get('API', 'key')
+        
+        # Get API key from env file
+        ensure_env_file()
+        self.api_key = get_api_key()
         self.client = Groq(api_key=self.api_key)
-        self.prompt_options = self.load_prompt_options()
+        
+        # Load prompt options
+        prompt_files = [
+            os.path.join(groq_directory, 'DefaultPrompts.json'),
+            os.path.join(groq_directory, 'UserPrompts.json')
+        ]
+        self.prompt_options = load_prompt_options(prompt_files)
 
     @classmethod
     def INPUT_TYPES(cls):
