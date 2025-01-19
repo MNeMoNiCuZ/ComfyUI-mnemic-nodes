@@ -34,8 +34,10 @@ torch
 
 ## Configuration (only needed for Groq nodes)
 
-1. Copy `.env.example` to `.env`
-2. Edit `.env` and add any relevant API-keys or other configurations that are available
+1. Make a copy of `.env.example` and remove the `.example` from the name.
+2. The new file should now be named `.env` without a normal file name, just a .env extension.
+3. The file should be in the root of the node pack, so the same directory that the .example was in.
+4. Edit `.env` with a text editor and edit the API key value inside.
 
 ## 📁 Get File Path
 
