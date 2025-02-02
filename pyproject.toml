@@ -1,7 +1,7 @@
 [project]
 name = "comfyui-mnemic-nodes"
-description = "Moved groq API key to a .env instead of a config.ini-file"
-version = "1.2.4"
+description = "Added Lora Loader - Tag node, originally by badjeff"
+version = "1.2.5"
 license = { file = "LICENSE" }
 dependencies = ["configparser", "groq", "transformers", "torch", "tiktoken"]
 

@@ -8,6 +8,7 @@ from .nodes.groq_api_alm_transcribe import GroqAPIALMTranscribe
 from .nodes.tiktoken_tokenizer import TiktokenTokenizer
 from .nodes.string_cleaning import StringCleaning
 from .nodes.generate_negative_prompt import GenerateNegativePrompt
+from .nodes.lora_tag_loader import LoraTagLoader
 
 
 NODE_CLASS_MAPPINGS = { 
@@ -20,6 +21,7 @@ NODE_CLASS_MAPPINGS = {
     #"✨🌐 Groq ALM API - Translate [EN only]": GroqAPIALMTranslate,
     "🔠 Tiktoken Tokenizer Info": TiktokenTokenizer,
     "🧹 String Cleaning": StringCleaning,
+    "🏷️ Lora Loader - Tags": LoraTagLoader,
     "⛔ Generate Negative Prompt": GenerateNegativePrompt,
 }
 

@@ -7,6 +7,7 @@ from .groq_api_vlm import GroqAPIVLM
 from .groq_api_alm_transcribe import GroqAPIALMTranscribe
 from .tiktoken_tokenizer import TiktokenTokenizer
 from .string_cleaning import StringCleaning
+from .lora_tag_loader import LoraTagLoader
 #from .groq_api_alm_translate import GroqAPIALMTranslate
 
 __all__ = [
@@ -20,4 +21,5 @@ __all__ = [
     "TiktokenTokenizer",
     "StringCleaning",
     "GenerateNegativePrompt",
+    "LoraTagLoader",
 ]
