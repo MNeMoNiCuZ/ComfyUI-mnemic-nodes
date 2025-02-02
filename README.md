@@ -12,7 +12,7 @@ This repository hosts a collection of nodes developed for ComfyUI. It aims to sh
 
 [🧹 String Cleaning](https://github.com/MNeMoNiCuZ/ComfyUI-mnemic-nodes?tab=readme-ov-file#-string-cleaning) - Cleans up text strings.
 
-[🏷️ LoRA Loader Prompt Tags](https://github.com/MNeMoNiCuZ/ComfyUI-mnemic-nodes?tab=readme-ov-file#-lora-loader-prompt-tags) - Loads LoRA models using `<lora:MyLoRA:1>` in the prompt.
+[🏷️ LoRA Loader Prompt Tags](https://github.com/MNeMoNiCuZ/ComfyUI-mnemic-nodes?tab=readme-ov-file#%EF%B8%8F-lora-loader-prompt-tags) - Loads LoRA models using `<lora:MyLoRA:1>` in the prompt.
 
 [✨💬 Groq LLM API Node](https://github.com/MNeMoNiCuZ/ComfyUI-mnemic-nodes?tab=readme-ov-file#-groq-llm-api-node) - Query Groq large language model.
 
