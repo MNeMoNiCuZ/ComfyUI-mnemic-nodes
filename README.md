@@ -12,6 +12,8 @@ This repository hosts a collection of nodes developed for ComfyUI. It aims to sh
 
 [🧹 String Cleaning](https://github.com/MNeMoNiCuZ/ComfyUI-mnemic-nodes?tab=readme-ov-file#-string-cleaning) - Cleans up text strings.
 
+[🏷️ LoRA Loader Prompt Tags](https://github.com/MNeMoNiCuZ/ComfyUI-mnemic-nodes?tab=readme-ov-file#-lora-loader-prompt-tags) - Loads LoRA models using `<lora:MyLoRA:1>` in the prompt.
+
 [✨💬 Groq LLM API Node](https://github.com/MNeMoNiCuZ/ComfyUI-mnemic-nodes?tab=readme-ov-file#-groq-llm-api-node) - Query Groq large language model.
 
 [✨📷 Groq VLM API Node](https://github.com/MNeMoNiCuZ/ComfyUI-mnemic-nodes?tab=readme-ov-file#-groq-vlm-api-node) - Query Groq vision language model.
@@ -146,6 +148,16 @@ This node helps you quickly clean up and format strings by letting you remove le
 ### Work on your novel
 ![image](https://github.com/user-attachments/assets/c5a250f8-2aee-43c3-9394-f5a728e68a91)
 
+
+## 🏷️ LoRA Loader Prompt Tags
+
+Loads LoRA models using `<lora:MyLoRA:1>` in the prompt.
+
+![image](https://github.com/user-attachments/assets/595fdb36-1442-4c0a-abf4-b1779674c515)
+
+Route the model and clip through the node.
+
+Use the output [STRING] to have the prompt without the `<lora::>`-tags.
 
 ## ✨💬 Groq LLM API Node
 > [!IMPORTANT]
