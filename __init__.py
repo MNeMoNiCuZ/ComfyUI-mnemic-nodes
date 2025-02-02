@@ -21,7 +21,7 @@ NODE_CLASS_MAPPINGS = {
     #"✨🌐 Groq ALM API - Translate [EN only]": GroqAPIALMTranslate,
     "🔠 Tiktoken Tokenizer Info": TiktokenTokenizer,
     "🧹 String Cleaning": StringCleaning,
-    "🏷️ Lora Loader - Tags": LoraTagLoader,
+    "🏷️ LoRA Loader Prompt Tags": LoraTagLoader,
     "⛔ Generate Negative Prompt": GenerateNegativePrompt,
 }
 
