@@ -15,6 +15,8 @@ class GroqAPILLM:
     DEFAULT_PROMPT = "Use [system_message] and [user_input]"
     
     LLM_MODELS = [
+        "deepseek-r1-distill-llama-70b",
+        "deepseek-r1-distill-qwen-32b",
         "llama-3.1-8b-instant",
         "llama-3.3-70b-versatile",
         "llama-3.3-70b-specdec",
@@ -26,6 +28,7 @@ class GroqAPILLM:
         "gemma2-9b-it",
         "llama-3.2-1b-preview",
         "llama-3.2-3b-preview",
+        "qwen-2.5-32b",
     ]
     
     def __init__(self):
