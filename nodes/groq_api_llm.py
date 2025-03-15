@@ -25,13 +25,11 @@ class GroqAPILLM:
         "llama-guard-3-8b",
 		"deepseek-r1-distill-qwen-32b",
 		"deepseek-r1-distill-llama-70b",
-		"deepseek-r1-distill-llama-70b-specdec",
 		"qwen-qwq-32b",
 		"qwen-2.5-32b",
 		"qwen-2.5-coder-32b",
         "mixtral-8x7b-32768",
 		"mistral-saba-24b",
-        "gemma-7b-it",
         "gemma2-9b-it",
     ]
     

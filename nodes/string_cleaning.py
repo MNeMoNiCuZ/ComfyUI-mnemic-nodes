@@ -34,6 +34,11 @@ class StringCleaning:
                     "tooltip": "Strip trailing spaces from each line in the text.",
                     "default": False
                 }),
+                "strip_empty_lines": ("BOOLEAN", {
+                    "label": "Strip Empty Lines",
+                    "tooltip": "Remove empty or whitespace-only lines from the text.",
+                    "default": False
+                }),
                 "strip_leading_symbols": ("BOOLEAN", {
                     "label": "Strip Leading Symbols",
                     "tooltip": "Strip leading punctuation symbols (, . ! ? : ;) from each line.",
@@ -57,37 +62,57 @@ class StringCleaning:
                 "strip_inside_tags": ("STRING", {
                     "multiline": True,
                     "label": "Strip Inside Tags",
-                    "tooltip": "Enter pairs of characters to strip content between them (one pair per line). Each line must have exactly two characters.",
+                    "tooltip": "Enter pairs of characters to strip content between them (one pair per line).\nExample Input:\n()\n[]\n{}\nInput: 'Hello (world) and [text]'\nOutput: 'Hello and'",
+                    "placeholder": "Strip Content Between Character Pairs\nExample: ()",
+                    "default": ""
+                }),
+                "strip_between_start": ("STRING", {
+                    "multiline": True,
+                    "label": "Strip Between Start Tags",
+                    "tooltip": "Enter start tags to strip content from (one per line).\nExample: '<think>'\nInput: '<think>Hmm, so the user has asked us to...</think> The answer is 24'\nOutput: 'The answer is 24'",
+                    "placeholder": "Strip Between Tags Start Tag\nExample: <think>",
+                    "default": ""
+                }),
+                "strip_between_end": ("STRING", {
+                    "multiline": True,
+                    "label": "Strip Between End Tags",
+                    "tooltip": "Enter end tags to strip content to (one per line).\nMust match number of Start Tags lines.\nExample: '</think>'",
+                    "placeholder": "Strip Between Tags End Tag\nExample: </think>",
                     "default": ""
                 }),
                 "strip_leading_custom": ("STRING", {
                     "multiline": True,
                     "label": "Strip Leading Custom Strings",
-                    "tooltip": "Enter custom strings to strip from the start of each line (one per line).",
+                    "tooltip": "Enter custom strings to strip from the start of each line.\nExample Input: 'Chapter'\nInput: 'Chapter 1: Hello\nChapter 2: World'\nOutput: '1: Hello\n2: World'",
+                    "placeholder": "Remove Text From Line Starts\nExample: Chapter",
                     "default": ""
                 }),
                 "strip_trailing_custom": ("STRING", {
                     "multiline": True,
                     "label": "Strip Trailing Custom Strings",
-                    "tooltip": "Enter custom strings to strip from the end of each line (one per line).",
+                    "tooltip": "Enter custom strings to strip from the end of each line.\nExample Input: 'END'\nInput: 'Hello END\nWorld END'\nOutput: 'Hello\nWorld'",
+                    "placeholder": "Remove Text From Line Ends\nExample: END",
                     "default": ""
                 }),
                 "strip_all_custom": ("STRING", {
                     "multiline": True,
                     "label": "Strip Custom Strings",
-                    "tooltip": "Enter custom strings to remove throughout the text (one per line).",
+                    "tooltip": "Enter custom strings to remove throughout the text.\nExample Input: 'the'\nInput: 'the cat and the dog'\nOutput: 'cat and dog'",
+                    "placeholder": "Remove Text Everywhere\nExample: the",
                     "default": ""
                 }),
                 "multiline_find": ("STRING", {
                     "multiline": True,
                     "label": "Find Strings",
-                    "tooltip": "Enter strings to find (one per line).",
+                    "tooltip": "Enter strings to find (one per line).\nExample: 'old' to be replaced with 'new'\nMust match number of Replace Strings lines",
+                    "placeholder": "Find Text To Replace\nExample: old",
                     "default": ""
                 }),
                 "multiline_replace": ("STRING", {
                     "multiline": True,
                     "label": "Replace Strings",
-                    "tooltip": "Enter replacement strings (one per line). Must match the number of find strings.",
+                    "tooltip": "Enter replacement strings (one per line).\nExample: 'new' to replace 'old'\nMust match number of Find Strings lines",
+                    "placeholder": "Replace Found Text With\nExample: new",
                     "default": ""
                 }),
             }
@@ -98,11 +123,14 @@ class StringCleaning:
                      collapse_sequential_spaces=False,
                      strip_leading_spaces=False,
                      strip_trailing_spaces=False,
+                     strip_empty_lines=False,
                      strip_leading_symbols=False,
                      strip_trailing_symbols=False,
                      strip_newlines=False,
                      replace_newlines_with_period_space=False,
                      strip_inside_tags="",
+                     strip_between_start="",
+                     strip_between_end="",
                      strip_leading_custom="",
                      strip_trailing_custom="",
                      strip_all_custom="",
@@ -118,6 +146,14 @@ class StringCleaning:
         for tag_pair in strip_inside_tags_list:
             if len(tag_pair) != 2:
                 raise ValueError(f"Each line in 'Strip Inside Tags' must have exactly two characters. Found '{tag_pair}'")
+
+        # Parse strip between start/end tags
+        strip_between_start_list = [line for line in strip_between_start.split('\n') if line != '']
+        strip_between_end_list = [line for line in strip_between_end.split('\n') if line != '']
+
+        # Validate that both start and end tag lists have the same number of lines
+        if len(strip_between_start_list) != len(strip_between_end_list):
+            raise ValueError("The number of lines in 'Strip Between Start Tags' and 'Strip Between End Tags' must be the same.")
 
         # Parse find and replace lists
         find_list = [line for line in multiline_find.split('\n')]
@@ -140,11 +176,14 @@ class StringCleaning:
             collapse_sequential_spaces=collapse_sequential_spaces,
             strip_leading_spaces=strip_leading_spaces,
             strip_trailing_spaces=strip_trailing_spaces,
+            strip_empty_lines=strip_empty_lines,
             strip_leading_symbols=strip_leading_symbols,
             strip_trailing_symbols=strip_trailing_symbols,
             strip_newlines=strip_newlines,
             replace_newlines_with_period_space=replace_newlines_with_period_space,
             strip_inside_tags=strip_inside_tags_list,
+            strip_between_start=strip_between_start_list,
+            strip_between_end=strip_between_end_list,
             strip_leading_custom=strip_leading_custom_list,
             strip_trailing_custom=strip_trailing_custom_list,
             strip_all_custom=strip_all_custom_list,

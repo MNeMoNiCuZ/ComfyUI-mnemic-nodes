@@ -8,7 +8,10 @@ def process_text(input_string,
                  strip_trailing_symbols=False,
                  strip_newlines=False,
                  replace_newlines_with_period_space=False,
+                 strip_empty_lines=False,
                  strip_inside_tags=None,
+                 strip_between_start=None,
+                 strip_between_end=None,
                  strip_leading_custom=None,
                  strip_trailing_custom=None,
                  strip_all_custom=None,
@@ -26,7 +29,10 @@ def process_text(input_string,
         strip_trailing_symbols (bool): If True, strip trailing punctuation symbols per line.
         strip_newlines (bool): If True, remove all newlines.
         replace_newlines_with_period_space (bool): If True, replace multiple newlines with '. '.
+        strip_empty_lines (bool): If True, remove empty or whitespace-only lines.
         strip_inside_tags (list of str): List of character pairs to strip content between.
+        strip_between_start (list of str): List of start tags to strip content from.
+        strip_between_end (list of str): List of end tags to strip content to.
         strip_leading_custom (list of str): List of custom strings to strip from the start of each line.
         strip_trailing_custom (list of str): List of custom strings to strip from the end of each line.
         strip_all_custom (list of str): List of custom strings to remove throughout the text.
@@ -57,6 +63,14 @@ def process_text(input_string,
             pattern = re.escape(start_char) + '.*?' + re.escape(end_char)
             input_string = re.sub(pattern, '', input_string, flags=re.DOTALL)
 
+    # Strip between start/end tags
+    if strip_between_start and strip_between_end:
+        for start_tag, end_tag in zip(strip_between_start, strip_between_end):
+            if not start_tag or not end_tag:  # Skip empty tags
+                continue
+            pattern = re.escape(start_tag) + '.*?' + re.escape(end_tag)
+            input_string = re.sub(pattern, '', input_string, flags=re.DOTALL)
+
     # Split input into lines for per-line processing
     lines = input_string.split('\n')
 
@@ -67,6 +81,10 @@ def process_text(input_string,
     # Strip trailing spaces per line
     if strip_trailing_spaces:
         lines = [line.rstrip() for line in lines]
+
+    # Remove empty lines
+    if strip_empty_lines:
+        lines = [line for line in lines if line.strip()]
 
     # Strip leading symbols per line
     if strip_leading_symbols:
