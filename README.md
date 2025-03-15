@@ -135,6 +135,11 @@ This node helps you quickly clean up and format strings by letting you remove le
 - `multiline_replace`: Find and replace for multiple entries. Will be processed in order.
 
 ---
+### Remove \<think\> tags
+![image](https://github.com/user-attachments/assets/fe120033-c6c8-4ea6-a204-a8dbb270a6a9)
+
+---
+
 ### Clean up HTML
 ![image](https://github.com/user-attachments/assets/3d622652-5e49-41f0-9f9b-4aabcdd978ac)
 
