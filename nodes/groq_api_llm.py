@@ -18,14 +18,21 @@ class GroqAPILLM:
         "llama-3.1-8b-instant",
         "llama-3.3-70b-versatile",
         "llama-3.3-70b-specdec",
+		"llama-3.2-1b-preview",
+        "llama-3.2-3b-preview",
         "llama3-8b-8192",
         "llama3-70b-8192",
         "llama-guard-3-8b",
+		"deepseek-r1-distill-qwen-32b",
+		"deepseek-r1-distill-llama-70b",
+		"deepseek-r1-distill-llama-70b-specdec",
+		"qwen-qwq-32b",
+		"qwen-2.5-32b",
+		"qwen-2.5-coder-32b",
         "mixtral-8x7b-32768",
+		"mistral-saba-24b",
         "gemma-7b-it",
         "gemma2-9b-it",
-        "llama-3.2-1b-preview",
-        "llama-3.2-3b-preview",
     ]
     
     def __init__(self):
