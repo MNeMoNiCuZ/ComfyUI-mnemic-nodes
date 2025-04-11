@@ -1,7 +1,7 @@
 [project]
 name = "comfyui-mnemic-nodes"
-description = "Updated the StringClean node with the tools to strip out content between multiline tags, like <thinking>"
-version = "1.2.6"
+description = "Added llama4 models to LLM API node"
+version = "1.2.7"
 license = { file = "LICENSE" }
 dependencies = ["configparser", "groq", "transformers", "torch", "tiktoken"]
 
