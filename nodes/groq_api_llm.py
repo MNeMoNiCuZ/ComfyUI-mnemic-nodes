@@ -14,24 +14,18 @@ init()  # Initialize colorama
 class GroqAPILLM:
     DEFAULT_PROMPT = "Use [system_message] and [user_input]"
     
+    # Deprecation List - https://console.groq.com/docs/deprecations
+
     LLM_MODELS = [
         "llama-3.1-8b-instant",
         "llama-3.3-70b-versatile",
-        "llama-3.3-70b-specdec",
         "meta-llama/llama-4-scout-17b-16e-instruct",
         "meta-llama/llama-4-maverick-17b-128e-instruct",
-        "llama-3.2-1b-preview",
-        "llama-3.2-3b-preview",
         "llama3-8b-8192",
         "llama3-70b-8192",
         "llama-guard-3-8b",
-        "deepseek-r1-distill-qwen-32b",
         "deepseek-r1-distill-llama-70b",
         "qwen-qwq-32b",
-        "qwen-2.5-32b",
-        "qwen-2.5-coder-32b",
-        "mixtral-8x7b-32768",
-        "mistral-saba-24b",
         "gemma2-9b-it",
     ]
     
