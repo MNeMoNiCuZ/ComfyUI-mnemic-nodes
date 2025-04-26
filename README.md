@@ -14,7 +14,7 @@ This repository hosts a collection of nodes developed for ComfyUI. It aims to sh
 
 [🏷️ LoRA Loader Prompt Tags](https://github.com/MNeMoNiCuZ/ComfyUI-mnemic-nodes?tab=readme-ov-file#%EF%B8%8F-lora-loader-prompt-tags) - Loads LoRA models using `<lora:MyLoRA:1>` in the prompt.
 
-📐 Resolution Image Size Selector - Creates resolutions and a latent from presets, user presets, or input images.
+[📐 Resolution Image Size Selector](https://github.com/MNeMoNiCuZ/ComfyUI-mnemic-nodes/tree/main?tab=readme-ov-file#-resolution-image-size-selector) - Creates resolutions and a latent from presets, user presets, or input images.
 
 [✨💬 Groq LLM API Node](https://github.com/MNeMoNiCuZ/ComfyUI-mnemic-nodes?tab=readme-ov-file#-groq-llm-api-node) - Query Groq large language model.
 
