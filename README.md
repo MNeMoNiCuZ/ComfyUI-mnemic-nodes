@@ -290,7 +290,7 @@ Follow the existing structure and look at the `DefaultPrompts.json` for examples
 This node makes an API call to groq with an attached image and then uses Vision Language Models to return a description of the image, or answer to a question about the image in text format.
 
 ### Setup
-You need to manually enter your [groq API key](https://console.groq.com/keys) into the `GroqConfig.ini` file.
+You need to manually enter your [groq API key](https://console.groq.com/keys) into the `.env` file. A template file is provided and can be renamed to `.env` for use.
 
 Currently, the Groq API can be used for free, with very friendly and generous [rate limits](https://console.groq.com/docs/rate-limits).
 
