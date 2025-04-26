@@ -9,6 +9,7 @@ from .nodes.tiktoken_tokenizer import TiktokenTokenizer
 from .nodes.string_cleaning import StringCleaning
 from .nodes.generate_negative_prompt import GenerateNegativePrompt
 from .nodes.lora_tag_loader import LoraTagLoader
+from .nodes.resolution_selector import ResolutionSelector
 
 
 NODE_CLASS_MAPPINGS = { 
@@ -22,6 +23,7 @@ NODE_CLASS_MAPPINGS = {
     "🔠 Tiktoken Tokenizer Info": TiktokenTokenizer,
     "🧹 String Cleaning": StringCleaning,
     "🏷️ LoRA Loader Prompt Tags": LoraTagLoader,
+    "📐 Resolution Image Size Selector", ResolutionSelector,
     "⛔ Generate Negative Prompt": GenerateNegativePrompt,
 }
 

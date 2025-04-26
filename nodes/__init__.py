@@ -8,6 +8,7 @@ from .groq_api_alm_transcribe import GroqAPIALMTranscribe
 from .tiktoken_tokenizer import TiktokenTokenizer
 from .string_cleaning import StringCleaning
 from .lora_tag_loader import LoraTagLoader
+from .resolution_selector import ResolutionSelector
 #from .groq_api_alm_translate import GroqAPIALMTranslate
 
 __all__ = [
@@ -22,4 +23,5 @@ __all__ = [
     "StringCleaning",
     "GenerateNegativePrompt",
     "LoraTagLoader",
+    "ResolutionSelector",
 ]
