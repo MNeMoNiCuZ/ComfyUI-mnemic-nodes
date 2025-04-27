@@ -2,7 +2,7 @@ __pycache__/
 nodes/__pycache__/
 utils/__pycache__/
 nodes/negativeprompt/weights.pt
-nodes/groq/GroqConfig.ini
+nodes/resolution_selector/user_resolution.json
 node.tar.gz
 .env
 !.env.example
