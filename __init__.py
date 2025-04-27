@@ -23,7 +23,7 @@ NODE_CLASS_MAPPINGS = {
     "🔠 Tiktoken Tokenizer Info": TiktokenTokenizer,
     "🧹 String Cleaning": StringCleaning,
     "🏷️ LoRA Loader Prompt Tags": LoraTagLoader,
-    "📐 Resolution Image Size Selector", ResolutionSelector,
+    "📐 Resolution Image Size Selector": ResolutionSelector,
     "⛔ Generate Negative Prompt": GenerateNegativePrompt,
 }
 
