@@ -2,7 +2,7 @@
 
 This repository hosts a collection of nodes developed for ComfyUI. It aims to share useful components that enhance the functionality of ComfyUI projects. Some nodes are forks or versions of  nodes from other packs, some are bespoke and useful, and some are experimental and are quite useless, so they have been marked with a `Caution` label in this document.
 
-[📝 Wildcard Processor](https://github.com/MNeMoNiCuZ/ComfyUI-mnemic-nodes/blob/main/README.md#wildcard-processor-features) - A versatile text processor that replaces wildcards with dynamic content from files or inline lists.
+[📝 Wildcard Processor](https://github.com/MNeMoNiCuZ/ComfyUI-mnemic-nodes/blob/main/README.md#wildcard-processor-features) - A versatile text processor that replaces wildcards with content from files or inline lists.
 
 [📁 Get File Path](https://github.com/MNeMoNiCuZ/ComfyUI-mnemic-nodes?tab=readme-ov-file#-get-file-path) - Returns the file path in different formats to a file in your /input-folder.
 
