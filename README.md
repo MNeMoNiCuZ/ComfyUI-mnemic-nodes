@@ -47,6 +47,19 @@ This node adds powerful dynamic capabilities to your prompts. Wildcards are gene
 
 Here is a summary of the features and syntax.
 
+### Smart Wildcard Matching
+Smart wildcard matching:\nThe node will try to find the best match for a wildcard, even if the name is not an exact match. It will search for files in the wildcards directories and use the best match based on a scoring system. Exact matches have priority, and more root level files have priority after that.
+
+### Multiple Wildcard Paths
+Wildcards can be placed in different directories. It's recommended to only use one, but they can all be combined.
+Paths:
+- `ComfyUI/wildcards`
+- `ComfyUI/custom_nodes/ComfyUI-mnemic-nodes/wildcards`
+
+or in a user-defined path in:
+
+- `ComfyUI/custom_nodes/ComfyUI-mnemic-nodes/nodes/wildcards/wildcards_paths_user.json`
+
 ### File Wildcards
 
 Loads a random line from a text-file in the wildcards directory.
