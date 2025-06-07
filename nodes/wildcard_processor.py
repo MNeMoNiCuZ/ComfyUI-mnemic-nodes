@@ -26,10 +26,11 @@ class WildcardProcessor:
                          "Variables:\nDefine a variable to reuse a value. Can be defined directly, or using a wildcard\nExample Input: ${animal=!__animals__} The ${animal} is friends with the other ${animal}.\nExample Output: The cat is friends with the other cat.\n\n"
                          "Smart wildcard matching:\nThe node will try to find the best match for a wildcard, even if the name is not an exact match. It will search for files in the wildcards directories and use the best match based on a scoring system. Exact matches have priority, and more root level files have priority after that.\n\n"
                          "Multiple Wildcard Paths:\nWildcards can be placed in different directories. It's recommended to only use one.\n"
+                         "\nPaths:\n"
                          "ComfyUI/wildcards\n"
                          "ComfyUI/custom_nodes/ComfyUI-mnemic-nodes/wildcards\n"
-                         "or in a user-defined path in:\n"
-                         "ComfyUI/custom_nodes/ComfyUI-mnemic-nodes/nodes/wildcards/wildcards_paths_user.json."
+                         "or in a user-defined path in: ComfyUI/custom_nodes/ComfyUI-mnemic-nodes/nodes/wildcards/wildcards_paths_user.json.\n\n"
+                         "View README_WILDCARD.md for more information."
                          )
     
     def __init__(self):

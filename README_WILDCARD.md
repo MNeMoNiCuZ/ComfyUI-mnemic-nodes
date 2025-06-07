@@ -29,7 +29,7 @@ This node is a complete rewrite of a previous version, designed for stability, p
     - `seed`: Controls the randomization. Use the `control_after_generate` widget to set it to `fixed`, `randomize`, etc.
     - `multiple_separator`: (Default: space) The character(s) to put between items when you select more than one from a single wildcard (e.g., using `2$$`).
     - `recache_wildcards`: Enable this to force a reload of all wildcard files from disk.
-    - `console_log`: (Default: False) Check this to see detailed output in your console.
+    - `consolewildcard_log`: (Default: False) Check this to see detailed output in your console.
     - `tag_extraction_tags`: Define character pairs to extract content (e.g., `[],**`).
 3.  **Connect Outputs**:
     - `processed_text`: The final, cleaned text to be used as your prompt.
@@ -45,7 +45,13 @@ This node is a complete rewrite of a previous version, designed for stability, p
 
 ### File Wildcards (`__...__`)
 
-This feature lets you manage large lists of options in separate text files. Place any `.txt` file inside your `ComfyUI/custom_nodes/ComfyUI-mnemic-nodes/wildcards/` directory. The node will automatically find them, even in subfolders.
+This feature lets you manage large lists of options in separate text files. The processor is highly flexible and searches for `.txt` wildcard files in multiple locations in a specific order of priority:
+
+-   **ComfyUI's Root Wildcard Folder**: `ComfyUI/wildcards/`
+-   **User-Defined Paths**: Any folder paths you add to the `ComfyUI/custom_nodes/ComfyUI-mnemic-nodes/nodes/wildcards/wildcards_paths_user.json` file. This allows you to organize your wildcards anywhere you like.
+-   **Node's Own Wildcard Folder**: `ComfyUI/custom_nodes/ComfyUI-mnemic-nodes/wildcards/`
+
+The node scans all these locations recursively (including subfolders). When you use a wildcard like `__animals__`, it uses a smart matching system to find the best file. It prioritizes exact matches (`animals.txt`) and files closer to the root of each wildcard directory.
 
 -   **Example**: If you have `wildcards/animals.txt`, you can use `__animals__` in your prompt.
 -   **Input**: `A cute little __animals__.`
@@ -155,4 +161,32 @@ This feature allows you to define special tags in your prompt that will be extra
 
 This allows you to, for example, route the artist's name or a chosen style to another part of your workflow, while ensuring it doesn't appear in the final prompt sent to the sampler.
 
-> **Pro Tip:** The `processed_text` output may contain remnants of the delimiters (e.g., `, , style`). For cleaner output, you can chain the `processed_text` into a `String Cleaning` node to remove extra spaces or symbols. To split the `extracted_tags_string` by its `|` delimiter, use the **`String Text Splitter`** node.
+---
+
+## Utility Nodes
+
+These nodes are included in the Mnemic Nodes pack and are designed to work well with the Wildcard Processor for advanced string manipulation.
+
+### String Text Splitter
+
+This node is perfect for breaking up a string into multiple parts based on a delimiter. It's especially useful for handling the `extracted_tags_string` output from the Wildcard Processor, which is joined by `|`.
+
+-   **Inputs**:
+    -   `input_string`: The text to split (e.g., `item1|item2|item3`).
+    -   `delimiter`: The character to split on (e.g., `|`).
+-   **Outputs**:
+    -   `first_chunk`: The part of the string before the *first* delimiter (e.g., `item1`).
+    -   `remainder`: The rest of the string after the *first* delimiter (e.g., `item2|item3`).
+    -   `chunk_list`: A list containing all the parts of the split string (e.g., `['item1', 'item2', 'item3']`).
+
+### String Text Extractor
+
+Use this node to pull out all occurrences of text that are enclosed by a specific pair of characters.
+
+-   **Inputs**:
+    -   `input_string`: The text to search within.
+    -   `delimiters`: The pair of characters to use as delimiters (e.g., `[]`, `**`).
+-   **Outputs**:
+    -   `extracted_text`: The content found inside the *first* pair of delimiters.
+    -   `remainder_text`: The original text with the first extracted part (and its delimiters) removed.
+    -   `extracted_list`: A list of all items found between any of the delimiter pairs in the string.
