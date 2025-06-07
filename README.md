@@ -198,7 +198,7 @@ It is meant to have a browse-button so you can browse to any file, but it doesn'
 **If you know how to add this, please let me know or do a pull request.**
 
 
-## 💾 Save Text File With Path Node
+## 💾 Save Text File With Path
 
 This node is adapted and enhanced from the Save Text File node found in the [YMC GitHub ymc-node-suite-comfyui pack](https://github.com/YMC-GitHub/ymc-node-suite-comfyui).
 
@@ -217,7 +217,7 @@ The node can now give you a full file path output if you need it, as well as out
 > Sorry for any troubles caused.
 
 
-## 🖼️ Download Image from URL Node
+## 🖼️ Download Image from URL
 
 This node downloads an image from an URL and lets you use it.
 
@@ -362,7 +362,7 @@ The `snap_to_nearest` ensures specific snapping on the final output value. This 
 The `batch_size` option is used to create multiple output latents when you use tha latent output node.
 
 
-## ✨💬 Groq LLM API Node
+## ✨💬 Groq LLM API
 > [!IMPORTANT]
 > #### 2025-01-12 - Version 1.2.4
 > Moved groq API key to a .env instead of a config.ini-file. This will cause existing config setups to break with an update. Apologies for the inconvenience.
@@ -449,7 +449,7 @@ Edit the `\nodes\groq\UserPrompts.json` file to create your own presets.
 
 Follow the existing structure and look at the `DefaultPrompts.json` for examples.
 
-## ✨📷 Groq VLM API Node
+## ✨📷 Groq VLM API
 > [!IMPORTANT]
 > #### 2024-09-27 - Version 1.2.1
 > Added new Llama 3.2 vision model to the list, but this model is not yet officially available. Once it is, this should automatically work.
@@ -500,7 +500,7 @@ Currently, the Groq API can be used for free, with very friendly and generous [r
 
 
 
-## ✨📝 Groq ALM API Node
+## ✨📝 Groq ALM API
 
 [Groq Speech Documentation](https://console.groq.com/docs/speech-text)
 
@@ -550,7 +550,7 @@ You can use this to generate files to use in a [Karaoke app](https://github.com/
 
 
 
-## ⛔ Generate Negative Prompt Node
+## ⛔ Generate Negative Prompt
 
 > [!CAUTION]
 > This node is highly experimental, and does not produce any useful result right now. It also requires you to download a specially trained model for it. It's just not worth the effort. It's mostly here to share a work in progress project.
