@@ -41,7 +41,7 @@ This repository hosts a collection of nodes developed for ComfyUI. It aims to sh
 
 # Nodes
 
-## Wildcard Processor
+## 📝 Wildcard Processor
 
 This node adds powerful dynamic capabilities to your prompts. Wildcards are generally used to randomize your output, by writing the prompt in a specific format, or loading random lines from text-files.
 
@@ -299,7 +299,7 @@ This node helps you quickly clean up and format strings by letting you remove le
 ### Work on your novel
 ![image](https://github.com/user-attachments/assets/c5a250f8-2aee-43c3-9394-f5a728e68a91)
 
-## String Text Splitter
+## ✂️ String Text Splitter
 
 ![image](https://github.com/user-attachments/assets/431ccbfe-3d33-4e5b-b813-9d824bb20bb6)
 
@@ -312,7 +312,7 @@ This node helps you quickly clean up and format strings by letting you remove le
     -   `remainder`: The rest of the string after the first delimiter.
     -   `chunk_list`: A list of all items split by the delimiter.
 
-## String Text Extractor
+## ✂️ String Text Extractor
 
 ![image](https://github.com/user-attachments/assets/68a745b5-9b63-4796-8fd2-f1224d0e1510)
 
