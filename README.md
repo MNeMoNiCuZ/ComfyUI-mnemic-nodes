@@ -2,6 +2,8 @@
 
 This repository hosts a collection of nodes developed for ComfyUI. It aims to share useful components that enhance the functionality of ComfyUI projects. Some nodes are forks or versions of  nodes from other packs, some are bespoke and useful, and some are experimental and are quite useless, so they have been marked with a `Caution` label in this document.
 
+📝 Wildcard Processor - A versatile text processor that replaces wildcards with dynamic content from files or inline lists.
+
 [📁 Get File Path](https://github.com/MNeMoNiCuZ/ComfyUI-mnemic-nodes?tab=readme-ov-file#-get-file-path) - Returns the file path in different formats to a file in your /input-folder.
 
 [💾 Save Text File With Path Node](https://github.com/MNeMoNiCuZ/ComfyUI-mnemic-nodes?tab=readme-ov-file#-save-text-file-with-path-node) - Save text file, and return the saved file's path.
@@ -11,6 +13,10 @@ This repository hosts a collection of nodes developed for ComfyUI. It aims to sh
 [🔠 Tiktoken Tokenizer Info](https://github.com/MNeMoNiCuZ/ComfyUI-mnemic-nodes?tab=readme-ov-file#-tiktoken-tokenizer-info) - Returns token information about input text and lets you split it.
 
 [🧹 String Cleaning](https://github.com/MNeMoNiCuZ/ComfyUI-mnemic-nodes?tab=readme-ov-file#-string-cleaning) - Cleans up text strings.
+
+✂️ String Text Splitter - Splits a string by the first occurrence of a delimiter.
+
+✂️ String Text Extractor - Extracts the first occurrence of text between a pair of characters.
 
 [🏷️ LoRA Loader Prompt Tags](https://github.com/MNeMoNiCuZ/ComfyUI-mnemic-nodes?tab=readme-ov-file#%EF%B8%8F-lora-loader-prompt-tags) - Loads LoRA models using `<lora:MyLoRA:1>` in the prompt.
 
@@ -42,6 +48,152 @@ torch
 2. The new file should now be named `.env` without a normal file name, just a .env extension.
 3. The file should be in the root of the node pack, so the same directory that the .example was in.
 4. Edit `.env` with a text editor and edit the API key value inside.
+
+## Wildcard Processor Features
+
+This node adds powerful dynamic capabilities to your prompts. Wildcards are generally used to randomize your output, by writing the prompt in a specific format, or loading random lines from text-files.
+
+Here is a summary of the features and syntax.
+
+### File Wildcards
+
+Loads a random line from a text-file in the wildcards directory.
+
+![image](https://github.com/user-attachments/assets/0c57e27c-2e78-41c4-afde-62c6de186141)
+
+-   **Syntax**: `__filename__`
+-   **Description**: Inserts a random line from a `.txt` file found in one of the supported `wildcards` directories.
+    -   `ComfyUI/wildcards/`
+    -   `ComfyUI/custom_nodes/ComfyUI-mnemic-nodes/wildcards/`
+    -   or in a user-defined path in
+        -   `ComfyUI/custom_nodes/ComfyUI-mnemic-nodes/nodes/wildcards/wildcards_paths_user.json`
+-   **Example**: `A photo of a __color__ __animal__.` -> `A photo of a blue frog.`
+-   Empty lines are automatically discarded.
+-   Comments can be made using `# commented line`
+
+---
+
+### Inline Wildcards
+
+Creates a wildcard right in the prompt instead of loading from a file.
+
+![image](https://github.com/user-attachments/assets/848e6b2a-5a13-48ee-8063-8935337fe2eb)
+
+-   **Syntax**: `{option1|option2|option3}`
+-   **Description**: Chooses one of the provided options.
+-   **Example**: `A {red|green|blue} car.` -> `A green car.`
+
+---
+
+### Weighted Choices
+
+Makes one entry more likely to be chosen than others.
+
+![image](https://github.com/user-attachments/assets/bbceea2a-3c23-4c3c-b19d-efc91bf705a1)
+
+-   **Syntax**: `{weight::option1|option2}`
+-   **Description**: Changes the chance that an option gets randomly selected. `weight` is an integer number (e.g., `5`). Default weight is 1.
+-   **Example**: `A {4::red|2::green|blue} car.` -> `A red car.`
+    -   Red is chosen randomly 4 times more often than Blue
+    -   Green is twice as likely to be chosen as Blue
+    -   Red is twice as likely to be chosen as Green
+
+---
+
+### Multiple Selections (Fixed & Ranged)
+
+Returns X number of wildcard results based the input number. The input can also be a range.
+
+![image](https://github.com/user-attachments/assets/9251f16c-6824-49e0-a560-91c71dd4dbe0)
+
+
+-   **Syntax**: `{N$$...}` for a fixed number, `{N-M$$...}` for a random range.
+-   **Description**: Selects multiple unique items from a list, joined by the `multiple_separator` string.
+-   **Example (Fixed)**:
+    -   **Prompt**: `{2$$red|green|blue|purple}`
+    -   **Output**: `red, green`
+-   **Example (Range)**:
+    -   **Prompt**: `A {1-3$$red|green|blue|purple|white|gold} outfit`
+    -   **Output**: `blue, white, purple` (Randomly got 1-4 outputs, we got 3 in this case. Each entry can only be chosen once)
+-   There is an option for the separator in the node. This is inserted between each selected entry.
+
+---
+
+### Variables
+
+Define a variable to reuse a value. Can be defined directly, or using a wildcard. This can be useful if you want to randomize a part, but want to re-use the randomized value multiple times in your prompt.
+
+![image](https://github.com/user-attachments/assets/d12c52d4-b6e7-4aee-a3bf-ac36edaa708d)
+
+
+-   **Syntax**: `${var=!{...}}` and `${var}`
+-   **Description**: Defines a variable `${var}` with a dynamic value that can be reused.
+-   **Example**: `${animal=!__animals__} The ${animal} is friends with the other ${animal}.` -> `The cat is friends with the other cat.`
+
+---
+
+### Nesting
+
+Everything can be combined into more complex prompts.
+
+![image](https://github.com/user-attachments/assets/3ea9a7ce-440b-44f2-91e5-2b1f82dd80f5)
+
+
+-   **Description**: All features can be nested.
+-   **Example**: `A {3::big|small|__color__} __animal__ wearing a {2$$__color__} jacket` -> `A big Panda wearing a pink blue jacket`
+
+---
+
+### Glob Wildcards
+
+Use * as wildcards for your wildcards. Use this when you want to select a random output from multiple files matching the same pattern, or from all files in a folder.
+
+[More information](https://pymotw.com/2/glob/)
+
+![image](https://github.com/user-attachments/assets/bd0d3335-88f2-4a2c-8340-6d89839960dc)
+
+-   **Syntax**: `__*filename*__`
+-   **Description**: Uses glob patterns to match multiple files. It collects all lines from all matched files and picks one randomly.
+-   **Example**: `a __*color*__ vase` -> `A green vase` (Selected from all wildcard files that has the word `color` in their name)
+
+
+You can also use it to randomly select a random wildcard file from inside a folder.
+
+![image](https://github.com/user-attachments/assets/b8b1451f-ac93-4cd4-b9b6-fb114e3ac583)
+
+
+-   **Syntax**: `__path/to/*__`
+-   **Description**: Uses glob patterns to match all files inside a folder. A random file is chosen.
+-   **Example**: `__environment/*__` -> africa.txt `Majestic views of the Kabylie mountains in Algeria at midday.` (Selected from a random wildcard file in the /environment subfolder)
+
+
+---
+
+### Seed Output
+
+-   **Description**: The node outputs the integer `seed` that was used for the generation. This is useful if you want to match seeds in multiple nodes.
+
+---
+
+### Tag Extraction
+
+Advanced functionality that lets you extract encapsulated results from the final prompt.
+
+![image](https://github.com/user-attachments/assets/b28b6a71-e19e-46bf-81c1-7276bd59e5a4)
+
+
+-   **Syntax**: Define delimiter pairs in the `tag_extraction_tags` input (e.g., `[],<>`). Then use them in your prompt: `A prompt with [tagged content] and <more>`.
+-   **Description**: Extracts content from the defined tags. The content is processed for wildcards and removed from the main prompt.
+-   **Outputs**:
+    - `processed_text`: The prompt with tags removed.
+    - `extracted_tags_string`: Processed content from tags, joined by `|`.
+    - `extracted_tags_list`: A list of the processed tag contents.
+    - `raw_tags_string`: The re-assembled tags (including delimiters) with their content processed.
+    - `raw_tags_list`: A list of the re-assembled, processed tags.
+-   **Tip**: Use the `String Text Splitter` node to split the `extracted_tags_string` output.
+-   **Tip**: Use the `String Text Extractor` node to capture the values of the `raw_tags_string` output.
+
+---
 
 ## 📁 Get File Path
 
@@ -155,6 +307,31 @@ This node helps you quickly clean up and format strings by letting you remove le
 ### Work on your novel
 ![image](https://github.com/user-attachments/assets/c5a250f8-2aee-43c3-9394-f5a728e68a91)
 
+## String Text Splitter
+
+![image](https://github.com/user-attachments/assets/431ccbfe-3d33-4e5b-b813-9d824bb20bb6)
+
+-   **Description**: Splits a string by a delimiter.
+-   **Inputs**:
+    -   `input_string`: The text to split.
+    -   `delimiter`: The character to split on.
+-   **Outputs**:
+    -   `first_chunk`: The part of the string before the first delimiter.
+    -   `remainder`: The rest of the string after the first delimiter.
+    -   `chunk_list`: A list of all items split by the delimiter.
+
+## String Text Extractor
+
+![image](https://github.com/user-attachments/assets/68a745b5-9b63-4796-8fd2-f1224d0e1510)
+
+-   **Description**: Extracts text between a pair of delimiters.
+-   **Inputs**:
+    -   `input_string`: The text to search within.
+    -   `delimiters`: The pair of characters to use as delimiters (e.g., `[]`, `**`).
+-   **Outputs**:
+    -   `extracted_text`: The content found inside the first pair of delimiters.
+    -   `remainder_text`: The rest of the text after the extracted content and its delimiters are removed.
+    -   `extracted_list`: A list of all items found between the delimiters.
 
 ## 🏷️ LoRA Loader Prompt Tags
 
