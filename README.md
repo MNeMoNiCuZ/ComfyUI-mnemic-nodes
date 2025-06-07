@@ -32,16 +32,6 @@ This repository hosts a collection of nodes developed for ComfyUI. It aims to sh
 
 
 # Installation instructions
-
-You may need to manually install the requirements. They should be listed in `requirements.txt`
-You may need to install the following libraries using `pip install XXX`:
-```
-configparser
-groq
-transformers
-torch
-```
-
 ## Configuration (only needed for Groq nodes)
 
 1. Make a copy of `.env.example` and remove the `.example` from the name.
@@ -49,7 +39,9 @@ torch
 3. The file should be in the root of the node pack, so the same directory that the .example was in.
 4. Edit `.env` with a text editor and edit the API key value inside.
 
-## Wildcard Processor Features
+# Nodes
+
+## Wildcard Processor
 
 This node adds powerful dynamic capabilities to your prompts. Wildcards are generally used to randomize your output, by writing the prompt in a specific format, or loading random lines from text-files.
 
