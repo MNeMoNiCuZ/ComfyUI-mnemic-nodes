@@ -2,13 +2,13 @@
 
 This repository hosts a collection of nodes developed for ComfyUI. It aims to share useful components that enhance the functionality of ComfyUI projects. Some nodes are forks or versions of  nodes from other packs, some are bespoke and useful, and some are experimental and are quite useless, so they have been marked with a `Caution` label in this document.
 
-[📝 Wildcard Processor](https://github.com/MNeMoNiCuZ/ComfyUI-mnemic-nodes/blob/main/README.md#wildcard-processor-features) - A versatile text processor that replaces wildcards with content from files or inline lists.
+[📝 Wildcard Processor](https://github.com/MNeMoNiCuZ/ComfyUI-mnemic-nodes/blob/main/README.md#wildcard-processor) - A versatile text processor that replaces wildcards with content from files or inline lists.
 
 [📁 Get File Path](https://github.com/MNeMoNiCuZ/ComfyUI-mnemic-nodes?tab=readme-ov-file#-get-file-path) - Returns the file path in different formats to a file in your /input-folder.
 
-[💾 Save Text File With Path Node](https://github.com/MNeMoNiCuZ/ComfyUI-mnemic-nodes?tab=readme-ov-file#-save-text-file-with-path-node) - Save text file, and return the saved file's path.
+[💾 Save Text File With Path](https://github.com/MNeMoNiCuZ/ComfyUI-mnemic-nodes?tab=readme-ov-file#-save-text-file-with-path) - Save text file, and return the saved file's path.
 
-[🖼️ Download Image from URL Node](https://github.com/MNeMoNiCuZ/ComfyUI-mnemic-nodes?tab=readme-ov-file#%EF%B8%8F-download-image-from-url-node) - Download an image from the web.
+[🖼️ Download Image from URL](https://github.com/MNeMoNiCuZ/ComfyUI-mnemic-nodes?tab=readme-ov-file#%EF%B8%8F-download-image-from-url) - Download an image from the web.
 
 [🔠 Tiktoken Tokenizer Info](https://github.com/MNeMoNiCuZ/ComfyUI-mnemic-nodes?tab=readme-ov-file#-tiktoken-tokenizer-info) - Returns token information about input text and lets you split it.
 
@@ -22,13 +22,13 @@ This repository hosts a collection of nodes developed for ComfyUI. It aims to sh
 
 [📐 Resolution Image Size Selector](https://github.com/MNeMoNiCuZ/ComfyUI-mnemic-nodes/tree/main?tab=readme-ov-file#-resolution-image-size-selector) - Creates resolutions and a latent from presets, user presets, or input images.
 
-[✨💬 Groq LLM API Node](https://github.com/MNeMoNiCuZ/ComfyUI-mnemic-nodes?tab=readme-ov-file#-groq-llm-api-node) - Query Groq large language model.
+[✨💬 Groq LLM API](https://github.com/MNeMoNiCuZ/ComfyUI-mnemic-nodes?tab=readme-ov-file#-groq-llm-api) - Query Groq large language model.
 
-[✨📷 Groq VLM API Node](https://github.com/MNeMoNiCuZ/ComfyUI-mnemic-nodes?tab=readme-ov-file#-groq-vlm-api-node) - Query Groq vision language model.
+[✨📷 Groq VLM API](https://github.com/MNeMoNiCuZ/ComfyUI-mnemic-nodes?tab=readme-ov-file#-groq-vlm-api) - Query Groq vision language model.
 
-[✨📝 Groq ALM API Node](https://github.com/MNeMoNiCuZ/ComfyUI-mnemic-nodes?tab=readme-ov-file#-groq-alm-api-node) - Query Groq Audio Model.
+[✨📝 Groq ALM API](https://github.com/MNeMoNiCuZ/ComfyUI-mnemic-nodes?tab=readme-ov-file#-groq-alm-api) - Query Groq Audio Model.
 
-[⛔ Generate Negative Prompt Node](https://github.com/MNeMoNiCuZ/ComfyUI-mnemic-nodes?tab=readme-ov-file#-generate-negative-prompt-node) - Generate negative prompts automatically.
+[⛔ Generate Negative Prompt](https://github.com/MNeMoNiCuZ/ComfyUI-mnemic-nodes?tab=readme-ov-file#-generate-negative-prompt) - Generate negative prompts automatically.
 
 
 # Installation instructions
