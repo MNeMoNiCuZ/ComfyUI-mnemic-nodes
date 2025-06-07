@@ -2,7 +2,7 @@
 
 This repository hosts a collection of nodes developed for ComfyUI. It aims to share useful components that enhance the functionality of ComfyUI projects. Some nodes are forks or versions of  nodes from other packs, some are bespoke and useful, and some are experimental and are quite useless, so they have been marked with a `Caution` label in this document.
 
-📝 Wildcard Processor - A versatile text processor that replaces wildcards with dynamic content from files or inline lists.
+[📝 Wildcard Processor](https://github.com/MNeMoNiCuZ/ComfyUI-mnemic-nodes/blob/main/README.md#wildcard-processor-features) - A versatile text processor that replaces wildcards with dynamic content from files or inline lists.
 
 [📁 Get File Path](https://github.com/MNeMoNiCuZ/ComfyUI-mnemic-nodes?tab=readme-ov-file#-get-file-path) - Returns the file path in different formats to a file in your /input-folder.
 
@@ -14,9 +14,9 @@ This repository hosts a collection of nodes developed for ComfyUI. It aims to sh
 
 [🧹 String Cleaning](https://github.com/MNeMoNiCuZ/ComfyUI-mnemic-nodes?tab=readme-ov-file#-string-cleaning) - Cleans up text strings.
 
-✂️ String Text Splitter - Splits a string by the first occurrence of a delimiter.
+[✂️ String Text Splitter](https://github.com/MNeMoNiCuZ/ComfyUI-mnemic-nodes/blob/main/README.md#string-text-splitter) - Splits a string by the first occurrence of a delimiter.
 
-✂️ String Text Extractor - Extracts the first occurrence of text between a pair of characters.
+[✂️ String Text Extractor](https://github.com/MNeMoNiCuZ/ComfyUI-mnemic-nodes/blob/main/README.md#string-text-extractor) - Extracts the first occurrence of text between a pair of characters.
 
 [🏷️ LoRA Loader Prompt Tags](https://github.com/MNeMoNiCuZ/ComfyUI-mnemic-nodes?tab=readme-ov-file#%EF%B8%8F-lora-loader-prompt-tags) - Loads LoRA models using `<lora:MyLoRA:1>` in the prompt.
 
