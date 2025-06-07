@@ -1,6 +1,7 @@
 from pathlib import Path
 import folder_paths
 import re
+from ..utils.file_utils import find_best_match
 
 # Import ComfyUI files
 import comfy.sd
@@ -40,93 +41,6 @@ class LoraTagLoader:
     CATEGORY = "⚡ MNeMiC Nodes"  # Category for organizing the node in a UI or library
     DESCRIPTION = "Loads LoRA tags from the provided input string (usually the prompt) and applies them to the model without needing one or multiple LoRA Loader nodes"
 
-    def score_filename_match(self, name, filename):
-        """Score how well a filename matches the requested name."""
-        base_name = Path(filename).name
-        base_name_no_ext = Path(filename).stem  # filename without extension
-        name_no_ext = Path(name).stem  # search term without extension
-        
-        # Calculate path depth score
-        path_depth = len(Path(filename).parts) - 1
-        path_penalty = path_depth * 0.0001
-        
-        # If searching for a numbered variant, also match the base name
-        base_search_name = re.sub(r'\d+$', '', name_no_ext).rstrip('-')
-        
-        # Exact match gets highest priority (100)
-        if base_name_no_ext == name_no_ext:
-            return (100 - path_penalty, f"exact match (depth: {path_depth})")
-        # Base version match when searching for numbered variant (90)
-        elif base_name_no_ext == base_search_name:
-            return (90 - path_penalty, f"base version match (depth: {path_depth})")
-        
-        # Check if it's a numbered variant of the exact name (80)
-        if base_name.startswith(name + "-"):
-            try:
-                num = int(re.findall(r'-(\d+)', base_name)[0])
-                return (80 + (num * 0.001) - path_penalty, f"numbered variant ({num}, depth: {path_depth})")
-            except (IndexError, ValueError):
-                pass
-        
-        # Check if we're looking for a specific number
-        number_search = re.search(r'(\d+)$', name)
-        if number_search:
-            base_without_number = name[:-len(number_search.group(1))]
-            target_number = int(number_search.group(1))
-            if base_name.startswith(base_without_number):
-                try:
-                    file_number = int(re.findall(r'-(\d+)', base_name)[0])
-                    number_diff = abs(target_number - file_number)
-                    if number_diff == 0:
-                        return (95 - path_penalty, f"exact number match ({target_number}, depth: {path_depth})")
-                    return (85 - (number_diff * 0.1) - path_penalty, f"number near match ({file_number}, depth: {path_depth})")
-                except (IndexError, ValueError):
-                    pass
-        
-        # Simple startswith match (lowest priority)
-        if base_name.startswith(name) or filename.startswith(name):
-            return (50 - path_penalty, f"prefix match (depth: {path_depth})")
-        
-        return (0, "no match")
-
-    def find_best_lora_match(self, name, lora_files):
-        """Find the best matching LoRA file based on scoring."""
-        matches = []
-        print(f"\nFinding matches for '{name}':")
-        
-        # Track filenames to detect duplicates
-        seen_filenames = {}
-        
-        for lora_file in lora_files:
-            score, reason = self.score_filename_match(name, lora_file)
-            if score > 0:
-                base_name = Path(lora_file).name
-                if base_name in seen_filenames:
-                    # Convert to showing full paths for this filename
-                    seen_filenames[base_name] = True
-                else:
-                    seen_filenames[base_name] = False
-                matches.append((score, lora_file, reason))
-        
-        # Sort by score (highest first)
-        matches.sort(reverse=True)
-        
-        # Print all matches with their scores
-        if matches:
-            print("\nCandidate files (sorted by relevance):")
-            for score, file, reason in matches:
-                base_name = Path(file).name
-                if seen_filenames[base_name]:
-                    # Show full path for duplicates
-                    display_name = file
-                else:
-                    display_name = base_name
-                print(f"  {display_name:<50} : {score:>5.1f} ({reason})")
-            print(f"\nSelected: {matches[0][1]}")
-        else:
-            print("  No matching files found")
-        
-        return matches[0][1] if matches else None
 
     def load_lora(self, MODEL, CLIP, STRING):
         print(f"\nLoraTagLoader processing text: {STRING}")
@@ -163,7 +77,7 @@ class LoraTagLoader:
                 continue
 
             # Use our new matching system
-            lora_name = self.find_best_lora_match(name, lora_files)
+            lora_name = find_best_match(name, lora_files, log=True)
             
             if lora_name is None:
                 print(f"No matching LoRA found for tag: {(type, name, wModel, wClip)}")

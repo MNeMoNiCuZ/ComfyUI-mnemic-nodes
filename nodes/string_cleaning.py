@@ -5,6 +5,7 @@ class StringCleaning:
     RETURN_TYPES = ("STRING",)
     RETURN_NAMES = ("cleaned_string",)
     OUTPUT_IS_LIST = (False,)
+    OUTPUT_TOOLTIPS = ("The string after all the selected cleaning operations have been applied.",)
     FUNCTION = "clean_string"
     CATEGORY = "⚡ MNeMiC Nodes"
     DESCRIPTION = "Cleans up the input text based on various stripping options."
