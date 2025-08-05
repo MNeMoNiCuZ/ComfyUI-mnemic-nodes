@@ -19,14 +19,17 @@ class GroqAPILLM:
     LLM_MODELS = [
         "llama-3.1-8b-instant",
         "llama-3.3-70b-versatile",
+        "moonshotai/kimi-k2-instruct",
+        "openai/gpt-oss-120b",
+        "openai/gpt-oss-20b",
+        "deepseek-r1-distill-llama-70b",
+        "qwen-qwq-32b",
+        "gemma2-9b-it",
         "meta-llama/llama-4-scout-17b-16e-instruct",
         "meta-llama/llama-4-maverick-17b-128e-instruct",
         "llama3-8b-8192",
         "llama3-70b-8192",
         "llama-guard-3-8b",
-        "deepseek-r1-distill-llama-70b",
-        "qwen-qwq-32b",
-        "gemma2-9b-it",
     ]
     
     def __init__(self):
