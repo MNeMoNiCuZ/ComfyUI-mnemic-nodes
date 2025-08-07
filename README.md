@@ -18,7 +18,7 @@ This repository hosts a collection of nodes developed for ComfyUI. It aims to sh
 
 [✂️ String Text Extractor](https://github.com/MNeMoNiCuZ/ComfyUI-mnemic-nodes?tab=readme-ov-file#%EF%B8%8F-string-text-extractor) - Extracts the first occurrence of text between a pair of characters.
 
-📅 Format Date Time - Converts date / time into literal outputs.
+[📅 Format Date Time](https://github.com/MNeMoNiCuZ/ComfyUI-mnemic-nodes/tree/main?tab=readme-ov-file#-format-date-time) - Converts date / time into literal outputs.
 
 [🏷️ LoRA Loader Prompt Tags](https://github.com/MNeMoNiCuZ/ComfyUI-mnemic-nodes?tab=readme-ov-file#%EF%B8%8F-lora-loader-prompt-tags) - Loads LoRA models using `<lora:MyLoRA:1>` in the prompt.
 
@@ -340,6 +340,36 @@ This node helps you quickly clean up and format strings by letting you remove le
     -   `remainder_text`: The rest of the text after the extracted content and its delimiters are removed.
     -   `extracted_list`: A list of all items found between the delimiters.
 
+## 📅 Format Date Time
+This node converts date and time formats into literal outputs for you to use.
+
+<img width="1405" height="315" alt="image" src="https://github.com/user-attachments/assets/a54e2a4f-c81b-442c-8965-5eda2c835f17" />
+
+<img width="1420" height="682" alt="image" src="https://github.com/user-attachments/assets/eaf18367-ccf2-4adb-a152-7e85c54118d3" />
+
+```
+%%Y = %Y = Year
+%%m = %m = Month
+%%d = %d = Day
+%%H = %H = Hour
+%%S = %S = Second
+%%f = %f = Microsecond
+%%x = %x = Date
+%%X = %X = Time
+%%c = %c = Date + Time
+%%p = %p = am/pm
+%%A = %A = Weekday
+%%a = %a = Weekday short
+%%B = %B = Month
+%%b = %b = Month short
+%%j = %j = Day of year
+%%W = %W = Week index (Monday start)
+%%w = %w = Weekday index (Monday start)
+%%U = %U = Week index (Sunday start)
+%%u = %u = Week index (Sunday start)
+%%%% = %% = Prints a literal %%
+```
+
 ## 🏷️ LoRA Loader Prompt Tags
 
 Loads LoRA models using `<lora:MyLoRA:1>` in the prompt.
@@ -375,37 +405,6 @@ The image input can be used. This has the highest priority. If it is used, we th
 The `snap_to_nearest` ensures specific snapping on the final output value. This can be set to 8 or 16 for good divisible sizes, or any value that you need to work with.
 
 The `batch_size` option is used to create multiple output latents when you use tha latent output node.
-
-
-## 📅 Format Date Time
-This node converts date and time formats into literal outputs for you to use.
-
-<img width="1405" height="315" alt="image" src="https://github.com/user-attachments/assets/a54e2a4f-c81b-442c-8965-5eda2c835f17" />
-
-<img width="1420" height="682" alt="image" src="https://github.com/user-attachments/assets/eaf18367-ccf2-4adb-a152-7e85c54118d3" />
-
-```
-%%Y = %Y = Year
-%%m = %m = Month
-%%d = %d = Day
-%%H = %H = Hour
-%%S = %S = Second
-%%f = %f = Microsecond
-%%x = %x = Date
-%%X = %X = Time
-%%c = %c = Date + Time
-%%p = %p = am/pm
-%%A = %A = Weekday
-%%a = %a = Weekday short
-%%B = %B = Month
-%%b = %b = Month short
-%%j = %j = Day of year
-%%W = %W = Week index (Monday start)
-%%w = %w = Weekday index (Monday start)
-%%U = %U = Week index (Sunday start)
-%%u = %u = Week index (Sunday start)
-%%%% = %% = Prints a literal %%
-```
 
 ## ✨💬 Groq LLM API
 > [!IMPORTANT]
