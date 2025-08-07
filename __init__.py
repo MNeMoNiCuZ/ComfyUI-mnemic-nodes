@@ -1,6 +1,3 @@
-import os
-import folder_paths
-
 from .nodes.download_image_from_url import DownloadImageFromURL
 from .nodes.save_text_file import SaveTextFile
 from .nodes.get_file_path import GetFilePath
@@ -16,6 +13,7 @@ from .nodes.resolution_selector import ResolutionSelector
 from .nodes.wildcard_processor import WildcardProcessor
 from .nodes.string_text_splitter import StringTextSplitter
 from .nodes.string_text_extractor import StringTextExtractor
+from .nodes.format_date_time import FormatDateTime
 
 NODE_CLASS_MAPPINGS = {
     "📁 Get File Path": GetFilePath,
@@ -33,7 +31,7 @@ NODE_CLASS_MAPPINGS = {
     "⛔ Generate Negative Prompt": GenerateNegativePrompt,
     "✂️ String Text Splitter": StringTextSplitter,
     "✂️ String Text Extractor": StringTextExtractor,
+    "📅 Format Date Time": FormatDateTime,
 }
 
 print("\033[34mMNeMiC Nodes: \033[92mLoaded\033[0m")
-
