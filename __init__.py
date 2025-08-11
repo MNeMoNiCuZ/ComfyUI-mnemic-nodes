@@ -14,6 +14,8 @@ from .nodes.wildcard_processor import WildcardProcessor
 from .nodes.string_text_splitter import StringTextSplitter
 from .nodes.string_text_extractor import StringTextExtractor
 from .nodes.format_date_time import FormatDateTime
+from .nodes.load_text_image_pairs import LoadTextImagePairs
+from .nodes.metadata_extractor import MetadataExtractor
 
 NODE_CLASS_MAPPINGS = {
     "📁 Get File Path": GetFilePath,
@@ -32,6 +34,7 @@ NODE_CLASS_MAPPINGS = {
     "✂️ String Text Splitter": StringTextSplitter,
     "✂️ String Text Extractor": StringTextExtractor,
     "📅 Format Date Time": FormatDateTime,
+    "🖼️+📝 Load Text-Image Pairs": LoadTextImagePairs,
+    "🖼️📊 Metadata Extractor": MetadataExtractor,
 }
-
-print("\033[34mMNeMiC Nodes: \033[92mLoaded\033[0m")
+print("\033[34m⚡ MNeMiC Nodes: \033[92mLoaded\033[0m")
