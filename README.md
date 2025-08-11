@@ -20,9 +20,9 @@ This repository hosts a collection of nodes developed for ComfyUI. It aims to sh
 
 [📅 Format Date Time](https://github.com/MNeMoNiCuZ/ComfyUI-mnemic-nodes/tree/main?tab=readme-ov-file#-format-date-time) - Converts date / time into literal outputs.
 
-🖼️+📝 Load Text-Image Pairs
+[🖼️+📝 Load Text-Image Pairs](https://github.com/MNeMoNiCuZ/ComfyUI-mnemic-nodes?tab=readme-ov-file#%EF%B8%8F-load-text-image-pairs) - Loads a folder of text and image pairs, like a dataset.
 
-🖼️📊 Metadata Extractor
+[🖼️📊 Metadata Extractor](https://github.com/MNeMoNiCuZ/ComfyUI-mnemic-nodes?tab=readme-ov-file#%EF%B8%8F-metadata-extractor) - Extracts metadata from input images.
 
 [🏷️ LoRA Loader Prompt Tags](https://github.com/MNeMoNiCuZ/ComfyUI-mnemic-nodes?tab=readme-ov-file#%EF%B8%8F-lora-loader-prompt-tags) - Loads LoRA models using `<lora:MyLoRA:1>` in the prompt.
 
@@ -404,7 +404,7 @@ You can also use the optional image + text manual inputs instead of paths. They 
 
 ## 🖼️📊 Metadata Extractor
 
-Extracts metadata out of input images.
+Extracts metadata from input images.
 
 The input images are loaded via a path. Either directly to an image file, or to a folder with multiple images. 
 
