@@ -20,6 +20,10 @@ This repository hosts a collection of nodes developed for ComfyUI. It aims to sh
 
 [📅 Format Date Time](https://github.com/MNeMoNiCuZ/ComfyUI-mnemic-nodes/tree/main?tab=readme-ov-file#-format-date-time) - Converts date / time into literal outputs.
 
+🖼️+📝 Load Text-Image Pairs
+
+🖼️📊 Metadata Extractor
+
 [🏷️ LoRA Loader Prompt Tags](https://github.com/MNeMoNiCuZ/ComfyUI-mnemic-nodes?tab=readme-ov-file#%EF%B8%8F-lora-loader-prompt-tags) - Loads LoRA models using `<lora:MyLoRA:1>` in the prompt.
 
 [📐 Resolution Image Size Selector](https://github.com/MNeMoNiCuZ/ComfyUI-mnemic-nodes/tree/main?tab=readme-ov-file#-resolution-image-size-selector) - Creates resolutions and a latent from presets, user presets, or input images.
@@ -369,6 +373,74 @@ This node converts date and time formats into literal outputs for you to use.
 %%u = %u = Week index (Sunday start)
 %%%% = %% = Prints a literal %%
 ```
+
+## 🖼️+📝 Load Text-Image Pairs
+
+Loads image and text pairs from a folder, or from separate inputs, and groups them together in a list.
+
+This could be used to load and view datasets, or if you have a matching caption or description file to an image, or text generated in a workflow. Essentially you use this to pair up the data, and then you can step through it one by one, or all at once.
+
+> [!IMPORTANT]
+> To cycle through each input entry one by one in the list, you'll want to set the `seed` input to `increment`.
+
+<img width="1646" height="982" alt="image" src="https://github.com/user-attachments/assets/5dfca806-2245-4c96-9e34-6216ec1609aa" />
+
+-   **Inputs**:
+    -   `image_input`: Image input override, has priority over path. Takes both single image and a list of images.
+    -   `text_input`: Text input override, has priority over path. Takes both single string, or list of strings. The returned list will be the shorter of `image_input` and `text_input`.
+    -   `seed`: Use this to control the starting index. Use the `increment` type to step through the images one by one each time you generate.
+    -   `folder_path`: The path to the folder of text-image pairs
+    -   `max_pair_count`: Limits the total number of outputs in the lists.
+-   **Outputs**:
+    -   `image_single_output`: The single image chosen by the index.
+    -   `string_single_output`: The text matching the image above.
+    -   `image_list_output`: All images in the chosen folder or input, limited by the `max_pair_count`.
+    -   `max_pair_count`: A limit to the total number of image pairs in the list above.
+
+You can also use the optional image + text manual inputs instead of paths. They have a higher priority if they are used.
+<img width="2245" height="960" alt="image" src="https://github.com/user-attachments/assets/c285c150-dad2-4ca4-b475-c64cfb02ed24" />
+
+
+
+## 🖼️📊 Metadata Extractor
+
+Extracts metadata out of input images.
+
+The input images are loaded via a path. Either directly to an image file, or to a folder with multiple images. 
+
+The metadata should work on both jpg and png images, and it will do what it can to extract from A1111/Forge/ComfyUI image metadata.
+
+<img width="1570" height="1223" alt="image" src="https://github.com/user-attachments/assets/a7260261-b755-4e15-be33-749e3035f801" />
+
+Can output both single image metadata (and step through one image at a time), or all images at once into a list.
+
+> [!IMPORTANT]
+> To cycle through each input entry one by one in the list, you'll want to set the `seed` input to `increment`.
+
+- **Inputs**:
+    - `seed`: An integer that sets the starting index for selecting image-metadata pairs. Use the `increment` option in workflow settings to cycle through pairs sequentially.
+    - `input_path`: A string specifying the path to a folder containing images or a single image file. Only used if `image_input` is not provided.
+    - `image_input`: A single image or a batch/list of images. Takes priority over `input_path`.
+    - `filter_params`: A comma-separated string of case-insensitive keys (e.g., `steps, sampler, seed`) to extract specific metadata parameters.
+    - `max_file_count`: An integer limiting the total number of image-metadata pairs returned. Set to 0 to include all available pairs.
+
+- **Outputs**:
+    - `image_single`: The single image selected based on the `seed` index from the input list.
+    - `positive_prompt_single`: The positive prompt extracted from the selected image's metadata.
+    - `negative_prompt_single`: The negative prompt extracted from the selected image's metadata.
+    - `parsed_params_single_json`: All parsed metadata parameters from the selected image, returned as a JSON string.
+    - `filtered_params_single_list`: Specific metadata values requested in `filter_params` from the selected image, returned as a multi-line string.
+    - `raw_metadata_single_json`: The complete, unprocessed metadata of the selected image, formatted as a JSON string.
+    - `image_list`: A list of all images from the input, scaled to match the aspect ratio of the first image and cropped to its resolution.
+    - `positive_prompt_list`: A list of all positive prompts extracted from the input images' metadata.
+    - `negative_prompt_list`: A list of all negative prompts extracted from the input images' metadata.
+    - `parsed_params_list_json`: A list of all parsed metadata parameter sets, each as a JSON string.
+    - `filtered_params_list_grouped`: A list of all filtered metadata parameter sets, each as a multi-line string.
+    - `raw_metadata_list_json`: A list of all raw metadata sets, each formatted as a JSON string.
+
+<img width="1814" height="1122" alt="image" src="https://github.com/user-attachments/assets/26ca04f1-3409-428a-9a3f-e4bb8fd9d215" />
+
+
 
 ## 🏷️ LoRA Loader Prompt Tags
 
