@@ -1,7 +1,7 @@
 [project]
 name = "comfyui-mnemic-nodes"
-description = "Tag loader foolproof support, text image pairs added file output paths, format time always refreshes"
-version = "1.4.2"
+description = "Split the Text Image Pairs node into 2 for performance. One for single outputs and one for lists. Added count and force refresh functionality."
+version = "1.4.3"
 license = { file = "LICENSE" }
 dependencies = ["configparser", "groq", "transformers", "torch", "tiktoken"]
 
