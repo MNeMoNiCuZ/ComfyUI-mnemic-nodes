@@ -1,10 +1,13 @@
 from datetime import datetime
 import re
-import re
+import time
 
 class FormatDateTime:
     def __init__(self):
         pass
+
+    def IS_CHANGED(self, *args, **kwargs):
+        return time.time()
 
     @classmethod
     def INPUT_TYPES(cls):

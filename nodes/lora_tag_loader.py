@@ -66,15 +66,26 @@ class LoraTagLoader:
             name = pak[1]
             
             # Parse weights
-            wModel = wClip = 0
-            try:
-                if len(pak) > 2 and pak[2]:
-                    wModel = float(pak[2])
-                    wClip = wModel
-                if len(pak) > 3 and pak[3]:
-                    wClip = float(pak[3])
-            except ValueError:
-                continue
+            wModel = 1.0
+            wClip = 1.0
+
+            if len(pak) > 2 and pak[2]:
+                try:
+                    strength = float(pak[2])
+                    wModel = strength if strength != 0 else 1.0
+                except ValueError:
+                    print(f"LoraTagLoader Warning: Invalid model strength value '{pak[2]}' for LoRA '{pak[1]}'. Defaulting to 1.0.")
+                    wModel = 1.0
+            
+            wClip = wModel # default clip to model weight
+
+            if len(pak) > 3 and pak[3]:
+                try:
+                    clip_strength = float(pak[3])
+                    wClip = clip_strength if clip_strength != 0 else 1.0
+                except ValueError:
+                    print(f"LoraTagLoader Warning: Invalid clip strength value '{pak[3]}' for LoRA '{pak[1]}'. Defaulting to model weight ({wClip}).")
+                    # wClip is already set to wModel, so no change needed here, just the warning.
 
             # Use our new matching system
             lora_name = find_best_match(name, lora_files, log=True)

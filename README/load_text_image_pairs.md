@@ -9,17 +9,23 @@ This could be used to load and view datasets, or if you have a matching caption 
 
 <img width="1646" height="982" alt="image" src="https://github.com/user-attachments/assets/5dfca806-2245-4c96-9e34-6216ec1609aa" />
 
--   **Inputs**:
-    -   `image_input`: Image input override, has priority over path. Takes both single image and a list of images.
-    -   `text_input`: Text input override, has priority over path. Takes both single string, or list of strings. The returned list will be the shorter of `image_input` and `text_input`.
-    -   `seed`: Use this to control the starting index. Use the `increment` type to step through the images one by one each time you generate.
-    -   `folder_path`: The path to the folder of text-image pairs
-    -   `max_pair_count`: Limits the total number of outputs in the lists.
--   **Outputs**:
-    -   `image_single_output`: The single image chosen by the index.
-    -   `string_single_output`: The text matching the image above.
-    -   `image_list_output`: All images in the chosen folder or input, limited by the `max_pair_count`.
-    -   `max_pair_count`: A limit to the total number of image pairs in the list above.
+### Inputs
+-   `seed`: The starting index for selecting pairs. Set to `increment` to cycle through the dataset.
+-   `folder_path`: Path to a folder containing image and text files with matching names.
+-   `image_input`: (Optional) A single image or a batch of images. Overrides `folder_path`.
+-   `text_input`: (Optional) A single string or a list of strings. Overrides `folder_path`.
+-   `max_pair_count`: (Optional) The maximum number of pairs to return. `0` returns all pairs.
+-   `text_format_extension`: (Optional) The extension for text files (e.g., `txt`, `caption`). Default is `txt`.
+
+### Outputs
+-   `image_single_output`: The single image selected by the `seed`.
+-   `string_single_output`: The text paired with the selected image.
+-   `image_list_output`: A list of all images in the dataset.
+-   `string_list_output`: A list of all text strings in the dataset.
+-   `full_path_single`: The absolute file path of the selected image.
+-   `filename_single`: The filename (without extension) of the selected image.
+-   `full_path_list`: A list of absolute file paths for all images.
+-   `filename_list`: A list of filenames for all images.
 
 You can also use the optional image + text manual inputs instead of paths. They have a higher priority if they are used.
 <img width="2245" height="960" alt="image" src="https://github.com/user-attachments/assets/c285c150-dad2-4ca4-b475-c64cfb02ed24" />

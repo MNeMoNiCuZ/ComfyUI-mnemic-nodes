@@ -1,7 +1,7 @@
 [project]
 name = "comfyui-mnemic-nodes"
-description = "Updated documentation & Readme"
-version = "1.4.1"
+description = "Tag loader foolproof support, text image pairs added file output paths, format time always refreshes"
+version = "1.4.2"
 license = { file = "LICENSE" }
 dependencies = ["configparser", "groq", "transformers", "torch", "tiktoken"]
 

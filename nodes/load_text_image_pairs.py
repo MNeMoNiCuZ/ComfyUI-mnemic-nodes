@@ -20,16 +20,21 @@ class LoadTextImagePairs:
                 "image_input": ("IMAGE", {"tooltip": "A single image or a list/batch of images. This input has priority over the folder_path."}),
                 "text_input": ("STRING", {"forceInput": True, "tooltip": "A single text string or a list of strings. This input has priority over the folder_path."}),
                 "max_pair_count": ("INT", {"default": 0, "min": 0, "max": 10000, "step": 1, "tooltip": "The maximum number of pairs to return in the output lists. If set to 0, all found pairs will be returned."}),
+                "text_format_extension": ("STRING", {"default": "txt", "tooltip": "The file extension for the text files to look for (without the dot)."}),
             }
         }
 
-    RETURN_TYPES = ("IMAGE", "STRING", "IMAGE", "STRING")
-    RETURN_NAMES = ("image_single_output", "string_single_output", "image_list_output", "string_list_output")
+    RETURN_TYPES = ("IMAGE", "STRING", "IMAGE", "STRING", "STRING", "STRING", "STRING", "STRING")
+    RETURN_NAMES = ("image_single_output", "string_single_output", "image_list_output", "string_list_output", "full_path_single", "filename_single", "full_path_list", "filename_list")
     OUTPUT_TOOLTIPS = (
         "The single image selected by the seed. Its position in the list determines which item is chosen from the dataset.",
         "The text string that is paired with the selected image.",
         "A list of all images from the dataset, rotated so that the selected image is the first item in the list.",
-        "A list of all text strings from the dataset, rotated so that the selected text is the first item in the list."
+        "A list of all text strings from the dataset, rotated so that the selected text is the first item in the list.",
+        "The full absolute path of the selected image.",
+        "The filename (without extension) of the selected image.",
+        "A list of full absolute paths of all images.",
+        "A list of filenames (without extension) of all images."
     )
     FUNCTION = "load_pairs"
     CATEGORY = "⚡ MNeMiC Nodes"
@@ -70,9 +75,9 @@ class LoadTextImagePairs:
         
         return cropped_tensor.permute(1, 2, 0) # Convert back to HWC
 
-    def load_pairs(self, seed, folder_path=None, image_input=None, text_input=None, max_pair_count=0):
+    def load_pairs(self, seed, folder_path=None, image_input=None, text_input=None, max_pair_count=0, text_format_extension="txt"):
         print("LoadTextImagePairs: Starting stateless process.")
-        all_images, all_texts = [], []
+        all_images, all_texts, all_image_paths, all_image_basenames = [], [], [], []
 
         # --- Data Loading ---
         has_input_connection = image_input is not None or text_input is not None
@@ -94,10 +99,10 @@ class LoadTextImagePairs:
 
             if img_len == 0 and txt_len > 0:
                 print(f"LoadTextImagePairs Warning: Received {txt_len} texts but no images. Cannot form pairs.")
-                return (None, None, None, [])
+                return (None, None, None, [], "", "", [], [])
             if txt_len == 0 and img_len > 0:
                 print(f"LoadTextImagePairs Warning: Received {img_len} images but no texts. Cannot form pairs.")
-                return (None, None, None, [])
+                return (None, None, None, [], "", "", [], [])
 
             if img_len != txt_len:
                 print(f"LoadTextImagePairs Warning: Mismatched inputs. Got {img_len} images and {txt_len} texts. Using the smaller count: {min(img_len, txt_len)}.")
@@ -113,13 +118,13 @@ class LoadTextImagePairs:
                 from folder_paths import get_input_directory
                 input_dir = get_input_directory()
                 if not input_dir or not os.path.isdir(input_dir):
-                     return (None, None, None, [])
+                     return (None, None, None, [], "", "", [], [])
                 folder_path = os.path.join(input_dir, folder_path)
 
             if os.path.isdir(folder_path):
                 image_files, text_files = {}, {}
                 image_exts = ['.png', '.jpg', '.jpeg', '.bmp', '.webp']
-                text_exts = ['.txt']
+                text_exts = [f'.{text_format_extension.lower()}']
                 for f in sorted(os.listdir(folder_path)):
                     basename, ext = os.path.splitext(f)
                     if ext.lower() in image_exts: image_files[basename] = os.path.join(folder_path, f)
@@ -133,6 +138,8 @@ class LoadTextImagePairs:
                             all_images.append(torch.from_numpy(image)[None,])
                             with open(text_files[basename], 'r', encoding='utf-8') as f_text:
                                 all_texts.append(f_text.read())
+                            all_image_paths.append(image_files[basename])
+                            all_image_basenames.append(basename)
                         except Exception as e:
                             print(f"LoadTextImagePairs Error: Could not load pair for {basename}: {e}")
 
@@ -141,7 +148,7 @@ class LoadTextImagePairs:
             # Create a black image tensor as a placeholder
             black_image = torch.zeros((1, 64, 64, 3), dtype=torch.float32)
             black_image_list = torch.zeros((0, 64, 64, 3), dtype=torch.float32)
-            return (black_image, "", black_image_list, [])
+            return (black_image, "", black_image_list, [], "", "", [], [])
 
         # --- Main Logic ---
         # The seed loops through all available pairs.
@@ -151,18 +158,26 @@ class LoadTextImagePairs:
         # Get the single item.
         image_single = all_images[current_index]
         string_single = all_texts[current_index]
+        full_path_single = all_image_paths[current_index] if all_image_paths else ""
+        filename_single = all_image_basenames[current_index] if all_image_basenames else ""
 
         # The list output is always a rotation of the full list.
         rotated_images = all_images[current_index:] + all_images[:current_index]
         rotated_texts = all_texts[current_index:] + all_texts[:current_index]
+        rotated_paths = all_image_paths[current_index:] + all_image_paths[:current_index] if all_image_paths else []
+        rotated_basenames = all_image_basenames[current_index:] + all_image_basenames[:current_index] if all_image_basenames else []
 
         # The list is then sliced by max_pair_count.
         if max_pair_count > 0:
             final_images = rotated_images[:max_pair_count]
             final_texts = rotated_texts[:max_pair_count]
+            final_paths = rotated_paths[:max_pair_count]
+            final_basenames = rotated_basenames[:max_pair_count]
         else:
             final_images = rotated_images
             final_texts = rotated_texts
+            final_paths = rotated_paths
+            final_basenames = rotated_basenames
 
         # --- Image Batching and Resizing ---
         if final_images:
@@ -185,4 +200,4 @@ class LoadTextImagePairs:
             
         string_list = final_texts
 
-        return (image_single, string_single, image_list, string_list)
+        return (image_single, string_single, image_list, string_list, full_path_single, filename_single, final_paths, final_basenames)
