@@ -39,6 +39,6 @@ NODE_CLASS_MAPPINGS = {
     "🖼️📊 Metadata Extractor": MetadataExtractor,
     "🖼️+📝 Load Text-Image Pair (Single)": LoadTextImagePairSingle,
     "🖼️+📝 Load Text-Image Pairs (List)": LoadTextImagePairsList,
-    "🎵 Audio Visualizer": AudioVisualizer,
+    "🎵📊 Audio Visualizer": AudioVisualizer,
 }
 print("\033[34m⚡ MNeMiC Nodes: \033[92mLoaded\033[0m")
