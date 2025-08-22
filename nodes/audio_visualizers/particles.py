@@ -7,6 +7,9 @@ import colorsys
 particles = []
 spawner = {"x": 0, "y": 0, "vx": 0, "vy": 0}
 
+# Default multiplier for scale - can be adjusted to tweak visualizer sensitivity
+DEFAULT_MULTIPLIER = 5
+
 def visualize(audio_data, frame, framerate, width, height, scale=1.0):
     global particles, spawner
     audio_data = audio_data.squeeze().numpy()
@@ -31,7 +34,7 @@ def visualize(audio_data, frame, framerate, width, height, scale=1.0):
 
     # Calculate audio metrics
     if len(chunk) > 0:
-        avg_amplitude = np.mean(np.abs(chunk)) * scale
+        avg_amplitude = np.mean(np.abs(chunk)) * scale * DEFAULT_MULTIPLIER
 
         # Analyze frequency content
         if len(chunk) > 10:

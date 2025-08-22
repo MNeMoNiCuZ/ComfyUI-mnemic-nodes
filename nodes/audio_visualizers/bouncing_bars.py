@@ -5,6 +5,9 @@ import math
 
 bars = []
 
+# Default multiplier for scale - can be adjusted to tweak visualizer sensitivity
+DEFAULT_MULTIPLIER = 1.5
+
 def visualize(audio_data, frame, framerate, width, height, scale=1.0):
     global bars
     audio_data = audio_data.squeeze().numpy()
@@ -33,7 +36,7 @@ def visualize(audio_data, frame, framerate, width, height, scale=1.0):
 
             if start_idx < len(chunk):
                 bar_chunk = chunk[start_idx:end_idx]
-                amplitude = np.mean(np.abs(bar_chunk)) * scale
+                amplitude = np.mean(np.abs(bar_chunk)) * scale * DEFAULT_MULTIPLIER
 
                 # Only create bar if amplitude is significant
                 if amplitude > 0.01:

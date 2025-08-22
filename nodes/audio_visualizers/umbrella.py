@@ -6,6 +6,9 @@ import colorsys
 spike_waves = []
 rotation_angle = 0
 
+# Default multiplier for scale - can be adjusted to tweak visualizer sensitivity
+DEFAULT_MULTIPLIER = 3
+
 def visualize(audio_data, frame, framerate, width, height, scale=1.0):
     global spike_waves, rotation_angle
     audio_data = audio_data.squeeze().numpy()
@@ -33,7 +36,7 @@ def visualize(audio_data, frame, framerate, width, height, scale=1.0):
 
     if len(chunk) > 1:
         # Calculate audio metrics
-        avg_amplitude = np.mean(np.abs(chunk)) * scale
+        avg_amplitude = np.mean(np.abs(chunk)) * scale * DEFAULT_MULTIPLIER
 
         # Analyze frequency content - simplified for performance
         if len(chunk) > 10:

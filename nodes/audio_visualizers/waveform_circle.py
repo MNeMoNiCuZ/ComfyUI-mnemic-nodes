@@ -6,6 +6,9 @@ import random
 
 waveform_rings = []
 
+# Default multiplier for scale - can be adjusted to tweak visualizer sensitivity
+DEFAULT_MULTIPLIER = 2.5
+
 def visualize(audio_data, frame, framerate, width, height, scale=1.0):
     global waveform_rings
     audio_data = audio_data.squeeze().numpy()
@@ -30,7 +33,7 @@ def visualize(audio_data, frame, framerate, width, height, scale=1.0):
 
     # Dynamic radius based on audio intensity
     if len(chunk) > 0:
-        avg_amplitude = np.mean(np.abs(chunk)) * scale
+        avg_amplitude = np.mean(np.abs(chunk)) * scale * DEFAULT_MULTIPLIER
         base_radius = int(min(center_x, center_y) * (0.15 + avg_amplitude * 0.75))  # 15% to 90%
         base_radius = min(base_radius, int(min(center_x, center_y) * 0.9)) # Clamp base_radius
     else:
@@ -38,7 +41,7 @@ def visualize(audio_data, frame, framerate, width, height, scale=1.0):
 
     if len(chunk) > 1:
         # Calculate overall statistics
-        avg_amplitude = np.mean(np.abs(chunk)) * scale
+        avg_amplitude = np.mean(np.abs(chunk)) * scale * DEFAULT_MULTIPLIER
 
         # Calculate frequency-based pulsation
         if len(chunk) > 10:
@@ -126,7 +129,7 @@ def visualize(audio_data, frame, framerate, width, height, scale=1.0):
 
     # Add center glow that reacts to current audio
     if len(chunk) > 0:
-        avg_amplitude = np.mean(np.abs(chunk)) * scale
+        avg_amplitude = np.mean(np.abs(chunk)) * scale * DEFAULT_MULTIPLIER
         glow_radius = int(10 + avg_amplitude * 40)
         glow_radius = min(glow_radius, int(min(center_x, center_y) * 0.5)) # Clamp glow_radius
         glow_color = tuple(int(c * 255) for c in colorsys.hsv_to_rgb(0.5, 0.5, 0.8)) + (150,)
