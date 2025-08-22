@@ -1,4 +1,4 @@
-## 📐 Resolution Image Size Selector
+# 📐 Resolution Image Size Selector
 
 Creates resolutions and a latent from presets, user presets, or input images.
 

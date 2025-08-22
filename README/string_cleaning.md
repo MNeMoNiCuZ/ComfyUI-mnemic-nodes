@@ -1,4 +1,4 @@
-## 🧹 String Cleaning
+# 🧹 String Cleaning
 This node helps you quickly clean up and format strings by letting you remove leading or trailing spaces, periods, commas, or custom text, as well as removing linebreaks, or replacing them with a period.
 - `input_string`: Your input string. Use [ComfyUI-Easy-Use](https://github.com/yolain/ComfyUI-Easy-Use) for looping through a list of strings.
 - `collapse_sequential_spaces`: Collapses sequential spaces (" ") in a string into one.

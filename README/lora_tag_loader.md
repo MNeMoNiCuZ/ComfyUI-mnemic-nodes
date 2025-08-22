@@ -1,4 +1,4 @@
-## 🏷️ LoRA Loader Prompt Tags
+# 🏷️ LoRA Loader Prompt Tags
 
 Loads LoRA models using tags in the prompt.
 

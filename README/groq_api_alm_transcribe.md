@@ -1,4 +1,4 @@
-## ✨📝 Groq ALM API
+# ✨📝 Groq ALM API
 
 [Groq Speech Documentation](https://console.groq.com/docs/speech-text)
 

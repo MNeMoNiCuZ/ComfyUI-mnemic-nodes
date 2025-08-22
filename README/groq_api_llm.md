@@ -1,4 +1,4 @@
-## ✨💬 Groq LLM API
+# ✨💬 Groq LLM API
 > [!IMPORTANT]
 > #### 2025-01-12 - Version 1.2.4
 > Moved groq API key to a .env instead of a config.ini-file. This will cause existing config setups to break with an update. Apologies for the inconvenience.

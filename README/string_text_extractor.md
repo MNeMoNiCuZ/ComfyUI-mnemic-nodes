@@ -1,4 +1,4 @@
-## ✂️ String Text Extractor
+# ✂️ String Text Extractor
 
 ![image](https://github.com/user-attachments/assets/68a745b5-9b63-4796-8fd2-f1224d0e1510)
 

@@ -1,4 +1,4 @@
-## ✨📷 Groq VLM API
+# ✨📷 Groq VLM API
 > [!IMPORTANT]
 > #### 2024-09-27 - Version 1.2.1
 > Added new Llama 3.2 vision model to the list, but this model is not yet officially available. Once it is, this should automatically work.

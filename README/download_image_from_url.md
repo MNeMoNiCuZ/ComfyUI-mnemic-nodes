@@ -1,4 +1,4 @@
-## 🖼️ Download Image from URL
+# 🖼️ Download Image from URL
 
 This node downloads an image from an URL and lets you use it.
 

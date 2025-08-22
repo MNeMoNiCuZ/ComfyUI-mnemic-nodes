@@ -1,4 +1,4 @@
-## 📁 Get File Path
+# 📁 Get File Path
 
 This node returns the file path of a given file in the \input-folder.
 

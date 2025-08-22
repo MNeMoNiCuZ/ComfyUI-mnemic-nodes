@@ -1,4 +1,4 @@
-## 🖼️📊 Metadata Extractor
+# 🖼️📊 Metadata Extractor
 
 Extracts metadata from input images.
 

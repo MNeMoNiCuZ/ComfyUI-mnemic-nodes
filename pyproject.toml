@@ -1,9 +1,9 @@
 [project]
 name = "comfyui-mnemic-nodes"
-description = "Fixed bug with missing nodes in the __init__.py"
-version = "1.4.31"
+description = "Added the Audio Visualizer node"
+version = "1.5.0"
 license = { file = "LICENSE" }
-dependencies = ["configparser", "groq", "transformers", "torch", "tiktoken"]
+dependencies = ["configparser", "groq", "transformers", "torch", "tiktoken", "imageio", "tqdm"]
 
 [project.urls]
 Repository = "https://github.com/MNeMoNiCuZ/ComfyUI-mnemic-nodes"

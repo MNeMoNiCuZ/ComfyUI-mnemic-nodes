@@ -1,4 +1,4 @@
-## 💾 Save Text File With Path
+# 💾 Save Text File With Path
 
 This node is adapted and enhanced from the Save Text File node found in the [YMC GitHub ymc-node-suite-comfyui pack](https://github.com/YMC-GitHub/ymc-node-suite-comfyui).
 

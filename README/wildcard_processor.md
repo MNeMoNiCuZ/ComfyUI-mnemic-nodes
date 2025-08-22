@@ -1,4 +1,4 @@
-# Wildcard Processor Node
+# Wildcard Processor
 
 The Wildcard Processor is a powerful and flexible custom node for ComfyUI designed to add dynamic content to your prompts. It allows you to pull random elements from lists, use weighted choices, select multiple items, define variables, and nest these features for complex and varied outputs.
 

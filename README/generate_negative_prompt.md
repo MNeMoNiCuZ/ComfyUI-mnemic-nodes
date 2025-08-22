@@ -1,4 +1,4 @@
-## ⛔ Generate Negative Prompt
+# ⛔ Generate Negative Prompt
 
 > [!CAUTION]
 > This node is highly experimental, and does not produce any useful result right now. It also requires you to download a specially trained model for it. It's just not worth the effort. It's mostly here to share a work in progress project.
