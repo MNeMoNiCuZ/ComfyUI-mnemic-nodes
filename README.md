@@ -80,6 +80,12 @@ Creates resolutions and a latent from presets, user presets, or input images.
 <img width="1464" height="428" alt="image" src="https://github.com/user-attachments/assets/3bd379ee-0c02-4382-8e2c-0b75a1a607ef" />
 
 
+## 🎵📊 [Audio Visualizer](./README/audio_visualizer.md)
+Creates a visualizer from an input audio. Custom visualizer scripts can be created, and outputs can be saved as images or video.
+<img width="2205" height="638" alt="image" src="https://github.com/user-attachments/assets/35e70f68-09f2-4dfe-9676-18fe54a9af89" />
+
+
+
 ## ✨💬 [Groq LLM API](./README/groq_api_llm.md)
 Query Groq large language model.
 <img width="1590" height="489" alt="image" src="https://github.com/user-attachments/assets/6743639e-4cfd-4cc5-9283-a8ab165c364e" />
