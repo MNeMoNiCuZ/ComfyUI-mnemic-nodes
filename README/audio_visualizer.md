@@ -1,6 +1,9 @@
-# 🎵 Audio Visualizer
+# 🎵📊 Audio Visualizer
 
 A powerful ComfyUI node that creates stunning audio visualizations from audio files. Transform your music and sound into beautiful visual patterns using customizable visualizer scripts.
+
+<img width="2205" height="638" alt="image" src="https://github.com/user-attachments/assets/c2431015-0eb8-4b73-aa03-1e229d15fb80" />
+
 
 ## ✨ Features
 
@@ -116,27 +119,46 @@ def visualize(audio_data, frame_number, framerate, width, height, scale):
 
 ## 📁 Existing Visualizer Scripts
 
-The package includes several pre-built visualizer scripts:
+The package includes several pre-built visualizer scripts.
 
-### 🎵 Waveform Line (`waveform_line.py`)
-- **Description**: Classic audio waveform visualization
-- **Visual Style**: Horizontal waveform centered on screen
+Preview video generated from https://www.youtube.com/watch?v=t1bkqfJu-SU
 
-### 📊 Waveform Circular (`waveform_circular.py`)
-- **Description**: Audio waveform arranged in a circle
-- **Visual Style**: Circular waveform with center clearing
+
+### ✨ Particles (`particles.py`)
+- **Description**: Particle-based visualization
+- **Visual Style**: Moving particles responding to audio
+
+https://github.com/user-attachments/assets/aacbbdbe-e0bb-4ef8-b162-2b3cd5ed8da4
+
 
 ### 🎯 Umbrella (`umbrella.py`)
 - **Description**: Circular bars visualization extending from the middle
 - **Visual Style**: Vertical bars representing amplitude
 
+https://github.com/user-attachments/assets/4fb06fea-aaf4-4c86-a418-b1e3327ee820
+
+
 ### 🎨 Bouncing Bars (`bouncing_bars.py`)
 - **Description**: Animated bars that bounce to the beat
 - **Visual Style**: Dynamic bars with motion effects
 
-### ✨ Particles (`particles.py`)
-- **Description**: Particle-based visualization
-- **Visual Style**: Moving particles responding to audio
+https://github.com/user-attachments/assets/3c71be4d-ab8d-41b5-9462-e723bca2e6d2
+
+
+### 📊 Waveform Circular (`waveform_circular.py`)
+- **Description**: Audio waveform arranged in a circle
+- **Visual Style**: Circular waveform with center clearing
+
+https://github.com/user-attachments/assets/2fb1b8fe-1905-4260-b47a-a15b800bb13c
+
+
+### 🎵 Waveform Line (`waveform_line.py`)
+- **Description**: Classic audio waveform visualization
+- **Visual Style**: Horizontal waveform centered on screen
+
+https://github.com/user-attachments/assets/ae649613-ba4f-40c9-942f-5f3d39416844
+
+
 
 ## Performance Optimization
 - Lower resolution reduces processing time and memory usage
