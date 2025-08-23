@@ -158,9 +158,12 @@ https://github.com/user-attachments/assets/2fb1b8fe-1905-4260-b47a-a15b800bb13c
 
 https://github.com/user-attachments/assets/ae649613-ba4f-40c9-942f-5f3d39416844
 
-
-
 ## Performance Optimization
 - Lower resolution reduces processing time and memory usage
 - Use image mode for testing before committing to full video renders
 - Umbrella is much slower than the other ones
+
+## Creating Visuals
+You can use the output images or videos as input for image generation.
+
+<img width="1866" height="1205" alt="image" src="https://github.com/user-attachments/assets/fe5ae127-c1b7-4512-9386-dd1f994fac42" />
