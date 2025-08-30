@@ -17,6 +17,7 @@ from .load_text_image_pair_single import LoadTextImagePairSingle
 from .load_text_image_pairs_list import LoadTextImagePairsList
 from .metadata_extractor import MetadataExtractor
 from .audio_visualizer import AudioVisualizer
+from .load_image_advanced import LoadImageAdvanced
 #from .groq_api_alm_translate import GroqAPIALMTranslate
 
 __all__ = [
@@ -38,5 +39,6 @@ __all__ = [
     "FormatDateTime",
     "LoadTextImagePairs",
     "MetadataExtractor",
+    "LoadImageAdvanced",
     "AudioVisualizer",
 ]
