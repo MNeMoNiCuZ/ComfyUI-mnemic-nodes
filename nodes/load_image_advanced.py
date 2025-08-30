@@ -18,19 +18,22 @@ class LoadImageAdvanced:
 
     CATEGORY = "⚡ MNeMiC Nodes"
     DESCRIPTION = "Loads an image and extracts its file path and positive prompt from metadata."
-    RETURN_TYPES = ("IMAGE", "MASK", "STRING", "STRING")
-    RETURN_NAMES = ("image", "mask", "image_path", "positive_prompt")
+    RETURN_TYPES = ("IMAGE", "MASK", "STRING", "STRING", "INT", "INT")
+    RETURN_NAMES = ("image", "mask", "image_path", "positive_prompt", "width", "height")
     OUTPUT_TOOLTIPS = (
         "The loaded image.",
         "The alpha channel of the image, if it exists.",
         "The full file path of the loaded image.",
-        "The positive prompt extracted from the image's metadata."
+        "The positive prompt extracted from the image's metadata.",
+        "The width of the loaded image.",
+        "The height of the loaded image."
     )
     FUNCTION = "load_image"
 
     def load_image(self, image):
         image_path = folder_paths.get_annotated_filepath(image)
         img = Image.open(image_path)
+        width, height = img.size
         output_images = []
         output_masks = []
         
@@ -49,7 +52,7 @@ class LoadImageAdvanced:
         
         output_image = torch.cat([torch.from_numpy(np.array(i).astype(np.float32) / 255.0).unsqueeze(0) for i in output_images], dim=0)
         
-        return (output_image, mask.unsqueeze(0), image_path, positive_prompt)
+        return (output_image, mask.unsqueeze(0), image_path, positive_prompt, width, height)
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     "LoadImageAdvanced": "🖼️ Load Image Advanced",

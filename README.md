@@ -105,3 +105,13 @@ Query Groq Audio Model to transcribe audio.
 Generate negative prompts automatically.
 <img width="1577" height="359" alt="image" src="https://github.com/user-attachments/assets/a126dd5d-2d92-4069-8998-0f19ed5bcd2b" />
 
+
+## 🖼️ [Load Image Advanced](./README/load_image_advanced.md)
+Loads an image, extracts metadata, provides the alpha channel as a mask, and outputs the image's dimensions.
+<img width="800" alt="image" src="https://via.placeholder.com/800x400.png?text=Load+Image+Advanced+Node" />
+
+
+
+## 🔄 [Type Converter](./README/type_converter.md)
+A versatile utility for converting between fundamental data types.
+<img width="800" alt="image" src="https://via.placeholder.com/800x300.png?text=Type+Converter+Node+Example" />
