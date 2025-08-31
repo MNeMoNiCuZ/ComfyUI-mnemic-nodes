@@ -19,6 +19,7 @@ from .metadata_extractor import MetadataExtractor
 from .audio_visualizer import AudioVisualizer
 from .load_image_advanced import LoadImageAdvanced
 from .type_converter import TypeConverter
+from .colorful_starting_image import ColorfulStartingImage
 #from .groq_api_alm_translate import GroqAPIALMTranslate
 
 __all__ = [
@@ -43,4 +44,5 @@ __all__ = [
     "LoadImageAdvanced",
     "AudioVisualizer",
     "TypeConverter",
+    "ColorfulStartingImage",
 ]
