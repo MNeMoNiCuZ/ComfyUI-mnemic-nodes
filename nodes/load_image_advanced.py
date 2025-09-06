@@ -3,7 +3,7 @@ from PIL import Image
 import numpy as np
 import folder_paths
 import os
-from utils.image_utils import load_image_metadata
+from ..utils.image_utils import load_image_metadata
 
 class LoadImageAdvanced:
     @classmethod
@@ -34,23 +34,19 @@ class LoadImageAdvanced:
         image_path = folder_paths.get_annotated_filepath(image)
         img = Image.open(image_path)
         width, height = img.size
-        output_images = []
-        output_masks = []
         
         metadata = load_image_metadata(image_path)
         positive_prompt = metadata.get("positive_prompt", "")
 
-        for i in Image.Image.split(img):
-            i = Image.fromarray(np.array(i).astype(np.uint8), 'RGB')
-            output_images.append(i)
+        img_rgb = img.convert("RGB")
+        np_image = np.array(img_rgb).astype(np.float32) / 255.0
+        output_image = torch.from_numpy(np_image).unsqueeze(0)
 
         if 'A' in img.getbands():
             mask = np.array(img.getchannel('A')).astype(np.float32) / 255.0
             mask = torch.from_numpy(mask)
         else:
-            mask = torch.zeros((64, 64), dtype=torch.float32, device="cpu")
-        
-        output_image = torch.cat([torch.from_numpy(np.array(i).astype(np.float32) / 255.0).unsqueeze(0) for i in output_images], dim=0)
+            mask = torch.zeros((height, width), dtype=torch.float32, device="cpu")
         
         return (output_image, mask.unsqueeze(0), image_path, positive_prompt, width, height)
 

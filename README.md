@@ -112,6 +112,3 @@ Loads an image, extracts metadata, provides the alpha channel as a mask, and out
 
 
 
-## 🔄 [Type Converter](./README/type_converter.md)
-A versatile utility for converting between fundamental data types.
-<img width="800" alt="image" src="https://via.placeholder.com/800x300.png?text=Type+Converter+Node+Example" />

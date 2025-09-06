@@ -1,22 +1,30 @@
 # 🖼️ Load Image Advanced
 
-This node is an enhanced version of the standard image loader. It loads an image, extracts its positive prompt from metadata, provides the alpha channel as a mask, and outputs the image's dimensions.
+The `Load Image Advanced` node is an enhanced version of the default `Load Image` node in ComfyUI. It not only loads an image but also extracts useful information from it, providing multiple outputs for a more streamlined workflow.
 
----
+## Features
 
-### Node Reference
+-   **Image Loading**: Loads an image from your input directory or via direct upload.
+-   **Metadata Extraction**: Automatically extracts the positive prompt from the image's metadata, if available. This is useful for re-using prompts from previously generated images.
+-   **Alpha Channel as Mask**: If the image has an alpha channel (transparency), it is output as a separate mask.
+-   **Dimension Outputs**: Provides the width and height of the image as separate integer outputs.
+-   **File Path Output**: Outputs the full path to the loaded image file.
 
-![Image of Load Image Advanced node](https://via.placeholder.com/800x400.png?text=Load+Image+Advanced+Node)
+## Inputs
 
----
+-   `image`: An image file to load. You can select a file from your ComfyUI `input` folder or upload a new one.
 
-### Outputs
+## Outputs
 
--   `image`: The loaded image tensor.
--   `mask`: The alpha channel of the image as a mask.
--   `image_path`: The full file path of the loaded image.
--   `positive_prompt`: The positive prompt extracted from the image's metadata.
--   `width`: The width of the image in pixels.
--   `height`: The height of the image in pixels.
+-   `image`: The loaded image, ready to be used in your workflow (IMAGE tensor).
+-   `mask`: The alpha channel of the image as a MASK tensor. If the image has no alpha channel, a solid black mask is generated.
+-   `image_path`: The full file path of the loaded image (STRING).
+-   `positive_prompt`: The positive prompt extracted from the image's metadata (STRING).
+-   `width`: The width of the image in pixels (INT).
+-   `height`: The height of the image in pixels (INT).
 
-This node is perfect for quickly reloading a generated image and its prompt to continue working on it or to analyze its properties, and for using its dimensions to drive other parts of your workflow.
+## Example Workflow
+
+You can use this node to easily load an image and reuse its prompt, or use its alpha channel as a mask for inpainting or other operations. The width and height outputs are useful for dynamically setting resolutions in your workflow.
+
+*(placeholder for an image of the node in action)*
