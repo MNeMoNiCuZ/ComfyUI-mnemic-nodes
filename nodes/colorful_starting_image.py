@@ -230,14 +230,21 @@ class ColorfulStartingImage:
             if shape == "rectangle": points = [(x1, y1), (x2, y1), (x2, y2), (x1, y2)]
             elif shape == "triangle": points = [(np.random.randint(x1,x2), np.random.randint(y1,y2)) for _ in range(3)]
             elif shape == "polygon": num_sides = np.random.randint(5, 9); points = [(np.random.randint(x1,x2), np.random.randint(y1,y2)) for _ in range(num_sides)]
-            
+
             if shape in ["rectangle", "triangle", "polygon"]:
                 shape_draw.polygon(points, fill=color_with_alpha)
                 mask_draw.polygon(points, fill=255)
             elif shape in ["ellipse", "circle"]:
+                if shape == "circle":
+                    # Ensure the bounding box is square for circles
+                    center_x = (x1 + x2) / 2
+                    center_y = (y1 + y2) / 2
+                    size = min(x2 - x1, y2 - y1) / 2
+                    x1, x2 = center_x - size, center_x + size
+                    y1, y2 = center_y - size, center_y + size
                 shape_draw.ellipse([x1, y1, x2, y2], fill=color_with_alpha)
                 mask_draw.ellipse([x1, y1, x2, y2], fill=255)
-            elif shape == "dot": 
+            elif shape == "dot":
                 radius = np.random.randint(1, 10)
                 shape_draw.ellipse([x1_orig-radius, y1_orig-radius, x1_orig+radius, y1_orig+radius], fill=color_with_alpha)
                 mask_draw.ellipse([x1_orig-radius, y1_orig-radius, x1_orig+radius, y1_orig+radius], fill=255)
