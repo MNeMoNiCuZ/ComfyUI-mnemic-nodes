@@ -6,44 +6,43 @@ A powerful and highly customizable ComfyUI node for generating complex, abstract
 
 ## ✨ Features
 
-- **Highly Customizable**: A vast array of controls to move from simple geometric patterns to chaotic, organic, and atmospheric compositions.
-- **Flexible Shape System**: Define a custom mix of shapes to draw, including rectangles, ellipses, lines, splines, dots, stripes, triangles, polygons, and more.
-- **Advanced Color Control**: Go beyond random colors with palettes, color harmonies, multi-color fills, and opacity.
-- **Granular Randomization**: Precisely control the placement and size of shapes with positioning biases and size distributions.
-- **Organic Effects**: Add a new layer of visual interest with features like rotation, color bleed, and shape warping.
-- **Workflow Integration**: A dedicated `MASK` output for seamless integration with other nodes.
+- **Highly Customizable**: Over 15 parameters for control from simple geometric patterns to complex, organic compositions.
+- **Flexible Shape System**: Define a custom mix of shapes including rectangles, ellipses, circles, lines, splines, dots, stripes, triangles, polygons, arcs, gradient rectangles, and concentric circles.
+- **Advanced Color Control**: Multiple palettes, color harmonies, multi-color modes, opacity, and noise effects.
+- **Granular Randomization**: Precise control over shape placement, sizing, rotation, and arrangement patterns.
+- **Noise & Distortion**: Add grainy textures and warp effects for organic complexity.
+- **Workflow Integration**: Dual outputs (image + mask) for ComfyUI workflows.
 
 ## ⚙️ Inputs
 
 ### Core Generation
 - **`width` / `height`**: The dimensions of the output image in pixels.
-- **`layers`**: The total number of shapes to draw. More layers create a more complex image.
-- **`density`**: Controls the maximum size of shapes relative to the image dimensions.
-- **`shape_string`**: A comma-separated list of shapes to draw (e.g., `rectangle, dot, dot`). The node randomly picks from this list for each layer, so repeating a shape increases its probability.
+- **`components`**: The total number of shapes to draw. More components create a more complex image.
+- **`component_scale`**: Controls the maximum size of shapes relative to the image dimensions (0.01-1.0).
+- **`shape_string`**: A comma-separated list of shapes (e.g., `rectangle, ellipse, line`). Available: rectangle, ellipse, circle, line, spline, dot, stripes, triangle, polygon, arc, gradient_rectangle, concentric_circles.
 
 ### Colorization
-- **`color_palette`**: The base color generation method (`random`, `muted`, `grayscale`, `high_contrast`).
-- **`color_harmony`**: Applies a color theory rule (`complementary`, `analogous`, `triadic`) for more aesthetically pleasing results.
-- **`multi_color_mode`**: Fills shapes with multiple colors instead of a solid fill (`gradient`, `random_vertices`).
-- **`shape_opacity`**: The transparency of the drawn shapes. Lower values create blending effects.
-- **`background_color`**: The background color of the canvas (e.g., `black`, `#FF0000`).
+- **`color_palette`**: Base color method: `random` (picks from others), `random_color` (any RGB), `muted`, `grayscale`, `high_contrast`.
+- **`color_harmony`**: Color theory rules: `random` (picks from others), `none`, `complementary`, `analogous`, `triadic`.
+- **`multi_color_mode`**: Multi-color fills: `random` (picks from others), `none`, `gradient`, `random_vertices`.
+- **`shape_opacity`**: Alpha value (0.0-1.0) for drawn shapes.
+- **`background_color`**: Canvas background - color names, hex codes, or `random`.
 
 ### Randomization & Composition
-- **`positioning_bias`**: Controls where shapes are more likely to appear on the canvas.
-- **`size_distribution`**: Biases the random size generation towards smaller or larger shapes.
-- **`allow_rotation`**: If true, allows shapes like rectangles and lines to be drawn at random angles.
-- **`controlled_chaos`**: Arranges shapes in a structured pattern (e.g., `spiral`, `burst`) instead of pure randomness.
-- **`seed`**: The seed for the random number generator. The same seed with the same settings will always produce the same image.
+- **`positioning_bias`**: Placement bias: `random` (from others), `scattered`, `center_weighted`, `edge_weighted`, `grid_aligned`, `random_weighted`, directional (north, south, east, west, corners).
+- **`arrangement`**: Structured patterns: `random` (from others), `none`, `spiral`, `burst`, `grid`.
+- **`size_distribution`**: Size bias: `random` (from others), `uniform`, `prefer_small`, `prefer_large`.
+- **`allow_rotation`**: Enable random rotation for rectangles, lines, etc.
+- **`seed`**: Random seed (supports 64-bit values for reproducibility).
 
 ### Effects & Post-Processing
-- **`stroke_width`**: If greater than 0, shapes will be drawn as outlines of this width instead of being filled.
-- **`noise_level`**: Fills shapes with a noisy, grainy texture instead of a solid color.
-- **`color_bleed`**: Simulates a watercolor-like effect where colors from shapes bleed into their surroundings.
-- **`warp_type`**: The type of distortion to apply to the final image (e.g., `wave`, `swirl`).
-- **`warp_intensity`**: The strength of the distortion effect.
-- **`blur_radius`**: Applies a final Gaussian blur to the entire image.
+- **`noise_level`**: Grain intensity (0.0-5.0 multiplier).
+- **`noise_scale`**: Grain patch size (1.0-100.0).
+- **`noise_color`**: Grain type: `random`, `colored`, `monochrome`.
+- **`warp_type`**: Distortion type: `random` (from others), `none`, `wave`, `noise_field`, `swirl`.
+- **`warp_intensity`**: Distortion strength (0.0-1.0).
+- **`blur_radius`**: Final Gaussian blur (0.0-1.0).
 
-## ել Outputs
-- **`image`**: The final generated colorful image.
-- **`latent`**: A latent representation of the final image, ready to be used in a diffusion model.
-- **`mask`**: A black-and-white mask where all drawn shapes are white and the background is black.
+## 📤 Outputs
+- **`image`**: The generated color image (RGB tensor).
+- **`mask`**: Black-and-white mask where drawn shapes are white, background is black (mask tensor).
