@@ -22,9 +22,9 @@ A powerful and highly customizable ComfyUI node for generating complex, abstract
 - **`shape_string`**: A comma-separated list of shapes (e.g., `rectangle, ellipse, line`). Available: rectangle, ellipse, circle, line, spline, dot, stripes, triangle, polygon, arc, gradient_rectangle, concentric_circles.
 
 ### Colorization
-- **`color_palette`**: Base color method: `random` (picks from others), `random_color` (any RGB), `muted`, `grayscale`, `high_contrast`.
-- **`color_harmony`**: Color theory rules: `random` (picks from others), `none`, `complementary`, `analogous`, `triadic`.
-- **`multi_color_mode`**: Multi-color fills: `random` (picks from others), `none`, `gradient`, `random_vertices`.
+- **`color_palette`**: Base color method: `random` (picks from others), `random_color` (any RGB), `muted`, `grayscale`, `binary`, `neon`, `pastel`, `colorized` (single random hue across all shapes).
+- **`color_harmony`**: Color theory rules: `random` (picks from others), `none`, `complementary`, `analogous`, `triadic`, `tetradic`.
+- **`fill_mode`**: Multi-color fills: `random` (picks from others), `none`, `gradient`, `vertices`.
 - **`shape_opacity`**: Alpha value (0.0-1.0) for drawn shapes.
 - **`background_color`**: Canvas background - color names, hex codes, or `random`.
 
