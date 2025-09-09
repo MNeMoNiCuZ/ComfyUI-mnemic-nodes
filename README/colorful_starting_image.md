@@ -19,12 +19,12 @@ A powerful and highly customizable ComfyUI node for generating complex, abstract
 - **`width` / `height`**: The dimensions of the output image in pixels.
 - **`components`**: The total number of shapes to draw. More components create a more complex image.
 - **`component_scale`**: Controls the maximum size of shapes relative to the image dimensions (0.01-1.0).
-- **`shape_string`**: A comma-separated list of shapes (e.g., `rectangle, ellipse, line`). Available: rectangle, ellipse, circle, line, spline, dot, stripes, triangle, polygon, arc, gradient_rectangle, concentric_circles.
+- **`shape_string`**: A comma-separated list of shapes (e.g., `rectangle, ellipse, line`). Available: rectangle, ellipse, circle, line, spline, dot, stripes, triangle, polygon, arc, concentric_circles.
 
 ### Colorization
 - **`color_palette`**: Base color method: `random` (picks from others), `random_color` (any RGB), `muted`, `grayscale`, `binary`, `neon`, `pastel`, `colorized` (single random hue across all shapes).
 - **`color_harmony`**: Color theory rules: `random` (picks from others), `none`, `complementary`, `analogous`, `triadic`, `tetradic`.
-- **`fill_mode`**: Multi-color fills: `random` (picks from others), `none`, `gradient`, `vertices`.
+- **`fill_mode`**: Multi-color fills for shapes: `random` (picks from others), `none` (solid color), `gradient` (blends two colors vertically across each shape), `blocks` (divides each shape into vertical strips of solid, related colors).
 - **`shape_opacity`**: Alpha value (0.0-1.0) for drawn shapes.
 - **`background_color`**: Canvas background - color names, hex codes, or `random`.
 

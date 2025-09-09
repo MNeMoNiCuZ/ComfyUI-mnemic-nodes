@@ -10,7 +10,7 @@ import cv2
 class ColorfulStartingImage:
     COLOR_PALETTE_OPTIONS = ["random_color", "muted", "grayscale", "binary", "neon", "pastel", "colorized"]
     COLOR_HARMONY_OPTIONS = ["none", "complementary", "analogous", "triadic", "tetradic"]
-    MULTI_COLOR_MODE_OPTIONS = ["none", "gradient", "vertices"]
+    MULTI_COLOR_MODE_OPTIONS = ["none", "gradient", "blocks"]
     POSITIONING_BIAS_OPTIONS = [
         "scattered", "center_weighted", "edge_weighted", "grid_aligned", "random_weighted",
         "north", "south", "east", "west",
@@ -28,10 +28,11 @@ class ColorfulStartingImage:
                 "height": ("INT", {"default": 1024, "min": 64, "step": 64, "tooltip": "The height of the generated image in pixels."}),
                 "components": ("INT", {"default": 20, "min": 1, "tooltip": "The total number of components (shapes) to draw on the image. More components create a more complex image."}),
                 "component_scale": ("FLOAT", {"default": 0.5, "min": 0.01, "step": 0.01, "tooltip": "Controls the maximum potential size of shapes. A shape's max width is `image_width * component_scale`.\nExample: With a 1024px wide image and 0.5 scale, the largest shapes will be around 512px wide."} ),
-                "shape_string": ("STRING", {"default": "rectangle, ellipse, circle, line, spline, dot, stripes, triangle, polygon, arc, gradient_rectangle, concentric_circles", "multiline": True, "tooltip": "A comma-separated list of shapes to draw from.\n\nAvailable shapes:\n- rectangle, ellipse, circle, line, spline, dot, stripes, triangle, polygon, arc, gradient_rectangle, concentric_circles"}),
-                "color_palette": (["random"] + s.COLOR_PALETTE_OPTIONS, {"tooltip": "The color palette for the shapes.\n\nOptions:\n- random: Picks one of the other palette options at random.\n- random_color: Any RGB color.\n- muted: Less saturated, softer colors.\n- grayscale: Shades of gray.\n- binary: Pure black and white.\n- neon: Bright, highly saturated colors.\n- pastel: Soft, low-saturation colors.\n- colorized: Grayscale tinted with a single random hue across all shapes."}),
-                "color_harmony": (["random"] + s.COLOR_HARMONY_OPTIONS, {"tooltip": "Apply a color harmony rule to the generated colors.\n\nOptions:\n- none: No harmony.\n- complementary: Two colors from opposite sides.\n- analogous: Three colors next to each other.\n- triadic: Three colors evenly spaced.\n- tetradic: Four colors in square harmony."}),
-                "fill_mode": (["random"] + s.MULTI_COLOR_MODE_OPTIONS, {"tooltip": "Fill shapes with multiple colors.\n\nOptions:\n- none: Shapes are filled with a single color.\n- gradient: Creates a two-color vertical gradient (rectangles only).\n- vertices: Divides shape into random vertical strips with different colors."}),
+                "shape_string": ("STRING", {"default": "rectangle, ellipse, circle, line, spline, dot, stripes, triangle, polygon, arc, concentric_circles", "multiline": True, "tooltip": "A comma-separated list of shapes to draw from.\n\nAvailable shapes:\n- rectangle, ellipse, circle, line, spline, dot, stripes, triangle, polygon, arc, concentric_circles"}),
+                "color_palette": (["random"] + s.COLOR_PALETTE_OPTIONS, {"tooltip": "The color palette for the shapes.\n\nOptions:\n- random: Picks one of the other palette options at random.\n- random_color: Any RGB color.\n- muted: Less saturated, softer colors.\n- grayscale: Shades of gray.\n- binary: Pure black and white.\n- neon: Bright, highly saturated colors.\n- pastel: Soft, low-saturation colors.\n- colorized: Grayscale tinted with a single random hue across all shapes."} ),
+                "color_harmony": (["random"] + s.COLOR_HARMONY_OPTIONS, {"tooltip": "Apply a color harmony rule to the generated colors.\n\nOptions:\n- none: No harmony.\n- complementary: Two colors from opposite sides.\n- analogous: Three colors next to each other.\n- triadic: Three colors evenly spaced.\n- tetradic: Four colors in square harmony.\n\nNote: Color harmony has no effect when the 'binary' color palette is selected."} ),
+                "                "fill_mode": (["random"] + s.MULTI_COLOR_MODE_OPTIONS, {"tooltip": "Fill shapes with multiple colors.\n\nOptions:\n- none: Shapes are filled with a single color.\n- gradient: Blends two colors in a vertical gradient across each shape.\n- blocks: Divides each shape into vertical strips of solid, related colors."} )
+,
                 "shape_opacity": ("FLOAT", {"default": 1.0, "min": 0.1, "max": 1.0, "step": 0.05, "tooltip": "The alpha value (0.0 to 1.0) for the drawn shapes. 1.0 is fully opaque."} ),
                 "background_color": ("STRING", {"default": "black", "tooltip": "The background color of the image. `random` is a valid value.\nCan be a color name (e.g., 'black', 'white', 'random')\nor a hex code (e.g., '#FF0000').\n\nFor a list of supported color names, see: https://www.w3.org/TR/css-color-3/#svg-color"}),
                 "positioning_bias": (["random"] + s.POSITIONING_BIAS_OPTIONS, {"tooltip": "Controls where shapes are likely to appear.\n\nOptions:\n- scattered: Anywhere on the canvas.\n- center_weighted: Clustered in the center.\n- edge_weighted: Clustered along the edges.\n- grid_aligned: Aligned to a grid.\n- random_weighted: Clustered around two random points.\n- north/south/east/west: Clustered on that edge.\n- nw/ne/sw/se: Clustered in that corner."} ),
@@ -66,13 +67,15 @@ class ColorfulStartingImage:
         if palette == "grayscale" and harmony_colors:
             gray_val = np.random.randint(0, 255)
             harmonious_color = random.choice(harmony_colors)
-            h, s, _ = colorsys.rgb_to_hls(harmonious_color[0]/255, harmonious_color[1]/255, harmonious_color[2]/255)
+            h, _, _ = colorsys.rgb_to_hls(harmonious_color[0], harmonious_color[1], harmonious_color[2])
+            s = np.random.uniform(0.5, 1.0)
             l = gray_val / 255
             r, g, b = colorsys.hls_to_rgb(h, l, s)
             return (int(r*255), int(g*255), int(b*255))
         if palette == "binary" and harmony_colors:
             harmonious_color = random.choice(harmony_colors)
-            h, s, _ = colorsys.rgb_to_hls(harmonious_color[0]/255, harmonious_color[1]/255, harmonious_color[2]/255)
+            h, _, _ = colorsys.rgb_to_hls(harmonious_color[0], harmonious_color[1], harmonious_color[2])
+            s = np.random.uniform(0.5, 1.0)
             l = 0 if np.random.rand() > 0.5 else 1  # black or white tinted
             r, g, b = colorsys.hls_to_rgb(h, l, s)
             return (int(r*255), int(g*255), int(b*255))
@@ -179,10 +182,31 @@ class ColorfulStartingImage:
 
             draw.polygon(polygon_points, fill=color)
 
+    def _create_gradient_fill(self, width, height, color1, color2, opacity):
+        c1 = np.array(color1)
+        c2 = np.array(color2)
+        ramp = np.linspace(0, 1, height).reshape(height, 1, 1)
+        gradient_rgb = c1 * (1 - ramp) + c2 * ramp
+        gradient_rgb_w = np.broadcast_to(gradient_rgb, (height, width, 3))
+        gradient_rgb_w = gradient_rgb_w.astype(np.uint8)
+        alpha = np.full((height, width, 1), int(255 * opacity), dtype=np.uint8)
+        gradient_rgba = np.concatenate((gradient_rgb_w, alpha), axis=2)
+        return Image.fromarray(gradient_rgba, 'RGBA')
+
+    def _create_blocks_fill(self, width, height, palette, harmony_colors, colorized_hue, opacity):
+        num_strips = np.random.randint(3, 6)
+        blocks_rgba = np.zeros((height, width, 4), dtype=np.uint8)
+        strip_boundaries = np.linspace(0, width, num_strips + 1, dtype=int)
+        for i in range(num_strips):
+            strip_x1 = strip_boundaries[i]
+            strip_x2 = strip_boundaries[i+1]
+            if strip_x1 >= strip_x2: continue
+            block_color = self.get_color(palette, harmony_colors, colorized_hue)
+            strip_color = block_color + (int(255 * opacity),)
+            blocks_rgba[:, strip_x1:strip_x2] = strip_color
+        return Image.fromarray(blocks_rgba, 'RGBA')
+
     def draw_shape(self, width, height, component_scale, shape, palette, image, mask, pos_bias, size_dist, rotation, harmony_colors, opacity, noise_level, noise_scale, noise_color, arrangement, arrangement_params, fill_mode, noise_rng, colorized_hue=None):
-        color = self.get_color(palette, harmony_colors, colorized_hue)
-        color_with_alpha = color + (int(255 * opacity),)
-        
         shape_layer = Image.new('RGBA', image.size, (0,0,0,0))
         mask_layer = Image.new('L', mask.size, 0)
         shape_draw = ImageDraw.Draw(shape_layer)
@@ -242,86 +266,49 @@ class ColorfulStartingImage:
                 return Image.fromarray(layer_np, 'RGBA').convert(original_mode)
             return layer
 
-        if shape in ["line", "spline"]:
-            points = []
-            if shape == "line":
-                points = [(x1_orig, y1_orig), (x2_orig, y2_orig)]
-            elif shape == "spline":
-                points = [(np.random.randint(0, width), np.random.randint(0, height)) for _ in range(np.random.randint(3, 6))]
-            
-            self.draw_pulsating_line(shape_draw, points, color_with_alpha, component_scale, width, height)
-            self.draw_pulsating_line(mask_draw, points, 255, component_scale, width, height)
-
-        elif shape in ["rectangle", "ellipse", "circle", "dot", "triangle", "polygon"]:
-            points = []
-            if shape == "rectangle": points = [(x1, y1), (x2, y1), (x2, y2), (x1, y2)]
-            elif shape == "triangle": points = [(np.random.randint(x1,x2), np.random.randint(y1,y2)) for _ in range(3)]
-            elif shape == "polygon": num_sides = np.random.randint(5, 9); points = [(np.random.randint(x1,x2), np.random.randint(y1,y2)) for _ in range(num_sides)]
-
-            if shape in ["rectangle", "triangle", "polygon"]:
-                shape_draw.polygon(points, fill=color_with_alpha)
+        fillable_shapes = ["rectangle", "ellipse", "circle", "dot", "triangle", "polygon"]
+        
+        # --- MASK CREATION ---
+        if shape in fillable_shapes:
+            if shape == "rectangle":
+                points = [(x1, y1), (x2, y1), (x2, y2), (x1, y2)]
+                mask_draw.polygon(points, fill=255)
+            elif shape == "triangle":
+                points = [(np.random.randint(x1,x2), np.random.randint(y1,y2)) for _ in range(3)]
+                mask_draw.polygon(points, fill=255)
+            elif shape == "polygon":
+                num_sides = np.random.randint(5, 9)
+                points = [(np.random.randint(x1,x2), np.random.randint(y1,y2)) for _ in range(num_sides)]
                 mask_draw.polygon(points, fill=255)
             elif shape in ["ellipse", "circle"]:
+                bbox = [x1, y1, x2, y2]
                 if shape == "circle":
-                    # Ensure the bounding box is square for circles
-                    center_x = (x1 + x2) / 2
-                    center_y = (y1 + y2) / 2
+                    center_x, center_y = (x1 + x2) / 2, (y1 + y2) / 2
                     size = min(x2 - x1, y2 - y1) / 2
-                    x1, x2 = center_x - size, center_x + size
-                    y1, y2 = center_y - size, center_y + size
-                shape_draw.ellipse([x1, y1, x2, y2], fill=color_with_alpha)
-                mask_draw.ellipse([x1, y1, x2, y2], fill=255)
+                    bbox = [center_x - size, center_y - size, center_x + size, center_y + size]
+                mask_draw.ellipse(bbox, fill=255)
             elif shape == "dot":
                 radius = np.random.randint(1, 10)
-                shape_draw.ellipse([x1_orig-radius, y1_orig-radius, x1_orig+radius, y1_orig+radius], fill=color_with_alpha)
                 mask_draw.ellipse([x1_orig-radius, y1_orig-radius, x1_orig+radius, y1_orig+radius], fill=255)
 
-        elif shape == "arc": 
-            start_angle = np.random.randint(0, 360)
-            end_angle = start_angle + np.random.randint(30, 180)
-            shape_draw.arc([x1, y1, x2, y2], start=start_angle, end=end_angle, fill=color_with_alpha, width=np.random.randint(1,10))
-            mask_draw.arc([x1, y1, x2, y2], start=start_angle, end=end_angle, fill=255, width=np.random.randint(1,10))
+        # --- FILLING / DRAWING ---
+        if shape in fillable_shapes and fill_mode != 'none':
+            bbox = mask_layer.getbbox()
+            if bbox:
+                bx1, by1, bx2, by2 = bbox
+                shape_w, shape_h = bx2 - bx1, by2 - by1
+                shape_mask = mask_layer.crop(bbox)
 
-        elif shape == "stripes":
-            num_stripes = np.random.randint(1, 4)
-            for _ in range(num_stripes):
-                points = []
-                edge1 = np.random.randint(0, 4)
-                edge2 = (edge1 + np.random.randint(1, 4)) % 4
+                fill_img = None
+                if fill_mode == 'gradient':
+                    color1 = self.get_color(palette, harmony_colors, colorized_hue)
+                    color2 = self.get_color(palette, harmony_colors, colorized_hue)
+                    fill_img = self._create_gradient_fill(shape_w, shape_h, color1, color2, opacity)
+                elif fill_mode == 'blocks':
+                    fill_img = self._create_blocks_fill(shape_w, shape_h, palette, harmony_colors, colorized_hue, opacity)
                 
-                edges = [edge1, edge2]
-                for edge in edges:
-                    if edge == 0: # Top
-                        points.append((np.random.randint(0, width), 0))
-                    elif edge == 1: # Right
-                        points.append((width, np.random.randint(0, height)))
-                    elif edge == 2: # Bottom
-                        points.append((np.random.randint(0, width), height))
-                    else: # Left
-                        points.append((0, np.random.randint(0, height)))
-
-                stripe_color = self.get_color(palette, harmony_colors, colorized_hue) + (int(255 * opacity),)
-                self.draw_pulsating_line(shape_draw, points, stripe_color, component_scale, width, height)
-                self.draw_pulsating_line(mask_draw, points, 255, component_scale, width, height)
-
-        elif shape == "gradient_rectangle" or (shape == "rectangle" and fill_mode == 'gradient'):
-            color1, color2 = self.get_color(palette, harmony_colors, colorized_hue), self.get_color(palette, harmony_colors, colorized_hue)
-            for i in range(y1, y2):
-                ratio = (i - y1) / (y2 - y1) if (y2 - y1) != 0 else 0
-                r,g,b = [int(c1 * (1 - ratio) + c2 * ratio) for c1,c2 in zip(color1, color2)]
-                shape_draw.line([(x1, i), (x2, i)], fill=(r, g, b, int(255 * opacity)))
-            mask_draw.rectangle([x1, y1, x2, y2], fill=255)
-
-        elif shape == "rectangle" and fill_mode == 'vertices':
-            num_strips = np.random.randint(5, 12)
-            strip_width = (x2 - x1) / num_strips
-            for i in range(num_strips):
-                strip_x1 = x1 + i * strip_width
-                strip_x2 = x1 + (i + 1) * strip_width
-                vertex_color = self.get_color(palette, harmony_colors, colorized_hue)
-                strip_color = vertex_color + (int(255 * opacity),)
-                shape_draw.rectangle([strip_x1, y1, strip_x2, y2], fill=strip_color)
-            mask_draw.rectangle([x1, y1, x2, y2], fill=255)
+                if fill_img:
+                    shape_layer.paste(fill_img, (bx1, by1), shape_mask)
 
         elif shape == "concentric_circles":
             center_x, center_y, max_radius, num_circles = x1, y1, min(abs(size_x), abs(size_y)) // 2, np.random.randint(3, 10)
@@ -331,8 +318,39 @@ class ColorfulStartingImage:
                 shape_draw.ellipse([center_x-radius, center_y-radius, center_x+radius, center_y+radius], fill=circle_color)
                 mask_draw.ellipse([center_x-radius, center_y-radius, center_x+radius, center_y+radius], fill=255)
         
-        shape_layer = apply_noise_to_layer(shape_layer, mask_layer)
+        else: # Solid fill for fillable shapes, or line-based shapes
+            color = self.get_color(palette, harmony_colors, colorized_hue)
+            color_with_alpha = color + (int(255 * opacity),)
+            
+            if shape in fillable_shapes:
+                 solid_fill = Image.new('RGBA', image.size, color_with_alpha)
+                 shape_layer.paste(solid_fill, (0,0), mask_layer)
+            
+            elif shape in ["line", "spline"]:
+                points = []
+                if shape == "line": points = [(x1_orig, y1_orig), (x2_orig, y2_orig)]
+                elif shape == "spline": points = [(np.random.randint(0, width), np.random.randint(0, height)) for _ in range(np.random.randint(3, 6))]
+                self.draw_pulsating_line(shape_draw, points, color_with_alpha, component_scale, width, height)
+                self.draw_pulsating_line(mask_draw, points, 255, component_scale, width, height)
 
+            elif shape == "arc": 
+                start_angle, end_angle = np.random.randint(0, 360), np.random.randint(30, 180)
+                shape_draw.arc([x1, y1, x2, y2], start=start_angle, end=end_angle, fill=color_with_alpha, width=np.random.randint(1,10))
+                mask_draw.arc([x1, y1, x2, y2], start=start_angle, end=end_angle, fill=255, width=np.random.randint(1,10))
+
+            elif shape == "stripes":
+                for _ in range(np.random.randint(1, 4)):
+                    points = []
+                    for edge in random.sample(range(4), 2):
+                        if edge == 0: points.append((np.random.randint(0, width), 0))
+                        elif edge == 1: points.append((width, np.random.randint(0, height)))
+                        elif edge == 2: points.append((np.random.randint(0, width), height))
+                        else: points.append((0, np.random.randint(0, height)))
+                    stripe_color = self.get_color(palette, harmony_colors, colorized_hue) + (int(255 * opacity),)
+                    self.draw_pulsating_line(shape_draw, points, stripe_color, component_scale, width, height)
+                    self.draw_pulsating_line(mask_draw, points, 255, component_scale, width, height)
+
+        shape_layer = apply_noise_to_layer(shape_layer, mask_layer)
 
         if rotation and shape in ["rectangle", "line", "ellipse", "triangle"]:
              center_x = (x1 + x2) / 2
