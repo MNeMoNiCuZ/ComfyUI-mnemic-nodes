@@ -32,23 +32,25 @@ class LoadImageAdvanced:
 
     def load_image(self, image):
         image_path = folder_paths.get_annotated_filepath(image)
-        img = Image.open(image_path)
-        width, height = img.size
-        
-        metadata = load_image_metadata(image_path)
-        positive_prompt = metadata.get("positive_prompt", "")
+        try:
+            with Image.open(image_path) as img:
+                width, height = img.size
+                metadata = load_image_metadata(image_path)
+                positive_prompt = metadata.get("positive_prompt", "")
 
-        img_rgb = img.convert("RGB")
-        np_image = np.array(img_rgb).astype(np.float32) / 255.0
-        output_image = torch.from_numpy(np_image).unsqueeze(0)
+                img_rgb = img.convert("RGB")
+                np_image = np.asarray(img_rgb, dtype=np.float32) / 255.0  # [H,W,3]
+                output_image = torch.from_numpy(np_image).unsqueeze(0).contiguous()  # [1,H,W,3]
 
-        if 'A' in img.getbands():
-            mask = np.array(img.getchannel('A')).astype(np.float32) / 255.0
-            mask = torch.from_numpy(mask)
-        else:
-            mask = torch.zeros((height, width), dtype=torch.float32, device="cpu")
-        
-        return (output_image, mask.unsqueeze(0), image_path, positive_prompt, width, height)
+                if "A" in img.getbands():
+                    mask_np = np.asarray(img.getchannel("A"), dtype=np.float32) / 255.0  # [H,W]
+                    mask = torch.from_numpy(mask_np).unsqueeze(0)  # [1,H,W]
+                else:
+                    mask = torch.zeros((1, height, width), dtype=torch.float32)
+        except Exception as e:
+            raise RuntimeError(f"Failed to load image '{image_path}': {e}")
+
+        return (output_image, mask, image_path, positive_prompt, width, height)
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     "LoadImageAdvanced": "🖼️ Load Image Advanced",
