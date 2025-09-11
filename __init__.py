@@ -18,6 +18,9 @@ from .nodes.load_text_image_pair_single import LoadTextImagePairSingle
 from .nodes.load_text_image_pairs_list import LoadTextImagePairsList
 from .nodes.metadata_extractor import MetadataExtractor
 from .nodes.audio_visualizer import AudioVisualizer
+from .nodes.load_image_advanced import LoadImageAdvanced
+
+from .nodes.colorful_starting_image import ColorfulStartingImage
 
 NODE_CLASS_MAPPINGS = {
     "📁 Get File Path": GetFilePath,
@@ -40,5 +43,8 @@ NODE_CLASS_MAPPINGS = {
     "🖼️+📝 Load Text-Image Pair (Single)": LoadTextImagePairSingle,
     "🖼️+📝 Load Text-Image Pairs (List)": LoadTextImagePairsList,
     "🎵📊 Audio Visualizer": AudioVisualizer,
+    "🖼️ Load Image Advanced": LoadImageAdvanced,
+    
+    "🎨 Colorful Starting Image": ColorfulStartingImage,
 }
 print("\033[34m⚡ MNeMiC Nodes: \033[92mLoaded\033[0m")

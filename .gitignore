@@ -4,6 +4,7 @@ utils/__pycache__/
 nodes/negativeprompt/weights.pt
 nodes/negativeprompt/merges.txt
 nodes/resolution_selector/user_resolution.json
+nodes/wildcards/wildcards_paths_user.json
 node.tar.gz
 .env
 !.env.example

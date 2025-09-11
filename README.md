@@ -105,3 +105,15 @@ Query Groq Audio Model to transcribe audio.
 Generate negative prompts automatically.
 <img width="1577" height="359" alt="image" src="https://github.com/user-attachments/assets/a126dd5d-2d92-4069-8998-0f19ed5bcd2b" />
 
+
+## 🖼️ [Load Image Advanced](./README/load_image_advanced.md)
+Loads an image, extracts metadata, provides the alpha channel as a mask, and outputs the image's dimensions.
+<img width="800" alt="image" src="https://via.placeholder.com/800x400.png?text=Load+Image+Advanced+Node" />
+
+
+## 🎨 [Colorful Starting Image](./README/colorful_starting_image.md)
+A powerful and highly customizable ComfyUI node for generating complex, abstract, and visually interesting images from scratch. It serves as an excellent starting point for creative workflows, providing a rich visual foundation that can be used as an initial image, a texture, or a source for further manipulation.
+![image](https://github.com/user-attachments/assets/d40e27d7-e17d-4750-b88b-9cf39b654823)
+
+
+
