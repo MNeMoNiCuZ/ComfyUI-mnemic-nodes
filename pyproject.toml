@@ -1,7 +1,7 @@
 [project]
 name = "comfyui-mnemic-nodes"
-description = "Updated the Audio Visualizer node"
-version = "1.5.1"
+description = "Added Image Load Advanced and Colorful Starting Image nodes"
+version = "1.6.0"
 license = { file = "LICENSE" }
 dependencies = ["configparser", "groq", "transformers", "torch", "tiktoken", "imageio", "tqdm"]
 

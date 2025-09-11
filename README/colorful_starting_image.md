@@ -1,8 +1,10 @@
 # 🎨 Colorful Starting Image
 
 A powerful and highly customizable ComfyUI node for generating complex, abstract, and visually interesting images from scratch. It serves as an excellent starting point for creative workflows, providing a rich visual foundation that can be used as an initial image, a texture, or a source for further manipulation.
+<img width="1766" height="1083" alt="image" src="https://github.com/user-attachments/assets/73eb9153-7afa-43ea-b3c3-4165029b70d1" />
 
-![image](https://github.com/user-attachments/assets/d40e27d7-e17d-4750-b88b-9cf39b654823)
+<img width="2049" height="1154" alt="image" src="https://github.com/user-attachments/assets/a5047775-5f0a-4830-8b6e-3cfe13b58e6f" />
+
 
 ## ✨ Features
 
