@@ -78,7 +78,9 @@ class ColorfulStartingImage:
             l = 0 if np.random.rand() > 0.5 else 1  # black or white tinted
             r, g, b = colorsys.hls_to_rgb(h, l, s)
             return (int(r*255), int(g*255), int(b*255))
-        if harmony_colors: color = random.choice(harmony_colors); return (int(color[0]*255), int(color[1]*255), int(color[2]*255))
+        if harmony_colors:
+            color = random.choice(harmony_colors)
+            return (int(color[0]*255), int(color[1]*255), int(color[2]*255))
         if palette == "muted": return (np.random.randint(50, 200), np.random.randint(50, 200), np.random.randint(50, 200))
         if palette == "grayscale": val = np.random.randint(0, 255); return (val, val, val)
         if palette == "binary": return (0,0,0) if np.random.rand() > 0.5 else (255,255,255)
@@ -137,7 +139,7 @@ class ColorfulStartingImage:
         elif bias == "south_west": x, y = int(np.random.normal(width * 0.1, width / 10)), int(np.random.normal(height * 0.9, height / 10))
         elif bias == "south_east": x, y = int(np.random.normal(width * 0.9, width / 10)), int(np.random.normal(height * 0.9, height / 10))
         else: x, y = np.random.randint(0, width), np.random.randint(0, height)
-        return (max(0, min(width, x)), max(0, min(height, y)))
+        return (max(0, min(width-1, x)), max(0, min(height-1, y)))
 
     def get_biased_size(self, max_size, distribution):
         if distribution == "prefer_small": return int(abs(np.random.normal(0, max_size / 3))) + 1
@@ -201,7 +203,7 @@ class ColorfulStartingImage:
             strip_x2 = strip_boundaries[i+1]
             if strip_x1 >= strip_x2: continue
             block_color = self.get_color(palette, harmony_colors, colorized_hue)
-            strip_color = block_color + (int(255 * opacity),)
+            strip_color = (*block_color, int(255 * opacity))
             blocks_rgba[:, strip_x1:strip_x2] = strip_color
         return Image.fromarray(blocks_rgba, 'RGBA')
 
@@ -313,13 +315,13 @@ class ColorfulStartingImage:
             center_x, center_y, max_radius, num_circles = x1, y1, min(abs(size_x), abs(size_y)) // 2, np.random.randint(3, 10)
             for i in range(num_circles, 0, -1):
                 radius = int(max_radius * (i / num_circles))
-                circle_color = self.get_color(palette, harmony_colors, colorized_hue) + (int(255 * opacity),)
+                circle_color = (*self.get_color(palette, harmony_colors, colorized_hue), int(255 * opacity))
                 shape_draw.ellipse([center_x-radius, center_y-radius, center_x+radius, center_y+radius], fill=circle_color)
                 mask_draw.ellipse([center_x-radius, center_y-radius, center_x+radius, center_y+radius], fill=255)
         
         else: # Solid fill for fillable shapes, or line-based shapes
             color = self.get_color(palette, harmony_colors, colorized_hue)
-            color_with_alpha = color + (int(255 * opacity),)
+            color_with_alpha = (*color, int(255 * opacity))
             
             if shape in fillable_shapes:
                  solid_fill = Image.new('RGBA', image.size, color_with_alpha)
@@ -345,7 +347,7 @@ class ColorfulStartingImage:
                         elif edge == 1: points.append((width, np.random.randint(0, height)))
                         elif edge == 2: points.append((np.random.randint(0, width), height))
                         else: points.append((0, np.random.randint(0, height)))
-                    stripe_color = self.get_color(palette, harmony_colors, colorized_hue) + (int(255 * opacity),)
+                    stripe_color = (*self.get_color(palette, harmony_colors, colorized_hue), int(255 * opacity))
                     self.draw_pulsating_line(shape_draw, points, stripe_color, component_scale, width, height)
                     self.draw_pulsating_line(mask_draw, points, 255, component_scale, width, height)
 

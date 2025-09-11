@@ -49,7 +49,3 @@ class LoadImageAdvanced:
             mask = torch.zeros((height, width), dtype=torch.float32, device="cpu")
         
         return (output_image, mask.unsqueeze(0), image_path, positive_prompt, width, height)
-
-NODE_DISPLAY_NAME_MAPPINGS = {
-    "LoadImageAdvanced": "🖼️ Load Image Advanced",
-}

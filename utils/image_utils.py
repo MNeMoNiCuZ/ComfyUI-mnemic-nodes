@@ -8,7 +8,8 @@ import piexif
 def encode_image(image_pil):
     try:
         buffered = BytesIO()
-        image_pil.save(buffered, format="JPEG")
+        fmt = "PNG" if ("A" in image_pil.getbands()) else "JPEG"
+        image_pil.save(buffered, format=fmt)
         return base64.b64encode(buffered.getvalue()).decode('utf-8')
     except Exception as e:
         print(f"Error encoding image: {e}")
@@ -64,7 +65,7 @@ def load_image_metadata(file_path):
                     # Very basic parsing, might need improvement
                     return {"positive_prompt": user_comment.split('\n')[0]}
 
-    except Exception as e:
+    except (OSError, ValueError, KeyError, UnicodeDecodeError) as e:
         print(f"Could not read metadata from {file_path}: {e}")
 
     return {"positive_prompt": ""}

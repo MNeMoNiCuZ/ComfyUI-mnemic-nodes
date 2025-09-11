@@ -39,10 +39,11 @@ __all__ = [
     "StringTextSplitter",
     "StringTextExtractor",
     "FormatDateTime",
-    "LoadTextImagePairs",
+    "LoadTextImagePairSingle",
+    "LoadTextImagePairsList",
     "MetadataExtractor",
     "LoadImageAdvanced",
     "AudioVisualizer",
-    
+
     "ColorfulStartingImage",
 ]
