@@ -108,12 +108,9 @@ Generate negative prompts automatically.
 
 ## 🖼️ [Load Image Advanced](./README/load_image_advanced.md)
 Loads an image, extracts metadata, provides the alpha channel as a mask, and outputs the image's dimensions.
-<img width="800" alt="image" src="https://via.placeholder.com/800x400.png?text=Load+Image+Advanced+Node" />
+<img width="1933" height="875" alt="image" src="https://github.com/user-attachments/assets/e70c3c81-637d-4dfc-a20e-3d48409abf4c" />
 
 
 ## 🎨 [Colorful Starting Image](./README/colorful_starting_image.md)
-A powerful and highly customizable ComfyUI node for generating complex, abstract, and visually interesting images from scratch. It serves as an excellent starting point for creative workflows, providing a rich visual foundation that can be used as an initial image, a texture, or a source for further manipulation.
-![image](https://github.com/user-attachments/assets/d40e27d7-e17d-4750-b88b-9cf39b654823)
-
-
-
+Creates a colorful random shape-based image. Use it as a starting latent for fun and varying shapes. Great for abstract wallpaper creation.
+<img width="1766" height="1083" alt="image" src="https://github.com/user-attachments/assets/b135ac20-c28c-40bc-bc55-5d31c0c7fd30" />
