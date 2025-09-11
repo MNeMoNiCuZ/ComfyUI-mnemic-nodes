@@ -22,6 +22,11 @@ class ColorfulStartingImage:
 
     @classmethod
     def INPUT_TYPES(s):
+        """
+        Return the INPUT_TYPES schema describing the node's configurable inputs for the UI.
+        
+        The returned dictionary contains a "required" mapping of input names to their type descriptors and metadata (defaults, ranges, tooltips, and option lists). This schema controls available parameters for image generation such as image dimensions, number of components, shape choices, color palette/harmony, fill mode, positioning/arrangement, size distribution, rotation, noise and warp settings, blur, and RNG seed. Many fields accept "random" to let the node pick a value at runtime; color and arrangement option lists are derived from the class-level constants on `s`.
+        """
         return {
             "required": {
                 "width": ("INT", {"default": 1024, "min": 64, "step": 64, "tooltip": "The width of the generated image in pixels."}),
@@ -55,6 +60,17 @@ class ColorfulStartingImage:
     DESCRIPTION = "Creates a highly customizable, colorful image with random patterns and shapes, useful as a starting point for image generation."
 
     def get_harmonized_colors(self, harmony):
+        """
+        Return a small list of RGB colors (tuples of floats in 0–1) that follow the specified color harmony.
+        
+        If `harmony` is one of "complementary", "analogous", "triadic", or "tetradic", the function generates a random base hue and returns colors computed from that hue using HSV→RGB conversion; saturation and value for each color are randomized in the 0.5–1.0 range. For any other `harmony` value an empty list is returned.
+        
+        Parameters:
+            harmony (str): One of "complementary", "analogous", "triadic", "tetradic" (case-sensitive). Determines the harmonic rule used to derive additional hues.
+        
+        Returns:
+            list[tuple[float, float, float]]: List of RGB color tuples with components in the 0–1 range, or an empty list if the harmony is not recognized.
+        """
         base_hue = np.random.rand()
         if harmony == "complementary": return [colorsys.hsv_to_rgb(h, np.random.uniform(0.5, 1), np.random.uniform(0.5, 1)) for h in [base_hue, (base_hue + 0.5) % 1]]
         if harmony == "analogous": return [colorsys.hsv_to_rgb(h, np.random.uniform(0.5, 1), np.random.uniform(0.5, 1)) for h in [base_hue, (base_hue + 0.083) % 1, (base_hue - 0.083) % 1]]
@@ -63,6 +79,31 @@ class ColorfulStartingImage:
         return []
 
     def get_color(self, palette, harmony_colors, colorized_hue=None):
+        """
+        Return an (R, G, B) color tuple (ints 0–255) chosen according to the requested palette and optional harmony colors.
+        
+        Detailed behavior:
+        - If `harmony_colors` is provided, some palettes prefer selecting from that list (values in `harmony_colors` are expected as (r,g,b) floats in [0,1]):
+          - For "grayscale" with harmony: uses a harmony hue but chooses a lightness corresponding to a random gray value.
+          - For "binary" with harmony: uses a harmony hue and returns a strongly black- or white-tinted color.
+          - Otherwise when `harmony_colors` is present, a random harmony color is returned (converted to 0–255 ints).
+        - Palette-specific rules when `harmony_colors` is not used:
+          - "muted": random RGB each channel in [50,200].
+          - "grayscale": uniform gray value in [0,254].
+          - "binary": randomly returns pure black or pure white.
+          - "neon": high-saturation HSV with value 0.8.
+          - "pastel": low-saturation HSV with value 1.0.
+          - "colorized": produces a color with the provided `colorized_hue` (float 0–1) or a random hue if None; saturation is sampled in [0.5,1.0].
+        - Fallback: completely random RGB when palette is unknown.
+        
+        Parameters:
+            palette (str): Named palette key (e.g., "muted", "grayscale", "binary", "neon", "pastel", "colorized").
+            harmony_colors (iterable or None): Optional list/iterable of harmonious colors as (r,g,b) floats in [0,1]; when provided, may influence the returned color.
+            colorized_hue (float or None): Hue in [0,1] to use for "colorized" palette; if None a random hue is chosen.
+        
+        Returns:
+            tuple: (R, G, B) with integer channel values in 0–255.
+        """
         if palette == "grayscale" and harmony_colors:
             gray_val = np.random.randint(0, 255)
             harmonious_color = random.choice(harmony_colors)
@@ -98,6 +139,32 @@ class ColorfulStartingImage:
         return (np.random.randint(0, 255), np.random.randint(0, 255), np.random.randint(0, 255))
 
     def get_biased_position(self, width, height, bias, arrangement, arrangement_params):
+        """
+        Return an (x, y) pixel position for placing a shape, biased by the requested arrangement or spatial bias.
+        
+        If an arrangement other than "none" is specified this computes a position according to that layout:
+        - "spiral": requires arrangement_params['angle'] (radians) and ['radius'].
+        - "burst": requires arrangement_params['angle'] and ['max_radius']; radius is sampled uniformly [0, max_radius].
+        - "grid": requires arrangement_params['grid_w'], ['grid_h'] and ['index']; chooses a random offset inside the indexed grid cell.
+        
+        If arrangement is "none" the position is chosen according to the bias:
+        - "center_weighted": normal distribution around image center.
+        - "edge_weighted": biased toward a random image edge.
+        - "grid_aligned": snapped to one of an 8x8 grid cell origins.
+        - "random_weighted": samples around a randomly chosen anchor inside the image (avoids exact center).
+        - Compass and corner biases ("north", "south", "east", "west", "north_west", "north_east", "south_west", "south_east"): sample near the corresponding edge/corner.
+        - any other value: uniform random position.
+        
+        Parameters:
+            width (int): image width in pixels.
+            height (int): image height in pixels.
+            bias (str): positioning bias name used when arrangement == "none".
+            arrangement (str): layout mode ("none", "spiral", "burst", "grid", ...).
+            arrangement_params (dict): parameters required by the chosen arrangement (see above).
+        
+        Returns:
+            tuple[int, int]: (x, y) integer coordinates clamped to the image bounds.
+        """
         x, y = 0, 0
         if arrangement != "none":
             if arrangement == "spiral":
@@ -140,6 +207,21 @@ class ColorfulStartingImage:
         return (max(0, min(width, x)), max(0, min(height, y)))
 
     def get_biased_size(self, max_size, distribution):
+        """
+        Return an integer shape size biased according to the requested distribution.
+        
+        Parameters:
+            max_size (int): Maximum reference size for the shape.
+            distribution (str): One of "uniform" (default behavior), "prefer_small", or "prefer_large".
+                - "prefer_small": samples from a zero-mean normal (sigma = max_size/3), takes the absolute value,
+                  converts to int and adds 1 (biases toward smaller values).
+                - "prefer_large": samples from the same normal, subtracts its absolute value from max_size,
+                  clamps to at least 1 (biases toward larger values).
+                - otherwise: returns a uniform random integer in [1, max(2, int(max_size))).
+        
+        Returns:
+            int: Computed size (always >= 1). The value distribution depends on the chosen `distribution`.
+        """
         if distribution == "prefer_small": return int(abs(np.random.normal(0, max_size / 3))) + 1
         if distribution == "prefer_large":
             val = int(max_size - abs(np.random.normal(0, max_size / 3)))
@@ -147,6 +229,32 @@ class ColorfulStartingImage:
         return np.random.randint(1, max(2, int(max_size)))
 
     def draw_pulsating_line(self, draw, points, color, component_scale, width, height):
+        """
+        Draws a ribbon-like polyline with a sinusoidally "pulsating" thickness between a sequence of points.
+        
+        The function renders each segment between consecutive points as a filled polygon whose local thickness varies along the segment to produce a wavy, organic stroke. Designed to be resolution-aware: `component_scale`, `width`, and `height` control the overall maximum thickness.
+        
+        Parameters:
+            draw: PIL.ImageDraw.Draw
+                Drawing context to render the filled polygon(s) onto.
+            points: Sequence[tuple[float, float]]
+                Ordered list of (x, y) coordinates defining the polyline. At least two points are required.
+            color: tuple or int
+                Fill color used for the polygon. May be an RGB(A) tuple or a color value accepted by PIL.
+            component_scale: float
+                Relative scale used to compute maximum stroke thickness (proportional to the smaller of image width/height).
+            width: int
+                Canvas width in pixels (used to compute scale-dependent thickness).
+            height: int
+                Canvas height in pixels (used to compute scale-dependent thickness).
+        
+        Returns:
+            None
+        
+        Notes:
+            - No drawing occurs if `points` is empty or contains fewer than two points.
+            - The routine builds a closed ribbon for each segment by offsetting points along the segment normal and filling the resulting polygon.
+        """
         if not points or len(points) < 2: return
 
         max_thickness = max(2, int(min(width, height) * component_scale * 0.05))
@@ -182,6 +290,19 @@ class ColorfulStartingImage:
             draw.polygon(polygon_points, fill=color)
 
     def _create_gradient_fill(self, width, height, color1, color2, opacity):
+        """
+        Create a vertical RGBA gradient image transitioning from color1 at the top to color2 at the bottom.
+        
+        Parameters:
+            width (int): Output image width in pixels.
+            height (int): Output image height in pixels.
+            color1 (tuple or sequence of int): RGB color at the top (three 0–255 values).
+            color2 (tuple or sequence of int): RGB color at the bottom (three 0–255 values).
+            opacity (float): Alpha value applied uniformly to the whole image (0.0–1.0).
+        
+        Returns:
+            PIL.Image.Image: An RGBA-mode image of size (width, height) with the vertical gradient and uniform alpha.
+        """
         c1 = np.array(color1)
         c2 = np.array(color2)
         ramp = np.linspace(0, 1, height).reshape(height, 1, 1)
@@ -193,6 +314,26 @@ class ColorfulStartingImage:
         return Image.fromarray(gradient_rgba, 'RGBA')
 
     def _create_blocks_fill(self, width, height, palette, harmony_colors, colorized_hue, opacity):
+        """
+        Create a vertical striped block fill as an RGBA PIL Image.
+        
+        Creates between 3 and 5 vertical strips across the specified width, assigning each strip a color chosen via self.get_color(...). The color's alpha channel is set according to opacity and the resulting image is returned as a PIL Image in 'RGBA' mode.
+        
+        Parameters:
+            width (int): Width of the generated fill in pixels.
+            height (int): Height of the generated fill in pixels.
+            palette (str): Color palette identifier forwarded to self.get_color.
+            harmony_colors (list): Optional list of harmony colors forwarded to self.get_color.
+            colorized_hue (float | None): Optional hue used by colorized palettes; forwarded to self.get_color.
+            opacity (float): Alpha multiplier in [0.0, 1.0] applied to each strip's color.
+        
+        Returns:
+            PIL.Image.Image: An RGBA image of shape (height, width) containing the vertical block fill.
+        
+        Notes:
+            - The number of strips (3–5) and their exact boundaries are chosen using NumPy's random functions, so output depends on the current NumPy RNG state.
+            - Strips that would have zero width are skipped.
+        """
         num_strips = np.random.randint(3, 6)
         blocks_rgba = np.zeros((height, width, 4), dtype=np.uint8)
         strip_boundaries = np.linspace(0, width, num_strips + 1, dtype=int)
@@ -206,6 +347,25 @@ class ColorfulStartingImage:
         return Image.fromarray(blocks_rgba, 'RGBA')
 
     def draw_shape(self, width, height, component_scale, shape, palette, image, mask, pos_bias, size_dist, rotation, harmony_colors, opacity, noise_level, noise_scale, noise_color, arrangement, arrangement_params, fill_mode, noise_rng, colorized_hue=None):
+        """
+        Render a single shape onto the provided image and its mask, returning the composited image and updated mask.
+        
+        This method creates separate RGBA and mask layers for one shape, computes a biased position and size, builds a per-shape mask (rectangle, triangle, polygon, ellipse/circle, dot, or line/arc/stripes variants), optionally fills the shape using a gradient or block pattern, applies noise, optionally rotates the shape layer, and composites the result on top of the supplied image and mask.
+        
+        Parameters that need clarification:
+        - component_scale: fraction of the canvas used to compute the maximum shape size.
+        - palette, harmony_colors, colorized_hue: control color selection; harmony_colors may bias palette choices and colorized_hue tints colorized palettes.
+        - pos_bias, size_dist, arrangement, arrangement_params: control where and how the shape is placed and sized (bias strategies, distribution for sizes, and arrangement modes like spiral/burst/grid).
+        - rotation (bool): enables random rotation (0–359°) for applicable shapes.
+        - opacity: shape fill/stroke opacity in [0.0, 1.0].
+        - noise_level, noise_scale, noise_color, noise_rng: control additive noise applied to the shape layer (noise_rng is the RNG used to generate noise; noise_color may be "random", "colored", or "monochrome").
+        - fill_mode: "none", "gradient", or "blocks" — determines filling behavior for fillable shapes.
+        
+        Returns:
+            tuple (PIL.Image.Image, PIL.Image.Image): (composited_image, combined_mask)
+            - composited_image: the original image with the rendered shape composited on top (RGBA input is alpha-composited).
+            - combined_mask: the original mask lightened with the new shape's mask (mode 'L').
+        """
         shape_layer = Image.new('RGBA', image.size, (0,0,0,0))
         mask_layer = Image.new('L', mask.size, 0)
         shape_draw = ImageDraw.Draw(shape_layer)
@@ -235,6 +395,18 @@ class ColorfulStartingImage:
         angle = np.random.randint(0, 360) if rotation else 0
 
         def apply_noise_to_layer(layer, mask):
+            """
+            Apply additive Gaussian noise to the RGB channels of a layer within a binary mask and return a new image.
+            
+            Applies per-pixel normal-distributed noise (mean 0, std = 255 * noise_level) generated from the enclosing scope's RNG and noise settings. Noise may be "colored" (independent RGB channels) or "monochrome" (single channel repeated across RGB) depending on the resolved noise_color; if noise_color is "random" the RNG chooses between those two. Noise is generated at a scaled resolution determined by noise_scale and resized to the layer size before application. Noise is added only where the mask equals 255; values are clipped to [0, 255]. The returned image preserves the original image mode (the function temporarily converts to RGBA if needed).
+            
+            Parameters:
+                layer (PIL.Image): source image layer to which noise will be applied.
+                mask (PIL.Image or array-like): binary mask where mask==255 indicates pixels that receive noise.
+            
+            Returns:
+                PIL.Image: a new image with noise applied, in the same mode as the input layer.
+            """
             if noise_level > 0:
                 original_mode = layer.mode
                 if original_mode != 'RGBA': layer = layer.convert('RGBA')
@@ -360,6 +532,23 @@ class ColorfulStartingImage:
         return Image.alpha_composite(image, shape_layer), ImageChops.lighter(mask, mask_layer)
 
     def apply_warp(self, image, warp_type, intensity):
+        """
+        Apply a geometric warp/distortion to a PIL image and return the warped image.
+        
+        Supported warp types:
+        - "none": no change (also returned when intensity == 0).
+        - "wave": sinusoidal horizontal and vertical displacement.
+        - "noise_field": random displacement field (produces jittery/noisy warp).
+        - "swirl": circular swirl centered on the image, with strength decreasing toward the edges.
+        
+        Parameters:
+            image (PIL.Image.Image): Source image to warp.
+            warp_type (str): One of "none", "wave", "noise_field", "swirl".
+            intensity (float): Relative strength of the effect (0 yields identity). Higher values increase displacement.
+        
+        Returns:
+            PIL.Image.Image: A new PIL image with the requested warp applied. Coordinates are clipped to image bounds and remapped using OpenCV.
+        """
         if warp_type == 'none' or intensity == 0: return image
         img_array = np.array(image)
         rows, cols, _ = img_array.shape
@@ -386,6 +575,43 @@ class ColorfulStartingImage:
         return Image.fromarray(cv2.remap(img_array, map_x, map_y, interpolation=cv2.INTER_LINEAR))
 
     def generate_image(self, width, height, components, component_scale, shape_string, color_palette, color_harmony, fill_mode, shape_opacity, background_color, positioning_bias, arrangement, size_distribution, allow_rotation, noise_level, noise_scale, noise_color, warp_type, warp_intensity, blur_radius, seed):
+        """
+        Generate a procedural image composed of randomized shapes and a corresponding binary mask, returning both as PyTorch tensors.
+        
+        This orchestrates shape selection, placement, fills, optional noise, warping, and final blur/compositing. Randomness is controlled by the provided seed for reproducible outputs. If `background_color` is "random" a random RGB background is chosen. The function validates `shape_string` and will raise a ValueError if no valid shapes are provided. OpenCV (cv2) is required for warp effects and an ImportError is raised if it is missing.
+        
+        Parameters:
+            width (int): Output image width in pixels.
+            height (int): Output image height in pixels.
+            components (int): Number of shapes to render.
+            component_scale (float): Relative maximum size of each shape (used by draw routines).
+            shape_string (str): Comma-separated list of shape names to sample from.
+            color_palette (str): Palette choice or "random".
+            color_harmony (str): Harmony mode or "random".
+            fill_mode (str): Multi-color fill mode ("none", "gradient", "blocks") or "random".
+            shape_opacity (float): Opacity for shapes in range [0,1].
+            background_color (tuple|str): RGB tuple or "random".
+            positioning_bias (str): Placement bias strategy or "random".
+            arrangement (str): Layout arrangement ("none", "spiral", "burst", "grid") or "random".
+            size_distribution (str): Size sampling preference or "random".
+            allow_rotation (bool): Whether shapes may be rotated.
+            noise_level (float): Strength of per-shape noise (0 disables).
+            noise_scale (float): Spatial scale for noise application.
+            noise_color (str): "random" or other noise coloring mode used by draw routines.
+            warp_type (str): Warp/distortion type or "random".
+            warp_intensity (float): Strength of the warp effect (0 disables).
+            blur_radius (float): Gaussian blur radius applied to the final RGB image (0 disables).
+            seed (int): Seed for Python and NumPy RNGs (ensures deterministic output).
+        
+        Returns:
+            tuple: (image_tensor, mask_tensor)
+                - image_tensor (torch.FloatTensor): Float32 RGB tensor with shape (1, H, W, 3) and values in [0,1].
+                - mask_tensor (torch.FloatTensor): Float32 single-channel mask tensor with shape (1, H, W) and values in [0,1].
+        
+        Raises:
+            ImportError: If OpenCV (cv2) is not installed but a warp is requested.
+            ValueError: If `shape_string` contains no valid shapes.
+        """
         random.seed(seed); np.random.seed(seed % (2**32))
         noise_rng = np.random.RandomState(seed % (2**32))
 
