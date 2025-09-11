@@ -2,6 +2,8 @@
 
 The `Load Image Advanced` node is an enhanced version of the default `Load Image` node in ComfyUI. It not only loads an image but also extracts useful information from it, providing multiple outputs for a more streamlined workflow.
 
+<img width="1933" height="875" alt="image" src="https://github.com/user-attachments/assets/43dc1746-e4f4-40d8-9d95-6a4ee637e5cf" />
+
 ## Features
 
 -   **Image Loading**: Loads an image from your input directory or via direct upload.
