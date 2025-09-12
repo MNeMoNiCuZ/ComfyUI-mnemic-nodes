@@ -80,10 +80,19 @@ Creates resolutions and a latent from presets, user presets, or input images.
 <img width="1464" height="428" alt="image" src="https://github.com/user-attachments/assets/3bd379ee-0c02-4382-8e2c-0b75a1a607ef" />
 
 
+## 🖼️ [Load Image Advanced](./README/load_image_advanced.md)
+Loads an image, extracts metadata, provides the alpha channel as a mask, and outputs the image's dimensions.
+<img width="1933" height="875" alt="image" src="https://github.com/user-attachments/assets/e70c3c81-637d-4dfc-a20e-3d48409abf4c" />
+
+
+## 🎨 [Colorful Starting Image](./README/colorful_starting_image.md)
+Creates a colorful random shape-based image. Use it as a starting latent for fun and varying shapes. Great for abstract wallpaper creation.
+<img width="1766" height="1083" alt="image" src="https://github.com/user-attachments/assets/b135ac20-c28c-40bc-bc55-5d31c0c7fd30" />
+
+
 ## 🎵📊 [Audio Visualizer](./README/audio_visualizer.md)
 Creates a visualizer from an input audio. Custom visualizer scripts can be created, and outputs can be saved as images or video.
 <img width="2205" height="638" alt="image" src="https://github.com/user-attachments/assets/35e70f68-09f2-4dfe-9676-18fe54a9af89" />
-
 
 
 ## ✨💬 [Groq LLM API](./README/groq_api_llm.md)
@@ -104,13 +113,3 @@ Query Groq Audio Model to transcribe audio.
 ## ⛔ [Generate Negative Prompt](./README/generate_negative_prompt.md)
 Generate negative prompts automatically.
 <img width="1577" height="359" alt="image" src="https://github.com/user-attachments/assets/a126dd5d-2d92-4069-8998-0f19ed5bcd2b" />
-
-
-## 🖼️ [Load Image Advanced](./README/load_image_advanced.md)
-Loads an image, extracts metadata, provides the alpha channel as a mask, and outputs the image's dimensions.
-<img width="1933" height="875" alt="image" src="https://github.com/user-attachments/assets/e70c3c81-637d-4dfc-a20e-3d48409abf4c" />
-
-
-## 🎨 [Colorful Starting Image](./README/colorful_starting_image.md)
-Creates a colorful random shape-based image. Use it as a starting latent for fun and varying shapes. Great for abstract wallpaper creation.
-<img width="1766" height="1083" alt="image" src="https://github.com/user-attachments/assets/b135ac20-c28c-40bc-bc55-5d31c0c7fd30" />
