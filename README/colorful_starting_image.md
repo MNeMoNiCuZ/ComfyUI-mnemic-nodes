@@ -28,7 +28,11 @@ A powerful and highly customizable ComfyUI node for generating complex, abstract
 - **`color_harmony`**: Color theory rules: `random` (picks from others), `none`, `complementary`, `analogous`, `triadic`, `tetradic`.
 - **`fill_mode`**: Multi-color fills for shapes: `random` (picks from others), `none` (solid color), `gradient` (blends two colors vertically across each shape), `blocks` (divides each shape into vertical strips of solid, related colors).
 - **`shape_opacity`**: Alpha value (0.0-1.0) for drawn shapes.
-- **`background_color`**: Canvas background - color names, hex codes, or `random`.
+- **`background_color`**: Canvas background. Supports color names (e.g., 'black', 'white'), hex codes (e.g., '#FF0000'), `random`, or one of the following noise types:
+  - `noise`: Fine-grained monochrome noise.
+  - `noise-large`: Blocky monochrome noise.
+  - `noise-color`: Fine-grained color noise.
+  - `noise-color-large`: Blocky color noise.
 
 ### Randomization & Composition
 - **`positioning_bias`**: Placement bias: `random` (from others), `scattered`, `center_weighted`, `edge_weighted`, `grid_aligned`, `random_weighted`, directional (north, south, east, west, corners).

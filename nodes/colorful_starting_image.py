@@ -26,14 +26,14 @@ class ColorfulStartingImage:
             "required": {
                 "width": ("INT", {"default": 1024, "min": 64, "step": 64, "tooltip": "The width of the generated image in pixels."}),
                 "height": ("INT", {"default": 1024, "min": 64, "step": 64, "tooltip": "The height of the generated image in pixels."}),
-                "components": ("INT", {"default": 20, "min": 1, "tooltip": "The total number of components (shapes) to draw on the image. More components create a more complex image."}),
+                "components": ("INT", {"default": 20, "min": 0, "tooltip": "The total number of components (shapes) to draw on the image. More components create a more complex image."}),
                 "component_scale": ("FLOAT", {"default": 0.5, "min": 0.01, "step": 0.01, "tooltip": "Controls the maximum potential size of shapes. A shape's max width is `image_width * component_scale`.\nExample: With a 1024px wide image and 0.5 scale, the largest shapes will be around 512px wide."} ),
                 "shape_string": ("STRING", {"default": "rectangle, ellipse, circle, line, spline, dot, stripes, triangle, polygon, arc, concentric_circles", "multiline": True, "tooltip": "A comma-separated list of shapes to draw from.\n\nAvailable shapes:\n- rectangle, ellipse, circle, line, spline, dot, stripes, triangle, polygon, arc, concentric_circles"}),
                 "color_palette": (["random"] + s.COLOR_PALETTE_OPTIONS, {"tooltip": "The color palette for the shapes.\n\nOptions:\n- random: Picks one of the other palette options at random.\n- random_color: Any RGB color.\n- muted: Less saturated, softer colors.\n- grayscale: Shades of gray.\n- binary: Pure black and white.\n- neon: Bright, highly saturated colors.\n- pastel: Soft, low-saturation colors.\n- colorized: Grayscale tinted with a single random hue across all shapes."} ),
                 "color_harmony": (["random"] + s.COLOR_HARMONY_OPTIONS, {"tooltip": "Apply a color harmony rule to the generated colors.\n\nOptions:\n- none: No harmony.\n- complementary: Two colors from opposite sides.\n- analogous: Three colors next to each other.\n- triadic: Three colors evenly spaced.\n- tetradic: Four colors in square harmony.\n\nNote: Color harmony has no effect when the 'binary' color palette is selected."} ),
                 "fill_mode": (["random"] + s.MULTI_COLOR_MODE_OPTIONS, {"tooltip": "Fill shapes with multiple colors.\n\nOptions:\n- none: Shapes are filled with a single color.\n- gradient: Blends two colors in a vertical gradient across each shape.\n- blocks: Divides each shape into vertical strips of solid, related colors."} ),
                 "shape_opacity": ("FLOAT", {"default": 1.0, "min": 0.1, "max": 1.0, "step": 0.05, "tooltip": "The alpha value (0.0 to 1.0) for the drawn shapes. 1.0 is fully opaque."} ),
-                "background_color": ("STRING", {"default": "black", "tooltip": "The background color of the image. `random` is a valid value.\nCan be a color name (e.g., 'black', 'white', 'random')\nor a hex code (e.g., '#FF0000').\n\nFor a list of supported color names, see: https://www.w3.org/TR/css-color-3/#svg-color"}),
+                "background_color": ("STRING", {"default": "black", "tooltip": "The background color of the image.\n\nSupported options:\n• Color names: black, white, red, blue, etc.\n• Hex codes: #FF0000, #00FF00, etc.\n• Special values:\n  - random (random color)\n  - noise (monochrome Gaussian noise)\n  - noise_large (large monochrome noise)\n  - noise_color (colored Gaussian noise)\n  - noise_color_large (large colored noise)\n\nFor full color name list, see: https://www.w3.org/TR/css-color-3/#svg-color"}),
                 "positioning_bias": (["random"] + s.POSITIONING_BIAS_OPTIONS, {"tooltip": "Controls where shapes are likely to appear.\n\nOptions:\n- scattered: Anywhere on the canvas.\n- center_weighted: Clustered in the center.\n- edge_weighted: Clustered along the edges.\n- grid_aligned: Aligned to a grid.\n- random_weighted: Clustered around two random points.\n- north/south/east/west: Clustered on that edge.\n- nw/ne/sw/se: Clustered in that corner."} ),
                 "arrangement": (["random"] + s.ARRANGEMENT_OPTIONS, {"tooltip": "Arrange shapes in a structured, less random pattern.\n\nOptions:\n- none: Random placement.\n- spiral: Shapes are arranged in a spiral.\n- burst: Shapes burst outwards from the center.\n- grid: Shapes are aligned to a grid."} ),
                 "size_distribution": (["random"] + s.SIZE_DISTRIBUTION_OPTIONS, {"tooltip": "Controls the distribution of shape sizes.\n\nOptions:\n- uniform: All sizes are equally likely.\n- prefer_small: Favors smaller shapes.\n- prefer_large: Favors larger shapes."} ),
@@ -387,12 +387,51 @@ class ColorfulStartingImage:
         map_x, map_y = np.clip(map_x, 0, cols-1).astype(np.float32), np.clip(map_y, 0, rows-1).astype(np.float32)
         return Image.fromarray(cv2.remap(img_array, map_x, map_y, interpolation=cv2.INTER_LINEAR))
 
+    def _create_noise_background(self, width, height, background_color, seed):
+        rng = np.random.RandomState(seed % (2**32))
+
+        # Parse background_color for noise options
+        if background_color == "noise":
+            # Monochrome Gaussian noise
+            noise = rng.normal(127, 32, (height, width)).astype(np.uint8)
+            noise = np.stack([noise, noise, noise], axis=2)
+        elif background_color == "noise_large":
+            # Large monochrome Gaussian noise (lower frequency)
+            noise_h, noise_w = max(1, height // 4), max(1, width // 4)
+            noise = rng.normal(127, 32, (noise_h, noise_w)).astype(np.uint8)
+            noise = cv2.resize(noise.astype(np.float32), (width, height), interpolation=cv2.INTER_CUBIC)
+            noise = np.stack([noise, noise, noise], axis=2)
+        elif background_color == "noise_color":
+            # Colored Gaussian noise
+            noise = rng.normal(127, 32, (height, width, 3)).astype(np.uint8)
+        elif background_color == "noise_color_large":
+            # Large colored Gaussian noise (lower frequency)
+            noise_h, noise_w = max(1, height // 4), max(1, width // 4)
+            noise = rng.normal(127, 32, (noise_h, noise_w, 3)).astype(np.uint8)
+            noise = cv2.resize(noise.astype(np.float32), (width, height), interpolation=cv2.INTER_CUBIC)
+        else:
+            # Fallback to monochrome if unrecognized
+            noise = rng.normal(127, 32, (height, width)).astype(np.uint8)
+            noise = np.stack([noise, noise, noise], axis=2)
+
+        # Ensure proper range and convert to RGBA
+        noise = np.clip(noise, 0, 255).astype(np.uint8)
+        if len(noise.shape) == 2:
+            noise = np.stack([noise, noise, noise], axis=2)
+        noise_rgba = np.concatenate((noise, np.full((height, width, 1), 255, dtype=np.uint8)), axis=2)
+        return Image.fromarray(noise_rgba, 'RGBA')
+
     def generate_image(self, width, height, components, component_scale, shape_string, color_palette, color_harmony, fill_mode, shape_opacity, background_color, positioning_bias, arrangement, size_distribution, allow_rotation, noise_level, noise_scale, noise_color, warp_type, warp_intensity, blur_radius, seed):
         random.seed(seed); np.random.seed(seed % (2**32))
         noise_rng = np.random.RandomState(seed % (2**32))
 
-        if background_color == "random":
-            background_color = (np.random.randint(0, 255), np.random.randint(0, 255), np.random.randint(0, 255))
+        if background_color.startswith("noise"):
+            image = self._create_noise_background(width, height, background_color, seed)
+            mask = Image.new("L", (width, height), 0)
+        else:
+            if background_color == "random":
+                background_color = (np.random.randint(0, 255), np.random.randint(0, 255), np.random.randint(0, 255))
+            image, mask = Image.new("RGBA", (width, height), background_color), Image.new("L", (width, height), 0)
 
         if positioning_bias == "random": positioning_bias = random.choice(self.POSITIONING_BIAS_OPTIONS)
         if arrangement == "random": arrangement = random.choice(self.ARRANGEMENT_OPTIONS)
@@ -409,10 +448,8 @@ class ColorfulStartingImage:
 
         try: import cv2
         except ImportError: raise ImportError("OpenCV is required for the warp effect. Please install it with 'pip install opencv-python'.")
-        image, mask = Image.new("RGBA", (width, height), background_color), Image.new("L", (width, height), 0)
         harmony_colors = self.get_harmonized_colors(color_harmony) if color_harmony != "none" else []
         available_shapes = [s.strip().lower() for s in shape_string.split(',') if s.strip()]
-        if not available_shapes: raise ValueError("Shape string is empty or contains no valid shapes.")
         arrangement_params = {}
         if arrangement == "spiral": arrangement_params['radius_step'] = min(width, height) / (2 * components)
         elif arrangement == "burst": arrangement_params['max_radius'] = min(width, height) / 2
@@ -427,7 +464,10 @@ class ColorfulStartingImage:
             if arrangement == "spiral": arrangement_params['angle'], arrangement_params['radius'] = i * (360 / components) * (math.pi / 180), i * arrangement_params['radius_step']
             elif arrangement == "burst": arrangement_params['angle'] = np.random.uniform(0, 2 * math.pi)
             elif arrangement == "grid": arrangement_params['index'] = i
-            current_shape = random.choice(available_shapes)
+            if available_shapes:
+                current_shape = random.choice(available_shapes)
+            else:
+                continue
             image, mask = self.draw_shape(width, height, component_scale, current_shape, color_palette, image, mask, positioning_bias, size_distribution, allow_rotation, harmony_colors, shape_opacity, noise_level, noise_scale, noise_color, arrangement, arrangement_params, fill_mode, noise_rng, colorized_hue)
         
         if warp_type != 'none' and warp_intensity > 0: image = self.apply_warp(image, warp_type, warp_intensity)
@@ -436,6 +476,9 @@ class ColorfulStartingImage:
         image_np, mask_np = np.array(image).astype(np.float32) / 255.0, np.array(mask).astype(np.float32) / 255.0
         image_tensor, mask_tensor = torch.from_numpy(image_np)[None,], torch.from_numpy(mask_np).unsqueeze(0)
         return (image_tensor, mask_tensor)
+
+NODE_CLASS_MAPPINGS = { "ColorfulStartingImage": ColorfulStartingImage }
+NODE_DISPLAY_NAME_MAPPINGS = { "ColorfulStartingImage": "🎨 Colorful Starting Image" }
 
 NODE_CLASS_MAPPINGS = { "ColorfulStartingImage": ColorfulStartingImage }
 NODE_DISPLAY_NAME_MAPPINGS = { "ColorfulStartingImage": "🎨 Colorful Starting Image" }
