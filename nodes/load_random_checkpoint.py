@@ -18,8 +18,8 @@ class LoadRandomCheckpoint:
             "required": {
                 "checkpoints": ("STRING", {
                     "multiline": True,
-                    "placeholder": "model_one\nmodel_two.safetensors\n../loras/character\nC:/path/to/specific/model.ckpt",
-                    "tooltip": "Enter checkpoint names, file paths, or directory paths - one per line.\n\n• Names (e.g., 'model_one') are fuzzy-matched against checkpoint files\n• Relative paths (e.g., '../loras/character') work from checkpoints folder\n• Absolute paths (e.g., 'C:/path/to/model.ckpt') are used directly\n• Directory paths add all .ckpt/.safetensors files within them\n• Empty lines are ignored"
+                    "placeholder": "model_one or model_two.safetensors\nRelative paths (SDXL/Realistic/) based from checkpoints folder\nAbsolute paths (C:/path/to/model.safetensors)",
+                    "tooltip": "Enter checkpoint names, file paths, or directory paths - one per line.\n\n• Names (model_one) are fuzzy-matched against checkpoint files\n• Relative paths (SDXL/Realistic/) based from checkpoints folder\n• Absolute paths (C:/path/to/model.safetensors)\n• Directory paths add all .ckpt/.safetensors files within them\n• Empty lines are ignored"
                 }),
                 "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff, "tooltip": "Controls checkpoint selection. Works with repeat_count:\n\n• repeat_count=1: Each seed gives different checkpoint\n• repeat_count=3: Seeds 0,1,2 → same checkpoint, seeds 3,4,5 → same different checkpoint\n\nSet 'Control After Generate' to 'Increment' for sequential testing."}),
                 "repeat_count": ("INT", {"default": 1, "min": 1, "max": 1000, "tooltip": "How many consecutive seeds use the same checkpoint.\n\n• 1 = Each seed picks a different checkpoint\n• 3 = Seeds 0,1,2 all use checkpoint A, seeds 3,4,5 all use checkpoint B\n• Higher values = more repeats before changing"}),
