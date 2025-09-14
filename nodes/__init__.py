@@ -18,8 +18,9 @@ from .load_text_image_pairs_list import LoadTextImagePairsList
 from .metadata_extractor import MetadataExtractor
 from .audio_visualizer import AudioVisualizer
 from .load_image_advanced import LoadImageAdvanced
-
 from .colorful_starting_image import ColorfulStartingImage
+from .load_random_checkpoint import LoadRandomCheckpoint
+from .load_images import LoadImagesFromPath
 #from .groq_api_alm_translate import GroqAPIALMTranslate
 
 __all__ = [
@@ -44,6 +45,7 @@ __all__ = [
     "MetadataExtractor",
     "LoadImageAdvanced",
     "AudioVisualizer",
-
     "ColorfulStartingImage",
+    "LoadRandomCheckpoint",
+    "LoadImagesFromPath",
 ]

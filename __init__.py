@@ -21,6 +21,8 @@ from .nodes.audio_visualizer import AudioVisualizer
 from .nodes.load_image_advanced import LoadImageAdvanced
 
 from .nodes.colorful_starting_image import ColorfulStartingImage
+from .nodes.load_random_checkpoint import LoadRandomCheckpoint
+from .nodes.load_images import LoadImagesFromPath
 
 NODE_CLASS_MAPPINGS = {
     "📁 Get File Path": GetFilePath,
@@ -44,7 +46,8 @@ NODE_CLASS_MAPPINGS = {
     "🖼️+📝 Load Text-Image Pairs (List)": LoadTextImagePairsList,
     "🎵📊 Audio Visualizer": AudioVisualizer,
     "🖼️ Load Image Advanced": LoadImageAdvanced,
-    
     "🎨 Colorful Starting Image": ColorfulStartingImage,
+    "🎲 Load Random Checkpoint": LoadRandomCheckpoint,
+    "📂 Load Images From Path": LoadImagesFromPath,
 }
 print("\033[34m⚡ MNeMiC Nodes: \033[92mLoaded\033[0m")
