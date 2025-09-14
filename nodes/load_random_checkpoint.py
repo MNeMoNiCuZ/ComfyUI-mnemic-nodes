@@ -3,8 +3,14 @@ import random
 import folder_paths
 import comfy.sd
 import difflib
+import hashlib
 
 class LoadRandomCheckpoint:
+    def __init__(self):
+        self.cached_path = None
+        self.cached_index = -1
+        self.last_input_hash = ""
+        self.shuffled_pool = []
 
     @classmethod
     def INPUT_TYPES(cls):
@@ -12,146 +18,140 @@ class LoadRandomCheckpoint:
             "required": {
                 "checkpoints": ("STRING", {
                     "multiline": True,
-                    "placeholder": "model_name\nmodel_name.safetensors\n..\\loras\\character\\\nC:\\path\\to\\specific\\model.ckpt",
-                    "tooltip": "A list of checkpoint names, paths, or directories, one per line.\n\n- Names are fuzzy matched against files in your checkpoints folder.\n- Absolute paths to files are used directly.\n- Directory paths will add all checkpoints within them to the selection pool."
+                    "placeholder": "model_one\nmodel_two.safetensors\n../loras/character\nC:/path/to/specific/model.ckpt",
+                    "tooltip": "Enter checkpoint names, file paths, or directory paths - one per line.\n\n• Names (e.g., 'model_one') are fuzzy-matched against checkpoint files\n• Relative paths (e.g., '../loras/character') work from checkpoints folder\n• Absolute paths (e.g., 'C:/path/to/model.ckpt') are used directly\n• Directory paths add all .ckpt/.safetensors files within them\n• Empty lines are ignored"
                 }),
-                "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff, "tooltip": "The seed controls the selection. Set 'Control After Generate' to 'Increment' to iterate."}),
-                "repeat_count": ("INT", {"default": 1, "min": 1, "max": 1000, "tooltip": "Number of times to use the same checkpoint before selecting the next one."}),
-                "shuffle": ("BOOLEAN", {"default": True, "tooltip": "Controls the selection order.\n\n- True (Shuffle): Randomly selects a checkpoint from the list on each new selection.\n- False (Sequential): Iterates through the checkpoints in the order they appear in the list."}),
-            },
-            "optional": {
-                "limit_to_paths": ("STRING", {
-                    "multiline": True,
-                    "default": "",
-                    "placeholder": "Limit search to specific sub-folders, one per line.\n(Paths must be relative to your checkpoints folder)",
-                    "tooltip": "Filter the search to specific folders, one per line.\nPaths MUST be relative to your main ComfyUI checkpoints directory."
+                "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff, "tooltip": "Controls checkpoint selection. Works with repeat_count:\n\n• repeat_count=1: Each seed gives different checkpoint\n• repeat_count=3: Seeds 0,1,2 → same checkpoint, seeds 3,4,5 → same different checkpoint\n\nSet 'Control After Generate' to 'Increment' for sequential testing."}),
+                "repeat_count": ("INT", {"default": 1, "min": 1, "max": 1000, "tooltip": "How many consecutive seeds use the same checkpoint.\n\n• 1 = Each seed picks a different checkpoint\n• 3 = Seeds 0,1,2 all use checkpoint A, seeds 3,4,5 all use checkpoint B\n• Higher values = more repeats before changing"}),
+                "shuffle": ("BOOLEAN", {"default": False, "tooltip": "Selection mode:\n\n• False (Sequential): Predictable iteration through shuffled pool\n• True (Shuffle): Truly random selection from pool (less predictable)"
                 }),
             }
         }
 
-    RETURN_TYPES = ("MODEL", "CLIP", "VAE")
-    RETURN_NAMES = ("model", "clip", "vae")
+    RETURN_TYPES = ("MODEL", "CLIP", "VAE", "STRING")
+    RETURN_NAMES = ("model", "clip", "vae", "ckpt_path")
     FUNCTION = "load_checkpoint"
     CATEGORY = "⚡ MNeMiC Nodes"
-    DESCRIPTION = "Randomly or sequentially loads a checkpoint from a list, outputting the Model, CLIP, and VAE."
+    DESCRIPTION = "Load checkpoints from a flexible list with repeat control. Supports fuzzy name matching, file paths, and directories. Perfect for batch processing with consistent model selection."
 
-    def find_best_match_custom(self, query, candidates):
-        print(f"LoadRandomCheckpoint: Finding best match for '{query}'...")
-        
+    OUTPUT_TOOLTIPS = {
+        "model": "The loaded checkpoint model, ready for inference",
+        "clip": "CLIP model for text encoding (if available in checkpoint)",
+        "vae": "VAE model for image decoding (if available in checkpoint)",
+        "ckpt_path": "Full path to the selected checkpoint file"
+    }
+
+    def find_best_matches_custom(self, query, candidates):
+        print(f"Finding best matches for '{query}'...")
         if not candidates:
-            return None
+            return []
 
-        # Normalize query
         query_norm = query.lower()
-
         scores = []
         for candidate in candidates:
-            # Normalize candidate filename
             candidate_filename = os.path.basename(candidate)
             candidate_norm, _ = os.path.splitext(candidate_filename)
             candidate_norm = candidate_norm.lower()
-            
-            # Calculate similarity score
+
             ratio = difflib.SequenceMatcher(None, query_norm, candidate_norm).ratio()
-            
-            # Add bonus for being a substring
-            if query_norm in candidate_norm:
+
+            if query_norm == candidate_norm:
+                ratio = 1.0
+            elif query_norm in candidate_norm:
                 ratio += 0.1
-            
+
             scores.append((candidate, ratio))
 
-        # Sort by score descending
         scores.sort(key=lambda x: x[1], reverse=True)
 
-        print("LoadRandomCheckpoint: Top 10 matches:")
+        print("Top 10 matches:")
         for i in range(min(10, len(scores))):
-            print(f"  - Score: {scores[i][1]:.2f}, File: {scores[i][0]}")
+            print(f"  - Score: {scores[i][1]:.2f}, File: {os.path.basename(scores[i][0])}")
 
-        if scores and scores[0][1] > 0.3: # Confidence threshold
-            return scores[0][0]
-        else:
-            return None
+        if not scores or scores[0][1] <= 0.3:
+            return []
+
+        top_score = scores[0][1]
+        top_matches = [s[0] for s in scores if s[1] == top_score]
+
+        return top_matches
 
     def load_checkpoint(self, checkpoints, seed, repeat_count, shuffle, limit_to_paths=""):
-        # --- Build a list of potential targets from the input text area ---
-        potential_targets = []
-        ckpt_base_dirs = folder_paths.get_folder_paths("checkpoints")
+        HEADER = "\n\n--- 🎲 Load Random Checkpoint 🎲 ---"
+        FOOTER = "--- 🎲 End Load Random Checkpoint 🎲 ---\n\n"
         
-        for line in checkpoints.splitlines():
-            line = line.strip()
-            if not line:
-                continue
+        print(HEADER)
+        print(f"Received > Seed: {seed}, Repeat: {repeat_count}, Shuffle: {shuffle}")
 
-            # Check if the line is a directory path
-            path_to_check = ""
-            if os.path.isabs(line):
-                path_to_check = line
-            else:
-                # Check relative to the main checkpoints folder
-                path_to_check = os.path.abspath(os.path.join(ckpt_base_dirs[0], line))
-            
-            if os.path.isdir(path_to_check):
-                print(f"LoadRandomCheckpoint: Expanding directory: {path_to_check}")
-                for root, _, files in os.walk(path_to_check, followlinks=True):
-                    for file in files:
-                        if file.endswith(('.ckpt', '.safetensors')):
-                            potential_targets.append(os.path.join(root, file))
-            else:
-                # If not a directory, treat it as a name/query
-                potential_targets.append(line)
-
-        if not potential_targets:
-            raise ValueError("The checkpoint list is empty or contains no valid paths/names.")
-
-        # --- Determine which target to use based on seed and shuffle settings ---
         effective_index = seed // repeat_count
-        if shuffle:
-            random.seed(effective_index)
-            selected_name = random.choice(potential_targets)
-        else:
-            selected_name = potential_targets[effective_index % len(potential_targets)]
+        print(f"Calculated > Effective Index: {effective_index} (Seed / Repeat)")
+        print(f"Cached > Previous Index: {self.cached_index}")
 
-        if os.path.isabs(selected_name) and os.path.exists(selected_name):
-            print(f"LoadRandomCheckpoint: Using absolute path from list: {selected_name}")
-            ckpt_path = selected_name
+        if self.cached_index == effective_index and self.cached_path:
+            print("Status > CACHE HIT: Using cached path for this repeat run.")
+            ckpt_path = self.cached_path
         else:
-            # Build a comprehensive list of all available checkpoints with absolute paths
-            all_ckpt_abs_paths = set()
-            ckpt_base_dirs = folder_paths.get_folder_paths("checkpoints")
-            for base_dir in ckpt_base_dirs:
-                for root, _, files in os.walk(base_dir, followlinks=True):
-                    for file in files:
-                        if file.endswith(('.ckpt', '.safetensors')):
-                            all_ckpt_abs_paths.add(os.path.join(root, file))
-            
-            search_candidates_abs = list(all_ckpt_abs_paths)
+            print("Status > CACHE MISS: Selecting a new checkpoint.")
+            input_hash = hashlib.sha256(checkpoints.encode() + limit_to_paths.encode()).hexdigest()
+            if self.last_input_hash != input_hash:
+                print("Pool > Input changed, rebuilding checkpoint pool...")
+                self.last_input_hash = input_hash
+                final_pool = []
+                ckpt_base_dirs = folder_paths.get_folder_paths("checkpoints")
+                all_checkpoints_relative = folder_paths.get_filename_list("checkpoints")
 
-            # Filter this list if limit_to_paths is used
-            user_paths = [p.strip() for p in limit_to_paths.splitlines() if p.strip()]
-            if user_paths:
-                resolved_user_paths = []
-                for p in user_paths:
-                    if os.path.isabs(p):
-                        resolved_user_paths.append(os.path.abspath(p))
+                search_candidates = all_checkpoints_relative
+                user_paths = [p.strip().replace('\\', '/') for p in limit_to_paths.splitlines() if p.strip()]
+                if user_paths:
+                    filtered_candidates = [c for c in all_checkpoints_relative if any(c.replace('\\', '/').startswith(p) for p in user_paths)]
+                    if filtered_candidates:
+                        search_candidates = filtered_candidates
                     else:
-                        # Assume relative paths are relative to the first (main) checkpoints folder
-                        resolved_user_paths.append(os.path.abspath(os.path.join(ckpt_base_dirs[0], p)))
-                
-                filtered_paths = [p for p in search_candidates_abs if any(p.startswith(user_p) for user_p in resolved_user_paths)]
-                
-                if filtered_paths:
-                    search_candidates_abs = filtered_paths
-                else:
-                    print(f"LoadRandomCheckpoint: Warning - No checkpoints found in specified paths. Searching all checkpoints instead.")
+                        print(f"Warning: No checkpoints found in specified paths. Searching all checkpoints instead.")
 
-            # Perform the search against the final candidate list
-            best_match_abs = self.find_best_match_custom(selected_name, search_candidates_abs)
-            ckpt_path = best_match_abs
+                for line in checkpoints.splitlines():
+                    line = line.strip()
+                    if not line: continue
+
+                    path_to_check = os.path.abspath(os.path.join(ckpt_base_dirs[0], line)) if not os.path.isabs(line) else line
+
+                    if os.path.isdir(path_to_check):
+                        for root, _, files in os.walk(path_to_check, followlinks=True):
+                            for file in files:
+                                if file.endswith(('.ckpt', '.safetensors')):
+                                    final_pool.append(os.path.join(root, file))
+                    elif os.path.isabs(line) and os.path.exists(line):
+                        final_pool.append(line)
+                    else:
+                        best_matches_relative = self.find_best_matches_custom(line, search_candidates)
+                        for match in best_matches_relative:
+                            final_pool.append(folder_paths.get_full_path("checkpoints", match))
+
+                self.shuffled_pool = sorted(list(set(final_pool)))
+                # Use effective_index=0 for initial pool shuffling to ensure consistency
+                rng = random.Random(0)
+                rng.shuffle(self.shuffled_pool)
+                print(f"Pool > Rebuilt pool with {len(self.shuffled_pool)} unique items.")
+
+            if not self.shuffled_pool:
+                raise ValueError("Could not resolve any valid checkpoint files from the input list.")
+
+            if shuffle:
+                # Use effective_index for final selection to ensure repeats work
+                rng = random.Random(effective_index)
+                ckpt_path = rng.choice(self.shuffled_pool)
+            else:
+                idx = effective_index % len(self.shuffled_pool)
+                ckpt_path = self.shuffled_pool[idx]
+
+            self.cached_path = ckpt_path
+            self.cached_index = effective_index
 
         if not ckpt_path:
-            raise FileNotFoundError(f"Could not find a valid checkpoint file for '{selected_name}'. The new search algorithm also failed.")
+            raise FileNotFoundError(f"Could not select a valid checkpoint file from the resolved pool.")
 
-        print(f"LoadRandomCheckpoint: Loading checkpoint: {os.path.basename(ckpt_path)}")
+        print(f"\n>>> Chosen Model: {os.path.basename(ckpt_path)} <<<")
+        print(f"Loading checkpoint...")
         
         model, clip, vae, _ = comfy.sd.load_checkpoint_guess_config(
             ckpt_path, 
@@ -159,8 +159,9 @@ class LoadRandomCheckpoint:
             output_clip=True, 
             embedding_directory=folder_paths.get_folder_paths("embeddings")
         )
-
-        return (model, clip, vae)
+        
+        print(FOOTER)
+        return (model, clip, vae, ckpt_path)
 
 NODE_CLASS_MAPPINGS = {
     "LoadRandomCheckpoint": LoadRandomCheckpoint

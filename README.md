@@ -75,9 +75,19 @@ Loads LoRA models using `<lora:MyLoRA:1>` in the prompt.
 <img width="1645" height="548" alt="image" src="https://github.com/user-attachments/assets/1f7a35b8-6ca8-4099-90d8-0e7b9fa4cd87" />
 
 
+## 🎲 [Load Random Checkpoint](./README/load_random_checkpoint.md)
+Load checkpoints with flexible fuzzy matching, repeat control, and batch processing support.
+<img width="1649" height="438" alt="image" src="https://github.com/user-attachments/assets/example-screenshot.png" />
+
+
 ## 📐 [Resolution Image Size Selector](./README/resolution_selector.md)
 Creates resolutions and a latent from presets, user presets, or input images.
 <img width="1464" height="428" alt="image" src="https://github.com/user-attachments/assets/3bd379ee-0c02-4382-8e2c-0b75a1a607ef" />
+
+
+## 🖼️ [Load Images From Path](./README/load_images_from_path.md)
+Load single images or iterate through image directories with automatic alpha channel handling.
+<img width="1645" height="525" alt="image" src="https://github.com/user-attachments/assets/example-screenshot2.png" />
 
 
 ## 🖼️ [Load Image Advanced](./README/load_image_advanced.md)
