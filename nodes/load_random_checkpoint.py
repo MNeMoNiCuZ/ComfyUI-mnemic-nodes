@@ -4,6 +4,9 @@ import folder_paths
 import comfy.sd
 import difflib
 import hashlib
+import colorama
+
+POOL_CACHE = {}
 
 class LoadRandomCheckpoint:
     def __init__(self):
@@ -48,6 +51,19 @@ class LoadRandomCheckpoint:
             return []
 
         query_norm = query.lower()
+        contains_matches = []
+        for candidate in candidates:
+            candidate_lower = os.path.basename(candidate).lower()
+            if query_norm in candidate_lower:
+                contains_matches.append(candidate)
+
+        if contains_matches:
+            print(f"Found {len(contains_matches)} substring matches:")
+            for match in contains_matches:
+                print(f"  - {os.path.basename(match)}")
+            return contains_matches
+
+        # If no substring matches, fall back to fuzzy matching
         scores = []
         for candidate in candidates:
             candidate_filename = os.path.basename(candidate)
@@ -78,9 +94,10 @@ class LoadRandomCheckpoint:
         return top_matches
 
     def load_checkpoint(self, checkpoints, seed, repeat_count, shuffle, limit_to_paths=""):
+        colorama.init()
         HEADER = "\n\n--- 🎲 Load Random Checkpoint 🎲 ---"
         FOOTER = "--- 🎲 End Load Random Checkpoint 🎲 ---\n\n"
-        
+
         print(HEADER)
         print(f"Received > Seed: {seed}, Repeat: {repeat_count}, Shuffle: {shuffle}")
 
@@ -94,9 +111,8 @@ class LoadRandomCheckpoint:
         else:
             print("Status > CACHE MISS: Selecting a new checkpoint.")
             input_hash = hashlib.sha256(checkpoints.encode() + limit_to_paths.encode()).hexdigest()
-            if self.last_input_hash != input_hash:
+            if input_hash not in POOL_CACHE:
                 print("Pool > Input changed, rebuilding checkpoint pool...")
-                self.last_input_hash = input_hash
                 final_pool = []
                 ckpt_base_dirs = folder_paths.get_folder_paths("checkpoints")
                 all_checkpoints_relative = folder_paths.get_filename_list("checkpoints")
@@ -132,7 +148,25 @@ class LoadRandomCheckpoint:
                 # Use effective_index=0 for initial pool shuffling to ensure consistency
                 rng = random.Random(0)
                 rng.shuffle(self.shuffled_pool)
+                POOL_CACHE[input_hash] = self.shuffled_pool
                 print(f"Pool > Rebuilt pool with {len(self.shuffled_pool)} unique items.")
+            else:
+                self.shuffled_pool = POOL_CACHE[input_hash]
+                print(f"Pool > Using cached pool with {len(self.shuffled_pool)} items.")
+
+            # Print the final pool with status
+            if shuffle:
+                print("Final pool (shuffled, all active):")
+                for item in self.shuffled_pool:
+                    print(colorama.Fore.YELLOW + f"  - {os.path.basename(item)}" + colorama.Style.RESET_ALL)
+            else:
+                idx = effective_index % len(self.shuffled_pool) if self.shuffled_pool else 0
+                print("Final pool (ordered, cycling):")
+                for i, item in enumerate(self.shuffled_pool):
+                    if i < idx:
+                        print(colorama.Fore.LIGHTBLACK_EX + f"  - {os.path.basename(item)} (used)" + colorama.Style.RESET_ALL)
+                    else:
+                        print(colorama.Fore.YELLOW + f"  - {os.path.basename(item)} (pending)" + colorama.Style.RESET_ALL)
 
             if not self.shuffled_pool:
                 raise ValueError("Could not resolve any valid checkpoint files from the input list.")
