@@ -4,7 +4,7 @@ Extracts metadata from a single image selected from an input source.
 
 The input images are loaded via a path, either directly to an image file or to a folder with multiple images. The metadata should work on both jpg and png images, and it will do what it can to extract from A1111/Forge/ComfyUI image metadata.
 
-<img width="1570" height="1223" alt="image" src="https://github.com/user-attachments/assets/a7260261-b755-4e15-be33-749e3035f801" />
+<img width="2153" height="1093" alt="image" src="https://github.com/user-attachments/assets/f3d513cf-3d1e-48c1-ace7-d941f6d29403" />
 
 > [!IMPORTANT]
 > To cycle through each input entry one by one in the list, you'll want to set the `seed` input to `increment`.
@@ -22,3 +22,7 @@ The input images are loaded via a path, either directly to an image file or to a
     - `parsed_params_json`: All parsed metadata parameters from the selected image, returned as a JSON string.
     - `filtered_params_list`: Specific metadata values requested in `filter_params` from the selected image, returned as a multi-line string.
     - `raw_metadata_json`: The complete, unprocessed metadata of the selected image, formatted as a JSON string.
+
+For extracted params, you can use the [String Text Splitter](https://github.com/MNeMoNiCuZ/ComfyUI-mnemic-nodes/blob/main/README/string_text_splitter.md) node to further split up the results into usable chunks.
+
+<img width="2142" height="724" alt="image" src="https://github.com/user-attachments/assets/3cb4fe24-780d-4fd9-be90-bf90bfd81377" />
