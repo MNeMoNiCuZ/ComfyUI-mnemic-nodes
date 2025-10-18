@@ -24,9 +24,3 @@ The `Load Image Advanced` node is an enhanced version of the default `Load Image
 -   `positive_prompt`: The positive prompt extracted from the image's metadata (STRING).
 -   `width`: The width of the image in pixels (INT).
 -   `height`: The height of the image in pixels (INT).
-
-## Example Workflow
-
-You can use this node to easily load an image and reuse its prompt, or use its alpha channel as a mask for inpainting or other operations. The width and height outputs are useful for dynamically setting resolutions in your workflow.
-
-*(placeholder for an image of the node in action)*
