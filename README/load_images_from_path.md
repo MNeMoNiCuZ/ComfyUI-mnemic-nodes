@@ -2,13 +2,12 @@
 
 A lightweight image loader that supports loading multiple images, one at a time from a folder.
 
+<img width="2240" height="775" alt="image" src="https://github.com/user-attachments/assets/71ef1566-7b4b-4030-afbd-3eef9eccf686" />
+
+
 ## Usage
-
-Set the `seed iteration type` to `INCREMENT` to step through the images of the input folder with 1 per generation.
-
-Set the initial seed to 0 to start with the first image.
-
-<img width="1645" height="525" alt="Load Images From Path Node" src="https://github.com/user-attachments/assets/example-screenshot2.png" />
+> [!IMPORTANT]
+> To cycle through each input entry one by one in the list, you'll want to set the `seed` input to `increment`.
 
 ## Inputs
 
