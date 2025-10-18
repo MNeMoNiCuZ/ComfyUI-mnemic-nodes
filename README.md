@@ -53,7 +53,6 @@ Extracts the first occurrence of text between a pair of characters.
 <img width="1629" height="551" alt="image" src="https://github.com/user-attachments/assets/01ea196e-b0b7-4d23-87d4-203303643b65" />
 
 
-
 ## 📅 [Format Date Time](./README/format_date_time.md)
 Converts date / time into literal outputs. Useful for saving paths and files.
 <img width="1660" height="376" alt="image" src="https://github.com/user-attachments/assets/c44cdf70-acee-4062-aeb7-4d64b58e3a52" />
@@ -67,11 +66,12 @@ Loads a folder of text and image pairs like a dataset, and gives you the image a
 
 ## 🖼️📊 [Metadata Extractor (Single)](./README/metadata_extractor_single.md)
 Extracts metadata from a single image selected from an input source.
-<img width="1600" height="753" alt="image" src="https://github.com/user-attachments/assets/3a58899f-c479-4fcd-bfc6-f573e30a028a" />
+<img width="2259" height="667" alt="image" src="https://github.com/user-attachments/assets/551f26cb-f913-468a-a479-5d4890887a38" />
+
 
 ## 🖼️📊 [Metadata Extractor (List)](./README/metadata_extractor_list.md)
 Extracts metadata from a list of images or a folder of images.
-<img width="1814" height="1122" alt="image" src="https://github.com/user-attachments/assets/26ca04f1-3409-428a-9a3f-e4bb8fd9d215" />
+<img width="2420" height="592" alt="image" src="https://github.com/user-attachments/assets/dfe0953f-7802-4701-a2d0-2e16e0e4f475" />
 
 
 ## 🏷️ [LoRA Loader Prompt Tags](./README/lora_tag_loader.md)
@@ -80,8 +80,8 @@ Loads LoRA models using `<lora:MyLoRA:1>` in the prompt.
 
 
 ## 🎲 [Load Random Checkpoint](./README/load_random_checkpoint.md)
-Load checkpoints with flexible fuzzy matching, repeat control, and batch processing support.
-<img width="1649" height="438" alt="image" src="https://github.com/user-attachments/assets/example-screenshot.png" />
+Load checkpoints with flexible fuzzy matching and repeat control for more varied outputs.
+<img width="2381" height="915" alt="image" src="https://github.com/user-attachments/assets/789835ef-45a3-4857-a63c-f6d6dd9b9088" />
 
 
 ## 📐 [Resolution Image Size Selector](./README/resolution_selector.md)
@@ -90,8 +90,8 @@ Creates resolutions and a latent from presets, user presets, or input images.
 
 
 ## 🖼️ [Load Images From Path](./README/load_images_from_path.md)
-Load single images or iterate through image directories with automatic alpha channel handling.
-<img width="1645" height="525" alt="image" src="https://github.com/user-attachments/assets/example-screenshot2.png" />
+Load single images or iterate through image directories with mask support.
+<img width="2231" height="768" alt="image" src="https://github.com/user-attachments/assets/dddaaea0-aa43-40b6-ad87-9145196e5a74" />
 
 
 ## 🖼️ [Load Image Advanced](./README/load_image_advanced.md)
