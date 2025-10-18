@@ -2,9 +2,11 @@
 
 A checkpoint loader that allows for random or sequential selection from a list of models, with fuzzy name matching and repeat control.
 
-<img width="1649" height="438" alt="Load Random Checkpoint Node" src="https://github.com/user-attachments/assets/example-screenshot.png" />
+<img width="2415" height="964" alt="image" src="https://github.com/user-attachments/assets/c273f9a7-e6af-4ef1-8414-f3939ceb6002" />
 
-Note: Make sure to set the `control after generate` to `increment` 
+
+> [!IMPORTANT]
+> To cycle through each input entry one by one in the list, you'll want to set the `seed` input to `increment`.
 
 ## Inputs
 
@@ -26,3 +28,8 @@ Note: Make sure to set the `control after generate` to `increment`
 -   `clip`: The CLIP model from the checkpoint (CLIP).
 -   `vae`: The VAE model from the checkpoint (VAE).
 -   `path`: The full file path of the selected checkpoint file (STRING).
+
+
+<img width="2363" height="988" alt="image" src="https://github.com/user-attachments/assets/f9c8ecf8-d3a8-4f2e-a7a1-1702e8cd9526" />
+
+Using the `repeat_count` to use each model 3 times in sequence before switching.
