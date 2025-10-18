@@ -65,9 +65,13 @@ Loads a folder of text and image pairs like a dataset, and gives you the image a
 <img width="1615" height="553" alt="image" src="https://github.com/user-attachments/assets/7a013b7f-b600-4ffb-88ae-e81c33779cd2" />
 
 
-## 🖼️📊 [Metadata Extractor](./README/metadata_extractor.md)
-Extracts metadata from input images.
+## 🖼️📊 [Metadata Extractor (Single)](./README/metadata_extractor_single.md)
+Extracts metadata from a single image selected from an input source.
 <img width="1600" height="753" alt="image" src="https://github.com/user-attachments/assets/3a58899f-c479-4fcd-bfc6-f573e30a028a" />
+
+## 🖼️📊 [Metadata Extractor (List)](./README/metadata_extractor_list.md)
+Extracts metadata from a list of images or a folder of images.
+<img width="1814" height="1122" alt="image" src="https://github.com/user-attachments/assets/26ca04f1-3409-428a-9a3f-e4bb8fd9d215" />
 
 
 ## 🏷️ [LoRA Loader Prompt Tags](./README/lora_tag_loader.md)
