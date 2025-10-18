@@ -26,3 +26,5 @@ The input images are loaded via a path, either directly to an image file or to a
 For extracted params, you can use the [String Text Splitter](https://github.com/MNeMoNiCuZ/ComfyUI-mnemic-nodes/blob/main/README/string_text_splitter.md) node to further split up the results into usable chunks.
 
 <img width="2142" height="724" alt="image" src="https://github.com/user-attachments/assets/3cb4fe24-780d-4fd9-be90-bf90bfd81377" />
+
+If you need to load multiple images simultaneously as a list, use the [Metadata Extractor (List)](https://github.com/MNeMoNiCuZ/ComfyUI-mnemic-nodes/blob/main/README/metadata_extractor_list.md) node.
