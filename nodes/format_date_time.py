@@ -6,7 +6,8 @@ class FormatDateTime:
     def __init__(self):
         pass
 
-    def IS_CHANGED(self, *args, **kwargs):
+    @classmethod
+    def IS_CHANGED(cls, *args, **kwargs):
         return time.time()
 
     @classmethod

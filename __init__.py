@@ -16,7 +16,8 @@ from .nodes.string_text_extractor import StringTextExtractor
 from .nodes.format_date_time import FormatDateTime
 from .nodes.load_text_image_pair_single import LoadTextImagePairSingle
 from .nodes.load_text_image_pairs_list import LoadTextImagePairsList
-from .nodes.metadata_extractor import MetadataExtractor
+from .nodes.metadata_extractor_single import MetadataExtractorSingle
+from .nodes.metadata_extractor_list import MetadataExtractorList
 from .nodes.audio_visualizer import AudioVisualizer
 from .nodes.load_image_advanced import LoadImageAdvanced
 
@@ -41,7 +42,8 @@ NODE_CLASS_MAPPINGS = {
     "✂️ String Text Splitter": StringTextSplitter,
     "✂️ String Text Extractor": StringTextExtractor,
     "📅 Format Date Time": FormatDateTime,
-    "🖼️📊 Metadata Extractor": MetadataExtractor,
+    "🖼️📊 Metadata Extractor (Single)": MetadataExtractorSingle,
+    "🖼️📊 Metadata Extractor (List)": MetadataExtractorList,
     "🖼️+📝 Load Text-Image Pair (Single)": LoadTextImagePairSingle,
     "🖼️+📝 Load Text-Image Pairs (List)": LoadTextImagePairsList,
     "🎵📊 Audio Visualizer": AudioVisualizer,
