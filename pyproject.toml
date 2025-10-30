@@ -1,9 +1,9 @@
 [project]
 name = "comfyui-mnemic-nodes"
-description = "Added Image Load Advanced and Colorful Starting Image nodes"
-version = "1.6.1"
+description = "Updated requirements"
+version = "1.6.2"
 license = { file = "LICENSE" }
-dependencies = ["configparser", "groq", "transformers", "torch", "tiktoken", "imageio", "tqdm"]
+dependencies = ["configparser", "groq", "transformers", "torch", "tiktoken", "imageio", "tqdm", "piexif", "requests", "colorama", "opencv-python"]
 
 [project.urls]
 Repository = "https://github.com/MNeMoNiCuZ/ComfyUI-mnemic-nodes"
