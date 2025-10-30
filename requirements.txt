@@ -7,4 +7,6 @@ colorama
 python-dotenv>=1.0.0
 requests
 imageio
+opencv-python
+piexif
 tqdm
