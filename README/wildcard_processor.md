@@ -74,13 +74,13 @@ Returns X number of wildcard results based the input number. The input can also 
 
 
 -   **Syntax**: `{N$$...}` for a fixed number, `{N-M$$...}` for a random range.
--   **Description**: Selects multiple unique items from a list, joined by the `multiple_separator` string.
+-   **Description**: Selects multiple items from a list, joined by the `multiple_separator` string. If the number of requested items is greater than the number of available options, it will loop and start picking from the beginning again.
 -   **Example (Fixed)**:
     -   **Prompt**: `{2$$red|green|blue|purple}`
     -   **Output**: `red, green`
 -   **Example (Range)**:
     -   **Prompt**: `A {1-3$$red|green|blue|purple|white|gold} outfit`
-    -   **Output**: `blue, white, purple` (Randomly got 1-4 outputs, we got 3 in this case. Each entry can only be chosen once)
+    -   **Output**: `blue, white, purple` (Randomly got 1-4 outputs, we got 3 in this case. If the number of items to select is larger than the number of options, it will loop.)
 -   There is an option for the separator in the node. This is inserted between each selected entry.
 
 ---
@@ -163,20 +163,20 @@ Advanced functionality that lets you extract encapsulated results from the final
 
 ## Features Documentation
 
-- **File-based Wildcards**: Use `__filename__` to insert a random line from any `.txt` file in your `wildcards` folder.
+- **File-based Wildcards**: Use `__filename__` to insert a random line from any `.txt` file in your `wildcards` folder. Lines starting with `#` are ignored.
 - **Glob Wildcards**: Use patterns like `__animals/*__` to randomly select a line from any file within the `animals` subdirectory.
 - **Inline Wildcards**: Use `{option1|option2|option3}` for simple, on-the-fly choices.
 - **Weighted Choices**: Give certain options a higher chance of being picked with `{2::option1|option2}`.
 - **Multiple Selections**:
-    - **Fixed**: Choose a specific number of items: `{3$$item1|item2|item3|item4}`.
+    - **Fixed**: Choose a specific number of items: `{3$$item1|item2|item3|item4}`. If the count is larger than the number of items, it will loop.
     - **Ranged**: Choose a random number of items within a range: `{1-3$$item1|item2|item3|item4}`.
 - **Custom Separator**: An input field on the node lets you define the string used to join multiple selected items from a single wildcard (e.g., a space, a comma, or nothing).
 - **Variables**: Define and reuse a dynamic value within your prompt: `${my_var=!{a|b|c}} ... ${my_var}`.
 - **Nesting**: Combine any of the above features, like `A {__colors__} {car|truck} with a {__animal__|__colors__} decal.`
 - **Comments & Whitespace**: Add comments (`#`) and line breaks inside `{}` blocks to keep your prompts readable.
 - **Intelligent File Matching**: When looking for `__wildcard__` files, the processor uses a smart matching system to find the best possible file, prioritizing exact matches and handling subdirectories gracefully.
-- **Console Logging**: A toggleable option (off by default) to print detailed processing steps to the console for easy debugging and verification.
-- **Tag Extraction**: A powerful feature to pull specific parts out of your prompt for separate use, while removing them from the main text.
+- **Console Logging**: A toggleable option to print detailed processing steps to the console for easy debugging and verification. (Note: This is currently disabled from the UI but can be re-enabled in the code.)
+- **Tag Extraction**: A powerful feature to pull specific parts out of your prompt for separate use, while removing them from the main text. (Note: This is currently disabled from the UI but can be re-enabled in the code.)
 
 ## How to Use
 
@@ -241,7 +241,7 @@ To make an option more likely, prefix it with a number and `::`. The number repr
 
 ### Fixed Multiple Selections (`N$$...`)
 
-Choose a fixed number of unique items from a list. The selected items will be joined together by the string you provide in the `multiple_separator` input.
+Choose a fixed number of items from a list. If the requested number is larger than the list, it will loop. The selected items will be joined together by the string you provide in the `multiple_separator` input.
 
 -   **Example with an inline wildcard**:
     -   **Prompt Input**: `My favorite colors are {2$$red|green|blue|yellow}.`
@@ -250,7 +250,7 @@ Choose a fixed number of unique items from a list. The selected items will be jo
 
 ### Ranged Multiple Selections (`N-M$$...`)
 
-Choose a random number of unique items from a list within a specified range.
+Choose a random number of items from a list within a specified range. If the requested number is larger than the list, it will loop.
 
 -   **Example with a file wildcard**:
     -   Assume you have a file `wildcards/clothing.txt` containing `hat, shirt, pants, socks`.

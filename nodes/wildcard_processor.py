@@ -16,9 +16,12 @@ class WildcardProcessor:
     OUTPUT_NODE = True
     FUNCTION = "process_wildcards"
     CATEGORY = "⚡ MNeMiC Nodes"
+    # Set to True to enable console logging, False to disable.
+    console_log = True
+
     DESCRIPTION = ("A versatile text processor that replaces wildcards with dynamic content from files or inline lists.\n\n"
                          "Features:\n"
-                         "File Wildcards:\nUse __filename__ to insert a random line from filename.txt in one of the supported wildcard directories.\n\n"
+                         "File Wildcards:\nUse __filename__ to insert a random line from filename.txt in one of the supported wildcard directories. Lines starting with # are treated as comments and are ignored.\n\n"
                          "Inline Choices:\nUse {a|b|c} to randomly choose between a, b, or c.\nExample Input: A photo of a {red|green|blue} car.\nExample Output: A photo of a green car.\n\n"
                          "Weighted Choices:\nUse {5::black|green|red} to make black 5 times more likely to be chosen than green or red.\n\n"
                          "Select Multiple Wildcards:\nUse {2$$a|b|c|d} to output a specific number of items from the result.\nExample Input: My favorite colors are {3$$red|green|blue|yellow|purple}.\nExample Output: My favorite colors are blue, yellow, purple.\n\n"
@@ -41,8 +44,6 @@ class WildcardProcessor:
         self.wildcard_files = self._find_wildcard_files()
         # Variables for the current processing run
         self.variables = {}
-        # Console logging setting for the current run
-        self.consolewildcard_log = False
 
     @classmethod
     def INPUT_TYPES(cls):
@@ -53,7 +54,7 @@ class WildcardProcessor:
                     "dynamicPrompts": False,
                     "tooltip": (
                         "The text prompt to process. Supports multiple features:\n\n"
-                        "File Wildcards:\nUse __filename__ to insert a random line from filename.txt in one of the supported wildcard directories.\n\n"
+                        "File Wildcards:\nUse __filename__ to insert a random line from filename.txt in one of the supported wildcard directories. Lines starting with # are treated as comments and are ignored.\n\n"
                         "Inline Choices:\nUse {a|b|c} to randomly choose between a, b, or c.\nExample Input: A photo of a {red|green|blue} car.\nExample Output: A photo of a green car.\n\n"
                         "Weighted Choices:\nUse {5::black|green|red} to make black 5 times more likely to be chosen than green or red.\n\n"
                         "Select Multiple Wildcards:\nUse {2$$a|b|c|d} to output a specific number of items from the result.\nExample Input: My favorite colors are {3$$red|green|blue|yellow|purple}.\nExample Output: My favorite colors are blue, yellow, purple.\n\n"
@@ -65,13 +66,17 @@ class WildcardProcessor:
                 "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff, "tooltip": "The seed for the random number generator. Using the same seed with the same prompt will produce the same output."}),
                 "multiple_separator": ("STRING", {"default": " ", "multiline": False, "tooltip": "The separator used when selecting multiple items from a single wildcard.\n\nExample:\n- Prompt: {2$$red|green|blue}\n- Separator: \", \"\n- Output example: \"red, green\""}),
                 "recache_wildcards": ("BOOLEAN", {"default": False, "tooltip": "Force a reload of all wildcard files from disk. Can be disabled again after you have ran it once."}),
-                "consolewildcard_log": ("BOOLEAN", {"default": False, "tooltip": "Enable or disable detailed logging of the wildcard processing steps in the console."}),
-                "tag_extraction_tags": ("STRING", {
-                    "default": "",
-                    "multiline": False,
-                    "tooltip": "Define pairs of characters to extract tags from the prompt. Example: [],**,<<>>. The extracted content is processed for wildcards and removed from the main prompt. \n\nReserved characters: ( ) { } |.",
-                    "placeholder": "Example: [],**,<>"
-                }),
+
+                # The console_log and tag_extraction_tags inputs are temporarily removed from the UI.
+                # Console logging can be forced on or off by changing the FORCE_CONSOLE_LOG setting at the top of the class.
+                # To re-enable the UI controls, uncomment the following blocks and update the process_wildcards method.
+                # "console_log": ("BOOLEAN", {"default": False, "tooltip": "Enable or disable detailed logging of the wildcard processing steps in the console."}),
+                # "tag_extraction_tags": ("STRING", {
+                #     "default": "",
+                #     "multiline": False,
+                #     "tooltip": "Define pairs of characters to extract tags from the prompt. Example: [],**,<<>>. The extracted content is processed for wildcards and removed from the main prompt. \n\nReserved characters: ( ) { } |.",
+                #     "placeholder": "Example: [],**,<>"
+                # }),
             }
         }
 
@@ -88,7 +93,7 @@ class WildcardProcessor:
 
     def wildcard_log(self, message, level=0):
         """Logs a message to the console if logging is enabled, with color and indentation."""
-        if self.consolewildcard_log:
+        if self.console_log:
             indent = "  " * level
             print(f"{indent}{message}{Style.RESET_ALL}")
 
@@ -191,7 +196,7 @@ class WildcardProcessor:
         Caches results for efficiency.
         """
         # If logging is on, we always want to show the search process.
-        if self.consolewildcard_log:
+        if self.console_log:
             if self.first_wildcard_processed:
                 # Add a separator between wildcard processing logs
                 print(f"\n{Fore.CYAN}{'-----' * 21}{Style.RESET_ALL}\n") # Match length of the start/end separator
@@ -212,11 +217,11 @@ class WildcardProcessor:
 
         try:
             with open(best_match, 'r', encoding='utf-8') as f:
-                lines = [line.strip() for line in f if line.strip() and not line.startswith('#')]
+                lines = [line.rstrip('\r\n') for line in f if line.rstrip('\r\n') and not line.lstrip().startswith('#')]
         except UnicodeDecodeError:
             self.wildcard_log(f"{Fore.YELLOW}Warning: Could not decode {os.path.basename(best_match)} as UTF-8. Trying with 'latin-1' encoding.", level=1)
             with open(best_match, 'r', encoding='latin-1') as f:
-                lines = [line.strip() for line in f if line.strip() and not line.startswith('#')]
+                lines = [line.rstrip('\r\n') for line in f if line.rstrip('\r\n') and not line.lstrip().startswith('#')]
         
         self.wildcard_cache[wildcard_name] = lines
         return lines
@@ -294,7 +299,7 @@ class WildcardProcessor:
 
         # 1. Clean comments and whitespace
         expression = re.sub(r'#.*', '', expression)
-        expression = re.sub(r'\s*\n\s*', '', expression).strip()
+        expression = re.sub(r'\s*\n\s*', '', expression)
 
         # 2. Parse multi-selection syntax (e.g., {2$$...} or {1-3$$...})
         count = 1
@@ -319,44 +324,44 @@ class WildcardProcessor:
         choices = []
         weights = []
         for option in options_str:
-            opt_strip = option.strip()
-            weight_match = re.match(r'(\d+(?:\.\d+)?)::(.*)', opt_strip)
+            weight_match = re.match(r'(\d+(?:\.\d+)?)::(.*)', option)
             if weight_match:
                 weight = float(weight_match.group(1))
-                opt = weight_match.group(2).strip()
+                opt = weight_match.group(2)
                 weights.append(weight)
                 choices.append(opt)
             else:
                 weights.append(1.0)
-                choices.append(opt_strip)
+                choices.append(option)
         
         if not choices:
             return ""
 
-        # 4. Select `count` options
+        # 4. Select `count` options, allowing for looping if count > number of choices
         selected_options = []
         if count > 0:
-            # If the number of requested items is greater than the number of available options,
-            # cap the selection to the number of unique items to avoid duplicates.
-            if count > len(choices):
-                self.wildcard_log(f"Warning: Requested {count} items, but only {len(choices)} unique options available. Returning all unique options.")
-                count = len(choices)
-
-            # We need unique items.
-            # If weights are uniform, `random.sample` is efficient.
-            if all(w == 1.0 for w in weights):
-                selected_options = random.sample(choices, k=count)
-            else:
-                # For weighted unique sampling, we pick one by one.
-                temp_choices = list(choices)
-                temp_weights = list(weights)
-                for _ in range(count):
-                    if not temp_choices: break
-                    chosen = random.choices(temp_choices, weights=temp_weights, k=1)[0]
-                    selected_options.append(chosen)
-                    idx = temp_choices.index(chosen)
-                    temp_choices.pop(idx)
-                    temp_weights.pop(idx)
+            remaining_count = count
+            
+            while remaining_count > 0:
+                num_to_pick = min(remaining_count, len(choices))
+                
+                # If weights are uniform, `random.sample` is efficient.
+                if all(w == 1.0 for w in weights):
+                    selected_options.extend(random.sample(choices, k=num_to_pick))
+                else:
+                    # For weighted unique sampling, we pick one by one.
+                    # We need to create a temporary list to modify for each loop.
+                    temp_choices = list(choices)
+                    temp_weights = list(weights)
+                    for _ in range(num_to_pick):
+                        if not temp_choices: break # Should not happen with this logic, but safe
+                        chosen = random.choices(temp_choices, weights=temp_weights, k=1)[0]
+                        selected_options.append(chosen)
+                        idx = temp_choices.index(chosen)
+                        temp_choices.pop(idx)
+                        temp_weights.pop(idx)
+                
+                remaining_count -= num_to_pick
         
         # 5. Join and return using the provided separator.
         result = self.separator.join(selected_options)
@@ -477,7 +482,7 @@ class WildcardProcessor:
         wildcard_string = kwargs.get("wildcard_string", "")
         seed = kwargs.get("seed", 0)
         self.separator = kwargs.get("multiple_separator", " ")
-        self.consolewildcard_log = kwargs.get("consolewildcard_log", False)
+        self.console_log = WildcardProcessor.console_log
         recache = kwargs.get("recache_wildcards", False)
         tag_extraction_tags = kwargs.get("tag_extraction_tags", "")
 
@@ -488,10 +493,10 @@ class WildcardProcessor:
         if recache:
             # Re-scan all wildcard directories and clear the cache.
             # The logging is now handled inside _find_wildcard_files.
-            self.wildcard_files = self._find_wildcard_files(log=self.consolewildcard_log)
+            self.wildcard_files = self._find_wildcard_files(log=self.console_log)
             self.wildcard_cache.clear()
 
-        if self.consolewildcard_log:
+        if self.console_log:
             print(f"{Fore.GREEN}{'-----' * 8}📝 Wildcard Processor Start{'-----' * 8}{Style.RESET_ALL}")
             # Use repr() to make newlines and other special characters visible
             print(f"{Fore.YELLOW}Input:{Style.RESET_ALL} {repr(wildcard_string)}")
@@ -517,7 +522,7 @@ class WildcardProcessor:
             # Use a new random seed for variable evaluation to not interfere with main seed
             var_seed = random.randint(0, 0xffffffffffffffff)
             # We pass console log as false to prevent recursive logging clutter.
-            evaluated_value = temp_processor.process_wildcards(**{"wildcard_string": var_value_expr, "seed": var_seed, "consolewildcard_log": False})[0]
+            evaluated_value = temp_processor.process_wildcards(**{"wildcard_string": var_value_expr, "seed": var_seed, "console_log": False})[0]
             
             self.variables[var_name] = evaluated_value
             self.wildcard_log(f"Defined variable ${{{var_name}}} = {evaluated_value}")
@@ -537,7 +542,7 @@ class WildcardProcessor:
         raw_tags_list = raw_tags
 
 
-        if self.consolewildcard_log:
+        if self.console_log:
             if raw_tags:
                 print(f"{Fore.YELLOW}Extracted Tags (Raw):{Style.RESET_ALL} {raw_tags}")
                 print(f"{Fore.YELLOW}Extracted Tags (Processed):{Style.RESET_ALL} {processed_tags}")
