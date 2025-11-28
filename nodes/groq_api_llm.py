@@ -30,6 +30,11 @@ class GroqAPILLM:
         "llama3-8b-8192",
         "llama3-70b-8192",
         "llama-guard-3-8b",
+        "meta-llama/llama-guard-4-12b",
+        "meta-llama/llama-prompt-guard-2-22m",
+        "meta-llama/llama-prompt-guard-2-86m",
+        "openai/gpt-oss-safeguard-20b",
+        "qwen/qwen3-32b",
     ]
     
     def __init__(self):
