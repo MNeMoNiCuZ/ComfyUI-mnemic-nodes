@@ -16,11 +16,29 @@ This repository hosts a collection of nodes developed for ComfyUI. It aims to sh
 A versatile text processor that replaces wildcards with content from wildcard files or inline lists.
 <img width="1649" height="417" alt="image" src="https://github.com/user-attachments/assets/ed495b54-3e53-44d7-8655-d7b5f105cc1f" />
 
+## 🏷️ [LoRA Loader Prompt Tags](./README/lora_tag_loader.md)
+Loads LoRA models using `<lora:MyLoRA:1>` in the prompt.
+<img width="1645" height="548" alt="image" src="https://github.com/user-attachments/assets/1f7a35b8-6ca8-4099-90d8-0e7b9fa4cd87" />
+
+
+## ⚙️ [Prompt Property Extractor](./README/prompt_property_extractor.md)
+A powerful node to parse a string and extract workflow properties like models, LoRAs, sampler settings, and generate latents.
+<img width="1645" height="548" alt="image" src="https://github.com/user-attachments/assets/1f7a35b8-6ca8-4099-90d8-0e7b9fa4cd87" />
 
 
 ## 📁 [Get File Path](./README/get_file_path.md)
 Returns the file path in different formats to a file in your /input-folder.
 <img width="1645" height="525" alt="image" src="https://github.com/user-attachments/assets/7fc63f03-bb52-484e-8288-1a51a04cb545" />
+
+
+## ✂️ [String Text Splitter](./README/string_text_splitter.md)
+Splits a string by the first occurrence of a delimiter.
+<img width="1613" height="652" alt="image" src="https://github.com/user-attachments/assets/e634a287-2334-49f2-81c3-a2fdb44d6db0" />
+
+
+## ✂️ [String Text Extractor](./README/string_text_extractor.md)
+Extracts the first occurrence of text between a pair of characters.
+<img width="1629" height="551" alt="image" src="https://github.com/user-attachments/assets/01ea196e-b0b7-4d23-87d4-203303643b65" />
 
 
 ## 💾 [Save Text File With Path](./README/save_text_file.md)
@@ -43,20 +61,9 @@ Cleans up text strings, strip leading/trailing spaces or collapse them, remove n
 <img width="1659" height="646" alt="image" src="https://github.com/user-attachments/assets/ffb05b11-a78c-468a-81ed-2aa38cce4549" />
 
 
-## ✂️ [String Text Splitter](./README/string_text_splitter.md)
-Splits a string by the first occurrence of a delimiter.
-<img width="1613" height="652" alt="image" src="https://github.com/user-attachments/assets/e634a287-2334-49f2-81c3-a2fdb44d6db0" />
-
-
-## ✂️ [String Text Extractor](./README/string_text_extractor.md)
-Extracts the first occurrence of text between a pair of characters.
-<img width="1629" height="551" alt="image" src="https://github.com/user-attachments/assets/01ea196e-b0b7-4d23-87d4-203303643b65" />
-
-
 ## 📅 [Format Date Time](./README/format_date_time.md)
 Converts date / time into literal outputs. Useful for saving paths and files.
 <img width="1660" height="376" alt="image" src="https://github.com/user-attachments/assets/c44cdf70-acee-4062-aeb7-4d64b58e3a52" />
-
 
 
 ## 🖼️+📝 [Load Text-Image Pairs](./README/load_text_image_pairs.md)
@@ -72,11 +79,6 @@ Extracts metadata from a single image selected from an input source.
 ## 🖼️📊 [Metadata Extractor (List)](./README/metadata_extractor_list.md)
 Extracts metadata from a list of images or a folder of images.
 <img width="2420" height="592" alt="image" src="https://github.com/user-attachments/assets/dfe0953f-7802-4701-a2d0-2e16e0e4f475" />
-
-
-## 🏷️ [LoRA Loader Prompt Tags](./README/lora_tag_loader.md)
-Loads LoRA models using `<lora:MyLoRA:1>` in the prompt.
-<img width="1645" height="548" alt="image" src="https://github.com/user-attachments/assets/1f7a35b8-6ca8-4099-90d8-0e7b9fa4cd87" />
 
 
 ## 🎲 [Load Random Checkpoint](./README/load_random_checkpoint.md)

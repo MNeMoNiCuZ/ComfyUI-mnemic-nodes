@@ -14,6 +14,7 @@ from .string_text_splitter import StringTextSplitter
 from .string_text_extractor import StringTextExtractor
 from .format_date_time import FormatDateTime
 from .load_text_image_pair_single import LoadTextImagePairSingle
+from .prompt_property_extractor import PromptPropertyExtractor
 from .load_text_image_pairs_list import LoadTextImagePairsList
 from .metadata_extractor_single import MetadataExtractorSingle
 from .metadata_extractor_list import MetadataExtractorList
@@ -40,6 +41,7 @@ __all__ = [
     "StringTextExtractor",
     "FormatDateTime",
     "LoadTextImagePairSingle",
+    "PromptPropertyExtractor",
     "LoadTextImagePairsList",
     "MetadataExtractorSingle",
     "MetadataExtractorList",

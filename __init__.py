@@ -20,6 +20,7 @@ from .nodes.metadata_extractor_single import MetadataExtractorSingle
 from .nodes.metadata_extractor_list import MetadataExtractorList
 from .nodes.audio_visualizer import AudioVisualizer
 from .nodes.load_image_advanced import LoadImageAdvanced
+from .nodes.prompt_property_extractor import PromptPropertyExtractor
 
 from .nodes.colorful_starting_image import ColorfulStartingImage
 from .nodes.load_random_checkpoint import LoadRandomCheckpoint
@@ -38,6 +39,7 @@ NODE_CLASS_MAPPINGS = {
     "🏷️ LoRA Loader Prompt Tags": LoraTagLoader,
     "📐 Resolution Image Size Selector": ResolutionSelector,
     "📝 Wildcard Processor": WildcardProcessor,
+    "⚙️ Prompt Property Extractor": PromptPropertyExtractor,
     "⛔ Generate Negative Prompt": GenerateNegativePrompt,
     "✂️ String Text Splitter": StringTextSplitter,
     "✂️ String Text Extractor": StringTextExtractor,
