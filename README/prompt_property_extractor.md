@@ -1,6 +1,9 @@
 # ⚙️ Prompt Property Extractor
 
-The **Prompt Property Extractor** node is a powerful tool designed to parse a string (like a prompt) and extract various workflow properties such as model checkpoints, VAEs, LoRAs, sampler settings, and even generate latent tensors. It allows you to define a large part of your workflow within a single text block, making it highly portable and easy to manage.
+The **Prompt Property Extractor** node is a tool designed to parse a string (like a prompt) and extract various workflow properties such as model checkpoints, VAEs, LoRAs, sampler settings, and even generate latent tensors. It allows you to define a large part of your workflow within a single text block, making it a useful tool for randomizing more parts of your generations than just a wildcard.
+
+<img width="1856" height="1115" alt="image" src="https://github.com/user-attachments/assets/74958287-97dd-4a07-a355-f26c6767a1cc" />
+
 
 ## Inputs
 
