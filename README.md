@@ -22,8 +22,8 @@ Loads LoRA models using `<lora:MyLoRA:1>` in the prompt.
 
 
 ## ⚙️ [Prompt Property Extractor](./README/prompt_property_extractor.md)
-A powerful node to parse a string and extract workflow properties like models, LoRAs, sampler settings, and generate latents.
-<img width="1645" height="548" alt="image" src="https://github.com/user-attachments/assets/1f7a35b8-6ca8-4099-90d8-0e7b9fa4cd87" />
+Extract generation settings from your input prompt. Use it to randomize your generation settings, checkpoint, step count, seed, or include negative prompt with the normal prompt, load wildcards, or LoRAs, all at the same time. 
+<img width="1667" height="515" alt="image" src="https://github.com/user-attachments/assets/e85cdcb5-d953-4be4-a73c-32e14b2c1550" />
 
 
 ## 📁 [Get File Path](./README/get_file_path.md)
