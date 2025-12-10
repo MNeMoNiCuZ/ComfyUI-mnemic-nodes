@@ -7,19 +7,17 @@ from pathlib import Path
 
 class ResolutionSelector:
     OUTPUT_NODE = True
-    RETURN_TYPES = ("INT", "INT", "INT", "INT", "LATENT")
-    RETURN_NAMES = ("width", "height", "multiplied_width", "multiplied_height", "latent")
-    OUTPUT_IS_LIST = (False, False, False, False, False)
+    RETURN_TYPES = ("INT", "INT", "LATENT")
+    RETURN_NAMES = ("width", "height", "latent")
+    OUTPUT_IS_LIST = (False, False, False)
     OUTPUT_TOOLTIPS = (
-        "The selected width in pixels",
-        "The selected height in pixels",
-        "The width multiplied by the scale factor",
-        "The height multiplied by the scale factor",
-        "A latent tensor with dimensions based on the selected width and height"
+        "The final scaled width in pixels.",
+        "The final scaled height in pixels.",
+        "The final scaled latent."
     )
     FUNCTION = "process_resolution"
     CATEGORY = "⚡ MNeMiC Nodes"
-    DESCRIPTION = "Flexible resolution selector with presets, image input, min/max lengths, snapping, swapping and resolution multiplication.\n\nPriority order for resolution selection:\n1. Input Image\n2. User Preset\n3. Preset\n4. Custom Values (when preset is set to 'Custom'"
+    DESCRIPTION = "Flexible resolution selector with presets, image input, min/max lengths, snapping, swapping and resolution multiplication.\n\nPriority order for resolution selection:\n1. Input Image\n2. User Preset\n3. Preset\n4. Custom Values (when preset is set to 'Custom')"
     DOCUMENTATION = "This node provides resolution selection with the following priority order:\n1. Image Input (highest priority)\n2. User Preset\n3. Preset\n4. Custom Values (when preset is set to 'Custom')"
 
     # Default user presets that will be created if the file doesn't exist
@@ -136,11 +134,11 @@ class ResolutionSelector:
                     "step": 8,
                     "tooltip": "Custom height (Only used with Custom preset)"
                 }),
-                "multiply_scale": ("FLOAT", {
-                    "default": 2.0,
+                "multiply": ("FLOAT", {
+                    "default": 1.0,
                     "min": -16384,
                     "step": 0.1,
-                    "tooltip": "Scale factor for multiplied resolution. Negative values will flip the dimensions."
+                    "tooltip": "Multiplier for the final resolution. Negative values will flip the dimensions."
                 }),
                 "swap_width_and_height": ("BOOLEAN", {
                     "default": False,
@@ -298,7 +296,7 @@ class ResolutionSelector:
             
         return width, height
 
-    def process_resolution(self, preset, preset_user, multiply_scale, swap_width_and_height, custom_width, custom_height,
+    def process_resolution(self, preset, preset_user, multiply, swap_width_and_height, custom_width, custom_height,
                          **kwargs):
         """Process resolution settings and return final dimensions"""
         try:
@@ -330,19 +328,14 @@ class ResolutionSelector:
             if swap_width_and_height:
                 width, height = height, width
             
-            # Validate dimensions and apply snapping if needed
+            # Apply multiplier
+            # Negative multiply will result in negative dimensions, which the validate_dimensions 
+            # method preserves as a way to represent flipped dimensions
+            width = int(round(width * multiply))
+            height = int(round(height * multiply))
+
+            # Validate final dimensions and apply snapping if needed
             width, height = self.validate_dimensions(width, height, snap_to_nearest, snap_resolution)
-            
-            # Calculate multiplied dimensions
-            # Negative multiply_scale will result in negative dimensions, which the validate_dimensions 
-            # method now preserves as a way to represent flipped dimensions
-            multiplied_width = int(round(width * multiply_scale))
-            multiplied_height = int(round(height * multiply_scale))
-            
-            # Validate multiplied dimensions
-            multiplied_width, multiplied_height = self.validate_dimensions(
-                multiplied_width, multiplied_height, snap_to_nearest, snap_resolution
-            )
             
             # Get absolute width and height values for the latent
             abs_width = abs(width)
@@ -353,7 +346,7 @@ class ResolutionSelector:
             latent_tensor = torch.zeros([batch_size, 4, abs_height // 8, abs_width // 8], device=device)
             latent = {"samples": latent_tensor}
             
-            return (width, height, multiplied_width, multiplied_height, latent)
+            return (width, height, latent)
         
         except Exception as e:
             print(f"Error processing resolution: {e}")
@@ -362,7 +355,7 @@ class ResolutionSelector:
             # Include latent in safe fallback
             device = comfy.model_management.intermediate_device()
             latent = {"samples": torch.zeros([1, 4, 64, 64], device=device)}
-            return (512, 512, 1024, 1024, latent)  # Safe fallback
+            return (512, 512, latent)  # Safe fallback
             
     def _get_dimensions_from_presets(self, preset, preset_user, custom_width, custom_height):
         """Helper method to get dimensions from presets based on priority"""
