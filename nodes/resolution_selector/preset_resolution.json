@@ -60,7 +60,7 @@
 		{"name": "[Ultrathin] 864x2048 9:21", "width": 864, "height": 2048},
 		{"name": "[Ultrawide] 2048x864 21:9", "width": 2048, "height": 864}
     ],
-		"Qwen": [
+	"Qwen": [
 		{"name": "[Widescreen] 1664x928 16:9", "width": 1664, "height": 928},
 		{"name": "[Photo Landscape] 1584x1056 3:2", "width": 1584, "height": 1056},
 		{"name": "[Horizontal Standard] 1472x1104 4:3", "width": 1472, "height": 1104},
@@ -68,7 +68,7 @@
 		{"name": "[Portrait Standard] 1104x1472 3:4", "width": 1104, "height": 1472},
 		{"name": "[Photo Portrait] 1056x1584 2:3", "width": 1056, "height": 1584},
 		{"name": "[Portrait] 928x1664 9:16", "width": 928, "height": 1664}
-		],
+	],
     "WAN Video": [
 		{"name": "[Portrait] 224x400 9:16", "width": 224, "height": 400},
 		{"name": "[Portrait] 448x800 9:16", "width": 448, "height": 800},
