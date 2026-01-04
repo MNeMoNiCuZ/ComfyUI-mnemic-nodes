@@ -66,11 +66,7 @@ class WildcardProcessor:
                 "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff, "tooltip": "The seed for the random number generator. Using the same seed with the same prompt will produce the same output."}),
                 "multiple_separator": ("STRING", {"default": " ", "multiline": False, "tooltip": "The separator used when selecting multiple items from a single wildcard.\n\nExample:\n- Prompt: {2$$red|green|blue}\n- Separator: \", \"\n- Output example: \"red, green\""}),
                 "recache_wildcards": ("BOOLEAN", {"default": False, "tooltip": "Force a reload of all wildcard files from disk. Can be disabled again after you have ran it once."}),
-
-                # The console_log and tag_extraction_tags inputs are temporarily removed from the UI.
-                # Console logging can be forced on or off by changing the FORCE_CONSOLE_LOG setting at the top of the class.
-                # To re-enable the UI controls, uncomment the following blocks and update the process_wildcards method.
-                # "console_log": ("BOOLEAN", {"default": False, "tooltip": "Enable or disable detailed logging of the wildcard processing steps in the console."}),
+                "console_log": ("BOOLEAN", {"default": False, "tooltip": "Enable or disable detailed logging of the wildcard processing steps in the console."}),
                 # "tag_extraction_tags": ("STRING", {
                 #     "default": "",
                 #     "multiline": False,
@@ -482,7 +478,7 @@ class WildcardProcessor:
         wildcard_string = kwargs.get("wildcard_string", "")
         seed = kwargs.get("seed", 0)
         self.separator = kwargs.get("multiple_separator", " ")
-        self.console_log = WildcardProcessor.console_log
+        self.console_log = kwargs.get("console_log", False)
         recache = kwargs.get("recache_wildcards", False)
         tag_extraction_tags = kwargs.get("tag_extraction_tags", "")
 

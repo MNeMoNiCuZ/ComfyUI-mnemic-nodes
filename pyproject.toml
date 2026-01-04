@@ -1,7 +1,7 @@
 [project]
 name = "comfyui-mnemic-nodes"
-description = "Updated Resolution Image Size Selector"
-version = "1.7.1"
+description = "Added console log option to wildcard and lora loader nodes, default disabled"
+version = "1.7.2"
 license = { file = "LICENSE" }
 dependencies = ["configparser", "groq", "transformers", "torch", "tiktoken", "imageio", "tqdm", "piexif", "requests", "colorama", "opencv-python"]
 

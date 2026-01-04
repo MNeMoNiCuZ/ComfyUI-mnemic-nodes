@@ -66,6 +66,7 @@ class LoraTagLoader:
                 "MODEL": ("MODEL", {"tooltip": "The model (checkpoint) to apply the LoRA to"}),
                 "CLIP": ("CLIP", {"tooltip": "The CLIP model being used"}),
                 "STRING": ("STRING", {"multiline": True, "forceInput": True, "tooltip": "Input text containing LoRA tags to be processed. Tags should be enclosed in angle brackets, e.g., <lora:loraName:1>"}),
+                "console_log": ("BOOLEAN", {"default": False, "tooltip": "Enable or disable logging of LoRA loading information."}),
             }
         }
 
@@ -79,8 +80,9 @@ class LoraTagLoader:
     DESCRIPTION = "Loads LoRA tags from the provided input string (usually the prompt) and applies them to the model without needing one or multiple LoRA Loader nodes"
 
 
-    def load_lora(self, MODEL, CLIP, STRING):
-        print(f"\nLoraTagLoader processing text: {STRING}")
+    def load_lora(self, MODEL, CLIP, STRING, console_log=False):
+        if console_log:
+            print(f"\nLoraTagLoader processing text: {STRING}")
 
         founds = re.findall(self.tag_pattern, STRING)
         if len(founds) < 1:
@@ -111,7 +113,8 @@ class LoraTagLoader:
                     strength = float(pak[2])
                     wModel = strength if strength != 0 else 1.0
                 except ValueError:
-                    print(f"LoraTagLoader Warning: Invalid model strength value '{pak[2]}' for LoRA '{pak[1]}'. Defaulting to 1.0.")
+                    if console_log:
+                        print(f"LoraTagLoader Warning: Invalid model strength value '{pak[2]}' for LoRA '{pak[1]}'. Defaulting to 1.0.")
                     wModel = 1.0
             
             wClip = wModel # default clip to model weight
@@ -121,17 +124,20 @@ class LoraTagLoader:
                     clip_strength = float(pak[3])
                     wClip = clip_strength if clip_strength != 0 else 1.0
                 except ValueError:
-                    print(f"LoraTagLoader Warning: Invalid clip strength value '{pak[3]}' for LoRA '{pak[1]}'. Defaulting to model weight ({wClip}).")
+                    if console_log:
+                        print(f"LoraTagLoader Warning: Invalid clip strength value '{pak[3]}' for LoRA '{pak[1]}'. Defaulting to model weight ({wClip}).")
                     # wClip is already set to wModel, so no change needed here, just the warning.
 
             # Use our new matching system
             lora_name = find_best_match(name, lora_files, log=True)
             
             if lora_name is None:
-                print(f"No matching LoRA found for tag: {(type, name, wModel, wClip)}")
+                if console_log:
+                    print(f"No matching LoRA found for tag: {(type, name, wModel, wClip)}")
                 continue
             
-            print(f"\nApplying LoRA: {(type, name, wModel, wClip)} >> {lora_name}")
+            if console_log:
+                print(f"\nApplying LoRA: {(type, name, wModel, wClip)} >> {lora_name}")
             
             # Load and apply the LoRA
             lora_path = folder_paths.get_full_path("loras", lora_name)
@@ -158,7 +164,8 @@ class LoraTagLoader:
                     is_zit = True
 
             if is_zit:
-                print(f"LoraTagLoader: ZiT model detected, applying custom key mapping via monkeypatch.")
+                if console_log:
+                    print(f"LoraTagLoader: ZiT model detected, applying custom key mapping via monkeypatch.")
                 # Monkeypatch approach: temporarily modify model_lora_keys_unet to include ZiT support
                 # This replicates the logic from the ComfyUI commit
                 original_model_lora_keys_unet = comfy.lora.model_lora_keys_unet
