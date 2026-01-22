@@ -4,6 +4,23 @@ from typing import List
 from ..utils.replace_tokens import replace_tokens
 from folder_paths import get_output_directory
 
+def sanitize_filename(string):
+    """
+    Sanitize a string to be safe for use as a filename on Windows/Linux.
+    Preserves Unicode characters while removing reserved characters and control codes.
+    """
+    # Define invalid characters: < > : " / \ | ? * and control characters
+    # We use a blacklist approach to preserve foreign characters (UTF-8)
+    invalid_chars = r'[<>:"/\\|?*\x00-\x1f]'
+    
+    # Remove invalid characters
+    sanitized = re.sub(invalid_chars, '', string)
+    
+    # Strip leading/trailing whitespaces and dots (Windows doesn't like trailing dots/spaces)
+    sanitized = sanitized.strip('. ')
+    
+    return sanitized
+
 class SaveTextFile:
     def __init__(self):
         pass
@@ -35,6 +52,10 @@ class SaveTextFile:
         prefix = replace_tokens(prefix)
         suffix = replace_tokens(suffix)
 
+        # Sanitize filename components
+        prefix = sanitize_filename(prefix)
+        suffix = sanitize_filename(suffix)
+
         # Safety check to ensure the extension is not empty
         if not output_extension.strip():
             raise ValueError("The output extension cannot be empty.")
@@ -59,8 +80,8 @@ class SaveTextFile:
             except OSError as e:
                 print(f"Error: The path `{full_path}` could not be created! Is there write access?\n{e}")
 
-        if file_text.strip() == '':
-            raise ValueError("There is no text specified to save! Text is empty.")
+        # if file_text.strip() == '':
+        #     raise ValueError("There is no text specified to save! Text is empty.")
 
         separator = counter_separator
         number_padding = int(counter_length)
