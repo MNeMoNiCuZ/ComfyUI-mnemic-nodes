@@ -68,8 +68,14 @@ The node recognizes tags in the format `<tag:value>` or `<tag:value1:value2>`. M
 | `<denoise:value>` | | Sets the denoise value. |
 | `<start_step:value>` | `<start:value>`, `<start_at_step:value>` | Sets the KSampler start step. |
 | `<end_step:value>` | `<end:value>`, `<end_at_step:value>` | Sets the KSampler end step. |
-| `<neg:value>` | `<negative:value>` | Sets the negative prompt content. |
-| `_any other tag_` | | Any other tag is passed to `other_tags` (e.g., `<custom:value>`). |
+| `<pos:value>` | `<positive:value>` | Adds to the positive prompt. Multiple allowed, combined with `, `. |
+| `<neg:value>` | `<negative:value>` | Sets the negative prompt. Multiple allowed, combined with `, `. |
+| _any other tag_ | | Any other tag is passed to `other_tags` (e.g., `<custom:value>`). |
+
+**Multiple Tag Support:**
+- `<pos>`, `<positive>`, `<neg>`, and `<negative>` tags can appear multiple times
+- Multiple instances are combined with `, ` separator
+- Example: `<neg:bad quality, ugly, bad><neg:blurry>` → `"bad quality, ugly, bad, blurry"`
 
 **Escape Sequences:**
 - Use `\>` to include a literal `>` character in tag values (e.g., `<neg:(cat:1.5)\>, ugly>`)

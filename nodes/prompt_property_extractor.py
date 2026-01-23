@@ -18,7 +18,7 @@ class PromptPropertyExtractor:
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "input_string": ("STRING", {"multiline": True, "default": "", "tooltip": "Input string with property tags.\nSupported tags:\n- <checkpoint:name> | <model:name> | <ckpt:name>\n- <clip:name>\n- <vae:name>\n- <lora:name:weight>\n- <cfg:value>\n- <steps:value> | <step:value>\n- <sampler:name> | <sampler_name:name>\n- <denoise:value>\n- <width:value>\n- <height:value>\n- <resolution:WxH> | <res:WxH> (e.g. 1024x768)\n- <seed:value>\n- <start_step:value> | <start:value> | <start_at_step:value>\n- <end_step:value> | <end:value> | <end_at_step:value>\n- <neg:value> | <negative:value> (Negative Prompt)\n\nNote: Use \\> to include a literal > in tag values (e.g. <neg:(cat:1.5)\\, ugly>)"}),
+                "input_string": ("STRING", {"multiline": True, "default": "", "tooltip": "Input string with property tags.\nSupported tags:\n- <checkpoint:name> | <model:name> | <ckpt:name>\n- <clip:name>\n- <vae:name>\n- <lora:name:weight>\n- <cfg:value>\n- <steps:value> | <step:value>\n- <sampler:name> | <sampler_name:name>\n- <denoise:value>\n- <width:value>\n- <height:value>\n- <resolution:WxH> | <res:WxH> (e.g. 1024x768)\n- <seed:value>\n- <start_step:value> | <start:value> | <start_at_step:value>\n- <end_step:value> | <end:value> | <end_at_step:value>\n- <pos:value> | <positive:value> (Positive Prompt - multiple allowed)\n- <neg:value> | <negative:value> (Negative Prompt - multiple allowed)\n\nNote: Multiple <pos> and <neg> tags are combined with ', '.\nNote: Use \\> to include a literal > in tag values (e.g. <neg:(cat:1.5)\\, ugly>)"}),
                 "load_clip_from_checkpoint": ("BOOLEAN", {"default": True, "tooltip": "Determines CLIP source priority:\n1. <clip:name> tag (Highest Priority)\n2. Checkpoint CLIP (if <checkpoint> tag exists AND this is True)\n3. Input CLIP pin (Lowest Priority)\n\nIf no <checkpoint> tag is found, this setting is ignored and the Input CLIP is used."}),
                 "load_vae_from_checkpoint": ("BOOLEAN", {"default": True, "tooltip": "Determines VAE source priority:\n1. <vae:name> tag (Highest Priority)\n2. Checkpoint VAE (if <checkpoint> tag exists AND this is True)\n3. Input VAE pin (Lowest Priority)\n\nIf no <checkpoint> tag is found, this setting is ignored and the Input VAE is used."}),
                 "cfg": ("FLOAT", {"default": 8.0, "min": 0.0, "max": 100.0, "tooltip": "Default CFG scale. Can be overridden by a <cfg:value> tag."}),
@@ -88,10 +88,8 @@ class PromptPropertyExtractor:
         wildcard_processor.console_log = False
         other_tags = []
         loras_to_apply = []
-        wildcard_processor.console_log = False
-        other_tags = []
-        loras_to_apply = []
-        negative_string = ""
+        positive_parts = []
+        negative_parts = []
         print(f"\n{'=' * 30} Prompt Property Extractor {'=' * 30}")
         print(f"[INPUT] {repr(input_string)}")
         
@@ -275,11 +273,17 @@ class PromptPropertyExtractor:
                             print(f"  [LORA QUEUED] <{tag}> -> {os.path.basename(lora_path)} (Model: {lora_model_weight}, CLIP: {lora_clip_weight})")
                             loras_to_apply.append((lora_path, lora_model_weight, lora_clip_weight))
 
-                elif (tag_name == "neg" or tag_name == "negative") and tag_value:
-                    negative_string = tag_value.strip()
-                    print(f"  [NEG] <{tag}> -> {negative_string}")
+                elif (tag_name == "pos" or tag_name == "positive") and tag_value:
+                    pos_value = tag_value.strip()
+                    positive_parts.append(pos_value)
+                    print(f"  [POS] <{tag}> -> {pos_value}")
 
-                elif tag_name not in ["checkpoint", "model", "ckpt", "clip", "vae", "cfg", "sampler", "sampler_name", "scheduler", "steps", "step", "denoise", "width", "height", "resolution", "res", "seed", "start_step", "start", "start_at_step", "end_step", "end", "end_at_step", "lora", "neg", "negative"]:
+                elif (tag_name == "neg" or tag_name == "negative") and tag_value:
+                    neg_value = tag_value.strip()
+                    negative_parts.append(neg_value)
+                    print(f"  [NEG] <{tag}> -> {neg_value}")
+
+                elif tag_name not in ["checkpoint", "model", "ckpt", "clip", "vae", "cfg", "sampler", "sampler_name", "scheduler", "steps", "step", "denoise", "width", "height", "resolution", "res", "seed", "start_step", "start", "start_at_step", "end_step", "end", "end_at_step", "lora", "neg", "negative", "pos", "positive"]:
                     other_tags.append(f"<{tag}>")
 
             except (ValueError, IndexError) as e:
@@ -308,10 +312,25 @@ class PromptPropertyExtractor:
         # Final cleaning of the string (collapse multiple spaces)
         cleaned_string = re.sub(r"\s+", " ", cleaned_string_final).strip()
         
+        # Combine multiple positive/negative tag values with ", "
+        positive_string = ", ".join(positive_parts)
+        negative_string = ", ".join(negative_parts)
+        
+        # Append positive tag content to cleaned string if present
+        if positive_string:
+            if cleaned_string:
+                cleaned_string = cleaned_string + ", " + positive_string
+            else:
+                cleaned_string = positive_string
+        
         # Join other tags
         other_tags_str = "".join(other_tags)
         if other_tags_str:
             print(f"[UNRECOGNIZED TAGS] {other_tags_str}")
+        if positive_string:
+            print(f"[POSITIVE COMBINED] {repr(positive_string)}")
+        if negative_string:
+            print(f"[NEGATIVE COMBINED] {repr(negative_string)}")
         print(f"[OUTPUT] {repr(cleaned_string)}")
         
         # Encode conditioning
@@ -328,8 +347,7 @@ class PromptPropertyExtractor:
             tokens_neg = out_clip.tokenize(negative_string)
             cond_neg, pooled_neg = out_clip.encode_from_tokens(tokens_neg, return_pooled=True)
             neg_conditioning = [[cond_neg, {"pooled_output": pooled_neg}]]
-        else:
-            print("[WARNING] No CLIP model available for encoding conditioning.")
+        # Note: If no CLIP available, conditioning outputs remain None
 
         # Create latent tensor
         try:
@@ -344,7 +362,6 @@ class PromptPropertyExtractor:
 
         print(f"{'=' * 30} Prompt Property Extractor End {'=' * 30}\n")
 
-        # REMOVED SCHEDULER OUTPUT: was (out_model, out_clip, out_vae, out_cfg, out_steps, out_sampler, out_scheduler, out_denoise, ...)
         # REMOVED SCHEDULER OUTPUT: was (out_model, out_clip, out_vae, out_cfg, out_steps, out_sampler, out_scheduler, out_denoise, ...)
         return (out_model, out_clip, out_vae, pos_conditioning, neg_conditioning, out_latent, out_seed, out_steps, out_cfg, out_sampler, out_denoise, out_start_step, out_end_step, cleaned_string, negative_string, other_tags_str, string_with_wildcards_resolved, out_width, out_height)
 
