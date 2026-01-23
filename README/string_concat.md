@@ -2,6 +2,8 @@
 
 Concatenates multiple strings together with dynamic input expansion.
 
+<img width="1983" height="593" alt="image" src="https://github.com/user-attachments/assets/cd50a487-428d-4c24-9603-7a9e2221cc1c" />
+
 -   **Description**: Combines multiple strings into one. Features dynamic inputs - new input slots automatically appear as you connect strings, and unused slots are removed when disconnected.
 -   **Inputs**:
     -   `delimiter` (optional): Separator to insert between concatenated strings (e.g., `, ` or ` | `). Leave empty for direct concatenation.
