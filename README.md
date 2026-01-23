@@ -126,6 +126,12 @@ Query Groq Audio Model to transcribe audio.
 <img width="1623" height="214" alt="image" src="https://github.com/user-attachments/assets/b5f2e3fe-7b72-42e4-8201-27cbcefac258" />
 
 
+## 🔗 [String Concat / Append](./README/string_concat.md)
+Concatenates multiple strings with dynamic input expansion. New inputs appear as you connect strings.
+
+<img width="1983" height="593" alt="image" src="https://github.com/user-attachments/assets/cd50a487-428d-4c24-9603-7a9e2221cc1c" />
+
+
 ## 🎲 [Random Int in Range](./README/random_int_in_range.md)
 Generates a random integer within a specified min/max range. Supports optional seed for reproducibility.
 
@@ -148,10 +154,6 @@ Generates a random 64-bit seed value for use with other nodes.
 
 ## 🎲 [Random Color](./README/random_color.md)
 Generates a random RGB color with hex and individual channel outputs.
-
-
-## 🔗 [String Concat / Append](./README/string_concat.md)
-Concatenates multiple strings with dynamic input expansion. New inputs appear as you connect strings.
 
 
 ## ✏️ [Literal Bool](./README/literal_bool.md)
