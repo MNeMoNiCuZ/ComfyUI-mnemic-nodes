@@ -25,6 +25,17 @@ from .nodes.prompt_property_extractor import PromptPropertyExtractor
 from .nodes.colorful_starting_image import ColorfulStartingImage
 from .nodes.load_random_checkpoint import LoadRandomCheckpoint
 from .nodes.load_images import LoadImagesFromPath
+from .nodes.random_int_in_range import RandomIntInRange
+from .nodes.random_float_in_range import RandomFloatInRange
+from .nodes.random_bool import RandomBool
+from .nodes.random_string import RandomString
+from .nodes.random_seed import RandomSeed
+from .nodes.random_color import RandomColor
+from .nodes.string_concat import StringConcat
+from .nodes.literal_bool import LiteralBool
+from .nodes.literal_int import LiteralInt
+from .nodes.literal_float import LiteralFloat
+from .nodes.literal_string import LiteralString
 
 NODE_CLASS_MAPPINGS = {
     "📁 Get File Path": GetFilePath,
@@ -53,5 +64,20 @@ NODE_CLASS_MAPPINGS = {
     "🎨 Colorful Starting Image": ColorfulStartingImage,
     "🎲 Load Random Checkpoint": LoadRandomCheckpoint,
     "📂 Load Images From Path": LoadImagesFromPath,
+    "🎲 Random Int in Range": RandomIntInRange,
+    "🎲 Random Float in Range": RandomFloatInRange,
+    "🎲 Random Bool": RandomBool,
+    "🎲 Random String": RandomString,
+    "🎲 Random Seed": RandomSeed,
+    "🎲 Random Color": RandomColor,
+    "🔗 String Concat / Append": StringConcat,
+    "✏️ Literal Bool": LiteralBool,
+    "✏️ Literal Int": LiteralInt,
+    "✏️ Literal Float": LiteralFloat,
+    "✏️ Literal String": LiteralString,
 }
+
+WEB_DIRECTORY = "./web"
+__all__ = ["NODE_CLASS_MAPPINGS", "WEB_DIRECTORY"]
+
 print("\033[34m⚡ MNeMiC Nodes: \033[92mLoaded\033[0m")

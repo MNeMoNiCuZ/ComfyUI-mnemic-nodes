@@ -56,6 +56,24 @@ class SaveTextFile:
         prefix = sanitize_filename(prefix)
         suffix = sanitize_filename(suffix)
 
+        # Truncate to avoid MAX_PATH issues (Windows limit is 260 chars usually)
+        # User requested a limit of 250 chars max for the filename parts
+        # We assume some buffer for extension (e.g. .txt) and counter (e.g. _001)
+        # 250 - ~15 chars buffer = 235 chars available for prefix + suffix
+        max_filename_len = 235
+        
+        current_len = len(prefix) + len(suffix)
+        if current_len > max_filename_len:
+            # If combined length exceeds limit, truncate suffix first, then prefix
+            if len(prefix) < max_filename_len:
+                # Prefix fits, but combined doesn't; truncate suffix
+                remaining_space = max_filename_len - len(prefix)
+                suffix = suffix[:remaining_space]
+            else:
+                # Prefix itself is too long; truncate prefix and remove suffix
+                prefix = prefix[:max_filename_len]
+                suffix = ""
+
         # Safety check to ensure the extension is not empty
         if not output_extension.strip():
             raise ValueError("The output extension cannot be empty.")

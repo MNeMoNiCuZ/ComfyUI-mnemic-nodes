@@ -126,6 +126,50 @@ Query Groq Audio Model to transcribe audio.
 <img width="1623" height="214" alt="image" src="https://github.com/user-attachments/assets/b5f2e3fe-7b72-42e4-8201-27cbcefac258" />
 
 
+## 🎲 [Random Int in Range](./README/random_int_in_range.md)
+Generates a random integer within a specified min/max range. Supports optional seed for reproducibility.
+
+
+## 🎲 [Random Float in Range](./README/random_float_in_range.md)
+Generates a random floating-point number within a specified range. Supports optional decimal rounding and seed.
+
+
+## 🎲 [Random Bool](./README/random_bool.md)
+Generates a random boolean value with optional weighted probability.
+
+
+## 🎲 [Random String](./README/random_string.md)
+Randomly selects one string from a newline-separated list of options.
+
+
+## 🎲 [Random Seed](./README/random_seed.md)
+Generates a random 64-bit seed value for use with other nodes.
+
+
+## 🎲 [Random Color](./README/random_color.md)
+Generates a random RGB color with hex and individual channel outputs.
+
+
+## 🔗 [String Concat / Append](./README/string_concat.md)
+Concatenates multiple strings with dynamic input expansion. New inputs appear as you connect strings.
+
+
+## ✏️ [Literal Bool](./README/literal_bool.md)
+A simple boolean toggle input. Use this to create a True/False source in your workflow.
+
+
+## ✏️ [Literal Int](./README/literal_int.md)
+A simple integer input field. Use this to create a whole number source in your workflow.
+
+
+## ✏️ [Literal Float](./README/literal_float.md)
+A simple floating-point input field. Use this to create a decimal number source in your workflow.
+
+
+## ✏️ [Literal String](./README/literal_string.md)
+A multiline text input field. Use this to create a text source in your workflow.
+
+
 ## ⛔ [Generate Negative Prompt](./README/generate_negative_prompt.md)
 Generate negative prompts automatically.
 <img width="1577" height="359" alt="image" src="https://github.com/user-attachments/assets/a126dd5d-2d92-4069-8998-0f19ed5bcd2b" />

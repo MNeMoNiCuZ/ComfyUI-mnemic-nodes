@@ -23,6 +23,17 @@ from .load_image_advanced import LoadImageAdvanced
 from .colorful_starting_image import ColorfulStartingImage
 from .load_random_checkpoint import LoadRandomCheckpoint
 from .load_images import LoadImagesFromPath
+from .random_int_in_range import RandomIntInRange
+from .random_float_in_range import RandomFloatInRange
+from .random_bool import RandomBool
+from .random_string import RandomString
+from .random_seed import RandomSeed
+from .random_color import RandomColor
+from .string_concat import StringConcat
+from .literal_bool import LiteralBool
+from .literal_int import LiteralInt
+from .literal_float import LiteralFloat
+from .literal_string import LiteralString
 
 __all__ = [
     "DownloadImageFromURL",
@@ -50,4 +61,15 @@ __all__ = [
     "ColorfulStartingImage",
     "LoadRandomCheckpoint",
     "LoadImagesFromPath",
+    "RandomIntInRange",
+    "RandomFloatInRange",
+    "RandomBool",
+    "RandomString",
+    "RandomSeed",
+    "RandomColor",
+    "StringConcat",
+    "LiteralBool",
+    "LiteralInt",
+    "LiteralFloat",
+    "LiteralString",
 ]
