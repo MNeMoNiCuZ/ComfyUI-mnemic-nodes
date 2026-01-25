@@ -24,6 +24,6 @@ This node converts date and time formats into literal outputs for you to use.
 %%W = %W = Week index (Monday start)
 %%w = %w = Weekday index (Monday start)
 %%U = %U = Week index (Sunday start)
-%%u = %u = Week index (Sunday start)
+%%u = %u = Weekday index (Sunday start)
 %%%% = %% = Prints a literal %%
 ```
