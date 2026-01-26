@@ -39,6 +39,10 @@ class FormatDateTime:
                                "%u: Day index of week (Sunday is 0) (0-6)\n"
                                "%%: A literal '%' character"
                 }),
+                "respect_system_locale": ("BOOLEAN", {
+                    "default": False,
+                    "tooltip": "If enabled, %x and %c will use the system's locale settings (which might be MM/DD/YY). If disabled, %x forces YYYY-MM-DD."
+                }),
             }
         }
 
@@ -49,7 +53,7 @@ class FormatDateTime:
     CATEGORY = "⚡ MNeMiC Nodes"
     DESCRIPTION = "Formats the current date and time into a string based on a specified format."
 
-    def format_date_time(self, date_format):
+    def format_date_time(self, date_format, respect_system_locale=False):
         """
         Formats the current date and time using the provided format string.
         The format string directly uses Python's strftime directives.
@@ -65,6 +69,11 @@ class FormatDateTime:
         # This prevents '%%w' from becoming '%w' prematurely and being
         # caught by our custom %w/%u replacement logic.
         temp_format = date_format.replace('%%', '__DOUBLE_PERCENT_PLACEHOLDER__')
+
+        # Step 1.5: If system locale is not respected, force SI formats for %x and %c
+        if not respect_system_locale:
+            temp_format = temp_format.replace('%x', '%Y-%m-%d')
+            temp_format = temp_format.replace('%c', '%Y-%m-%d %H.%M.%S')
 
         # Step 2: Replace custom %w and %u directives with their calculated values
         # We use regex with a negative lookbehind to ensure we only replace
