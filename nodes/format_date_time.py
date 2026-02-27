@@ -15,7 +15,7 @@ class FormatDateTime:
         return {
             "required": {
                 "date_format": ("STRING", {
-                    "default": "%Y-%m-%d - %H.%M.%S",
+                    "default": "%Y-%m-%d/%Y-%m-%d - %H.%M.%S",
                     "multiline": True,
                     "tooltip": "Formats a date string using Python's strftime directives.\n\n"
                                "%Y: Year (e.g., 2025)\n"

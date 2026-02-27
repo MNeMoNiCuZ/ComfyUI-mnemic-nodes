@@ -1,7 +1,7 @@
 [project]
 name = "comfyui-mnemic-nodes"
-description = "Added literals, randoms, and dynamic string concat"
-version = "1.8.0"
+description = "Updated default groq prompts, and fixed a bug in Format Date Time"
+version = "1.8.1"
 license = { file = "LICENSE" }
 dependencies = ["configparser", "groq", "transformers", "torch", "tiktoken", "imageio", "tqdm", "piexif", "requests", "colorama", "opencv-python"]
 
