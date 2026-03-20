@@ -19,21 +19,7 @@ class WildcardProcessor:
     # Set to True to enable console logging, False to disable.
     console_log = True
 
-    DESCRIPTION = ("A versatile text processor that replaces wildcards with dynamic content from files or inline lists.\n\n"
-                         "Features:\n"
-                         "File Wildcards:\nUse __filename__ to insert a random line from filename.txt in one of the supported wildcard directories. Lines starting with # are treated as comments and are ignored.\n\n"
-                         "Inline Choices:\nUse {a|b|c} to randomly choose between a, b, or c.\nExample Input: A photo of a {red|green|blue} car.\nExample Output: A photo of a green car.\n\n"
-                         "Weighted Choices:\nUse {5::black|green|red} to make black 5 times more likely to be chosen than green or red.\n\n"
-                         "Select Multiple Wildcards:\nUse {2$$a|b|c|d} to output a specific number of items from the result.\nExample Input: My favorite colors are {3$$red|green|blue|yellow|purple}.\nExample Output: My favorite colors are blue, yellow, purple.\n\n"
-                         "Ranged Select Multiple:\nUse {1-3$$red|green|blue|yellow|purple} to select a random number of 1-3 items within a range.\n\n"
-                         "Variables:\nDefine a variable to reuse a value. Can be defined directly, or using a wildcard\nExample Input: ${animal=!__animals__} The ${animal} is friends with the other ${animal}.\nExample Output: The cat is friends with the other cat.\n\n"
-                         "Smart wildcard matching:\nThe node will try to find the best match for a wildcard, even if the name is not an exact match. It will search for files in the wildcards directories and use the best match based on a scoring system. Exact matches have priority, and more root level files have priority after that.\n\n"
-                         "Multiple Wildcard Paths:\nWildcards can be placed in different directories. It's recommended to only use one.\n"
-                         "\nPaths:\n"
-                         "ComfyUI/wildcards\n"
-                         "ComfyUI/custom_nodes/ComfyUI-mnemic-nodes/wildcards\n"
-                         "or in a user-defined path in: ComfyUI/custom_nodes/ComfyUI-mnemic-nodes/nodes/wildcards/wildcards_paths_user.json.\n\n"
-                         "View README_WILDCARD.md for more information."
+    DESCRIPTION = ("A text processor that replaces wildcards with dynamic content from files or inline lists."
                          )
     
     def __init__(self):
