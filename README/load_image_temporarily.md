@@ -2,6 +2,8 @@
 
 `Load Image Temporarily` loads images from ComfyUI's temp upload area and decodes them using core `LoadImage`-style behavior.
 
+<img width="1477" height="494" alt="image" src="https://github.com/user-attachments/assets/5c0aa05c-6c6d-48df-a6a9-12356cc4ea4f" />
+
 ## What It Does
 
 - Loads an uploaded temp image as `IMAGE`.
