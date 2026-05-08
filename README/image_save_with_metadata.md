@@ -2,8 +2,9 @@
 
 Save images with Civitai-compatible metadata auto-detected from your workflow.
 
-This node is integrated into this pack as an adapted copy of Chrono's original node.
+<img width="1190" height="447" alt="image" src="https://github.com/user-attachments/assets/097ed56c-3ef9-495b-b9af-e39a2ca18125" />
 
+This node is integrated into this pack as an adapted copy of ChronoKnight's original node.
 Original source:
 - https://github.com/KChronoKnight/Chrono-Save-for-Civitai
 
@@ -20,6 +21,4 @@ Original source:
 ## Behavior
 - Captures prompt/negative prompt and LoRAs from executed runtime graph paths (sampler upstream), with graph parsing fallback.
 - Writes A1111-style `parameters` metadata.
-- Writes `Hashes` and `Models used` metadata.
-- `Models used` is written as one model per line (base model + detected LoRAs).
-- Does not call Civitai API; metadata is generated locally from workflow/runtime and local hashes.
+- `Models used` captures base model + LoRA
