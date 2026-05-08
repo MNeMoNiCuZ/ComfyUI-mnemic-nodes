@@ -11,8 +11,7 @@ from PIL import Image, ImageOps, ImageSequence
 
 class LoadImageTemporarily:
     """
-    Load image using ComfyUI's native upload/reference flow, but from temp storage.
-    This mirrors core LoadImage decode behavior while avoiding /input persistence.
+    Loads an image and stores it in ComfyUI /temp-folder instead of the /input folder.
     """
 
     @classmethod
@@ -39,7 +38,7 @@ class LoadImageTemporarily:
     )
     FUNCTION = "load_image"
     CATEGORY = "⚡ MNeMiC Nodes"
-    DESCRIPTION = "Load image from ComfyUI temp uploads with core LoadImage behavior."
+    DESCRIPTION = "Loads an image and stores it in ComfyUI /temp-folder instead of the /input folder."
 
     def load_image(self, image):
         image_path = folder_paths.get_annotated_filepath(image)

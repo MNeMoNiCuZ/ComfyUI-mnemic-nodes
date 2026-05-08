@@ -573,15 +573,69 @@ class ImageSaveWithMetadata:
         return {
             "required": {
                 "images": ("IMAGE",),
-                "filename_prefix": ("STRING", {"default": "%date:yyyy-MM-dd - hh.mm.ss%", "tooltip": "Supports strftime directives: %Y %m %d %H %M %S %f %x %X %c %p %A %a %B %b %j %W %w %U %u %% and %date:yyyy-MM-dd - hh.mm.ss%, plus %seed %model."}),
-                "folder": ("STRING", {"default": "%date:yyyy-MM-dd%", "tooltip": "Subfolder under ComfyUI output dir. Supports strftime directives: %Y %m %d %H %M %S %f %x %X %c %p %A %a %B %b %j %W %w %U %u %% and %date:yyyy-MM-dd - hh.mm.ss%, plus %seed %model."}),
+                "filename_prefix": ("STRING", {
+                    "default": "%date:yyyy-MM-dd - hh.mm.ss%",
+                    "tooltip": "Filename prefix template.\n\n"
+                               "%Y: Year (e.g., 2025)\n"
+                               "%m: Month (01-12)\n"
+                               "%d: Day of month (01-31)\n"
+                               "%H: Hour (24-hour clock) (00-23)\n"
+                               "%M: Minute (00-59)\n"
+                               "%S: Second (00-59)\n"
+                               "%f: Microsecond (000000-999999)\n"
+                               "%x: Date representation\n"
+                               "%X: Time representation\n"
+                               "%c: Date and time representation\n"
+                               "%p: AM/PM\n"
+                               "%A: Weekday full name (e.g., Thursday)\n"
+                               "%a: Weekday abbreviated name (e.g., Thu)\n"
+                               "%B: Month full name (e.g., August)\n"
+                               "%b: Month abbreviated name (e.g., Aug)\n"
+                               "%j: Day of year (001-366)\n"
+                               "%W: Week number of year (Monday as first day) (00-53)\n"
+                               "%w: Day index of week (Monday is 0) (0-6)\n"
+                               "%U: Week number of year (Sunday as first day) (00-53)\n"
+                               "%u: Day index of week (Sunday is 0) (0-6)\n"
+                               "%%: A literal '%' character\n\n"
+                               "%date:yyyy-MM-dd - hh.mm.ss%: custom date token style\n"
+                               "%seed: resolved generation seed\n"
+                               "%model: resolved model basename"
+                }),
+                "folder": ("STRING", {
+                    "default": "%date:yyyy-MM-dd%",
+                    "tooltip": "Subfolder under ComfyUI output directory.\n\n"
+                               "%Y: Year (e.g., 2025)\n"
+                               "%m: Month (01-12)\n"
+                               "%d: Day of month (01-31)\n"
+                               "%H: Hour (24-hour clock) (00-23)\n"
+                               "%M: Minute (00-59)\n"
+                               "%S: Second (00-59)\n"
+                               "%f: Microsecond (000000-999999)\n"
+                               "%x: Date representation\n"
+                               "%X: Time representation\n"
+                               "%c: Date and time representation\n"
+                               "%p: AM/PM\n"
+                               "%A: Weekday full name (e.g., Thursday)\n"
+                               "%a: Weekday abbreviated name (e.g., Thu)\n"
+                               "%B: Month full name (e.g., August)\n"
+                               "%b: Month abbreviated name (e.g., Aug)\n"
+                               "%j: Day of year (001-366)\n"
+                               "%W: Week number of year (Monday as first day) (00-53)\n"
+                               "%w: Day index of week (Monday is 0) (0-6)\n"
+                               "%U: Week number of year (Sunday as first day) (00-53)\n"
+                               "%u: Day index of week (Sunday is 0) (0-6)\n"
+                               "%%: A literal '%' character\n\n"
+                               "%date:yyyy-MM-dd - hh.mm.ss%: custom date token style\n"
+                               "%seed: resolved generation seed\n"
+                               "%model: resolved model basename"
+                }),
                 "file_format": (["png", "jpeg", "webp"],),
                 "quality": ("INT", {"default": 100, "min": 1, "max": 100}),
-                "embed_workflow": ("BOOLEAN", {"default": True, "tooltip": "False = no workflow leak. True = embed workflow in image."}),
-                "strip_lora_prompt": ("BOOLEAN", {"default": False, "tooltip": "Strip LoRAs from prompt for cleaner Civitai remix."}),
+                "embed_workflow": ("BOOLEAN", {"default": True, "tooltip": "Include workflow in the image."}),
+                "strip_lora_prompt": ("BOOLEAN", {"default": False, "tooltip": "Strip LoRAs from prompt."}),
             },
             "optional": {
-                "positive_override": ("STRING", {"default": "", "multiline": True, "forceInput": True, "tooltip": "Override auto-detected positive prompt. Wire from Chrono Prompt Queue."}),
+                "positive_override": ("STRING", {"default": "", "multiline": True, "forceInput": True, "tooltip": "Override auto-detected positive prompt."}),
             },
             "hidden": {
                 "prompt": "PROMPT",
