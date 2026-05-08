@@ -137,7 +137,7 @@ class ResolutionSelector:
                 "multiply": ("FLOAT", {
                     "default": 1.0,
                     "min": -16384,
-                    "step": 0.1,
+                    "step": 0.01,
                     "tooltip": "Multiplier for the final resolution. Negative values will flip the dimensions."
                 }),
                 "swap_width_and_height": ("BOOLEAN", {

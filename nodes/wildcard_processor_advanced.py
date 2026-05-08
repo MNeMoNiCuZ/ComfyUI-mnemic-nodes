@@ -50,6 +50,7 @@ class WildcardProcessor:
                     "placeholder": "A photo of a __sample_colors__ {dog|cat|monkey}."
                 }),
                 "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff, "tooltip": "The seed for the random number generator. Using the same seed with the same prompt will produce the same output."}),
+                "multiple_separator": ("STRING", {"default": " ", "multiline": False, "tooltip": "The separator used when selecting multiple items from a single wildcard.\n\nExample:\n- Prompt: {2$$red|green|blue}\n- Separator: \", \"\n- Output example: \"red, green\""}),
                 "recache_wildcards": ("BOOLEAN", {"default": False, "tooltip": "Force a reload of all wildcard files from disk. Can be disabled again after you have ran it once."}),
                 "console_log": ("BOOLEAN", {"default": False, "tooltip": "Enable or disable detailed logging of the wildcard processing steps in the console."}),
                 # "tag_extraction_tags": ("STRING", {
@@ -61,10 +62,15 @@ class WildcardProcessor:
             }
         }
 
-    RETURN_TYPES = ("STRING",)
-    RETURN_NAMES = ("processed_text",)
+    RETURN_TYPES = ("STRING", "INT", "STRING", "STRING", "STRING", "STRING",)
+    RETURN_NAMES = ("processed_text", "seed", "extracted_tags_string", "extracted_tags_list", "raw_tags_string", "raw_tags_list",)
     OUTPUT_TOOLTIPS = (
         "The final text after all wildcards and tags have been processed.",
+        "The seed value used for this generation.",
+        "A single string containing all extracted and processed tag content, joined by '|'.",
+        "A list of strings, where each item is one piece of extracted and processed tag content.",
+        "A single string containing all raw, unprocessed tags, including their delimiters, concatenated together.",
+        "A list of strings, where each item is one raw, unprocessed tag, including its delimiters."
     )
 
     def wildcard_log(self, message, level=0):
@@ -457,7 +463,7 @@ class WildcardProcessor:
         # Extract parameters from kwargs
         wildcard_string = kwargs.get("wildcard_string", "")
         seed = kwargs.get("seed", 0)
-        self.separator = " "
+        self.separator = kwargs.get("multiple_separator", " ")
         self.console_log = kwargs.get("console_log", False)
         recache = kwargs.get("recache_wildcards", False)
         tag_extraction_tags = kwargs.get("tag_extraction_tags", "")
@@ -509,6 +515,15 @@ class WildcardProcessor:
         # 3. Process the main text (which has definitions and tags removed)
         processed_text = self._process_text(text_after_extraction)
 
+        # 4. Prepare outputs
+        extracted_tags_string = "|".join(processed_tags)
+        extracted_tags_list = processed_tags
+        
+        # New raw outputs
+        raw_tags_string = "".join(raw_tags) # Concatenated without any separator
+        raw_tags_list = raw_tags
+
+
         if self.console_log:
             if raw_tags:
                 print(f"{Fore.YELLOW}Extracted Tags (Raw):{Style.RESET_ALL} {raw_tags}")
@@ -516,7 +531,7 @@ class WildcardProcessor:
             print(f"{Fore.YELLOW}Processed Text:{Style.RESET_ALL} {repr(processed_text)}")
             print(f"{Fore.GREEN}{'-----' * 8}📝 Wildcard Processor End{'-----' * 8}{Style.RESET_ALL}")
             
-        return (processed_text,)
+        return (processed_text, seed, extracted_tags_string, extracted_tags_list, raw_tags_string, raw_tags_list)
 
 NODE_CLASS_MAPPINGS = {
     "WildcardProcessor": WildcardProcessor,

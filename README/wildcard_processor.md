@@ -6,6 +6,11 @@ This node is a complete rewrite of a previous version, designed for stability, p
 
 This node adds powerful dynamic capabilities to your prompts. Wildcards are generally used to randomize your output, by writing the prompt in a specific format, or loading random lines from text-files.
 
+## Node Variants
+
+- **Wildcard Processor**: Lightweight/default node. Outputs only `processed_text`. Keeps wildcard processing features, but does not expose extra outputs.
+- **Wildcard Processor Advanced**: Full node behavior. Includes extra outputs like extracted tags, raw tags, and seed, plus advanced controls such as `multiple_separator`.
+
 ## Feature Summary
 
 ### Smart Wildcard Matching
@@ -74,7 +79,7 @@ Returns X number of wildcard results based the input number. The input can also 
 
 
 -   **Syntax**: `{N$$...}` for a fixed number, `{N-M$$...}` for a random range.
--   **Description**: Selects multiple items from a list, joined by the `multiple_separator` string. If the number of requested items is greater than the number of available options, it will loop and start picking from the beginning again.
+-   **Description**: Selects multiple items from a list. In **Wildcard Processor Advanced**, selected values are joined by `multiple_separator`. In the lightweight **Wildcard Processor**, the separator is always a single space.
 -   **Example (Fixed)**:
     -   **Prompt**: `{2$$red|green|blue|purple}`
     -   **Output**: `red, green`
@@ -135,13 +140,13 @@ You can also use it to randomly select a random wildcard file from inside a fold
 
 ---
 
-### Seed Output
+### Seed Output (Advanced)
 
 -   **Description**: The node outputs the integer `seed` that was used for the generation. This is useful if you want to match seeds in multiple nodes.
 
 ---
 
-### Tag Extraction
+### Tag Extraction (Advanced)
 
 Advanced functionality that lets you extract encapsulated results from the final prompt.
 
@@ -184,17 +189,12 @@ Advanced functionality that lets you extract encapsulated results from the final
 2.  **Connect Inputs**:
     -   `wildcard_string`: This is where you write your prompt using the wildcard syntax.
     -   `seed`: Controls the randomization. Use the `control_after_generate` widget to set it to `fixed`, `randomize`, etc.
-    -   `multiple_separator`: (Default: space) The character(s) to put between items when you select more than one from a single wildcard (e.g., using `2$$`).
     -   `recache_wildcards`: Enable this to force a reload of all wildcard files from disk.
     -   `consolewildcard_log`: (Default: False) Check this to see detailed output in your console.
-    -   `tag_extraction_tags`: Define character pairs to extract content (e.g., `[],**`).
 3.  **Connect Outputs**:
     -   `processed_text`: The final, cleaned text to be used as your prompt.
-    -   `seed`: The integer seed value that was used for this run.
-    -   `extracted_tags_string`: A single string containing all the processed content from the extracted tags, joined by `|`.
-    -   `extracted_tags_list`: A list of strings, where each item is a piece of processed content from an extracted tag.
-    -   `raw_tags_string`: A single string containing the re-assembled tags (delimiters included) after their internal wildcards have been processed.
-    -   `raw_tags_list`: A list of strings, where each item is a re-assembled tag.
+
+For `Wildcard Processor Advanced`, use the same syntax but with additional inputs/outputs including `multiple_separator`, `seed` output, tag extraction fields, and extracted/raw tag outputs.
 
 ---
 

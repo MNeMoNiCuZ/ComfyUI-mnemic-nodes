@@ -10,3 +10,5 @@ node.tar.gz
 !.env.example
 wildcards/*
 !wildcards/sample_colors.txt
+todo.txt
+temp

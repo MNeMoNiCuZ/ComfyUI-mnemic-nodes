@@ -11,6 +11,7 @@ from .nodes.generate_negative_prompt import GenerateNegativePrompt
 from .nodes.lora_tag_loader import LoraTagLoader
 from .nodes.resolution_selector import ResolutionSelector
 from .nodes.wildcard_processor import WildcardProcessor
+from .nodes.wildcard_processor_advanced import WildcardProcessor as WildcardProcessorAdvanced
 from .nodes.string_text_splitter import StringTextSplitter
 from .nodes.string_text_extractor import StringTextExtractor
 from .nodes.format_date_time import FormatDateTime
@@ -36,6 +37,9 @@ from .nodes.literal_bool import LiteralBool
 from .nodes.literal_int import LiteralInt
 from .nodes.literal_float import LiteralFloat
 from .nodes.literal_string import LiteralString
+from .nodes.load_image_temporarily import LoadImageTemporarily
+from .nodes.image_save_with_metadata import ImageSaveWithMetadata
+from .utils.image_save_runtime_hook import install_runtime_hooks
 
 NODE_CLASS_MAPPINGS = {
     "📁 Get File Path": GetFilePath,
@@ -50,6 +54,7 @@ NODE_CLASS_MAPPINGS = {
     "🏷️ LoRA Loader Prompt Tags": LoraTagLoader,
     "📐 Resolution Image Size Selector": ResolutionSelector,
     "📝 Wildcard Processor": WildcardProcessor,
+    "📝 Wildcard Processor Advanced": WildcardProcessorAdvanced,
     "⚙️ Prompt Property Extractor": PromptPropertyExtractor,
     "⛔ Generate Negative Prompt": GenerateNegativePrompt,
     "✂️ String Text Splitter": StringTextSplitter,
@@ -75,9 +80,14 @@ NODE_CLASS_MAPPINGS = {
     "✏️ Literal Int": LiteralInt,
     "✏️ Literal Float": LiteralFloat,
     "✏️ Literal String": LiteralString,
+    "🖼️ Load Image Temporarily": LoadImageTemporarily,
+    "💾 Save Image With Metadata": ImageSaveWithMetadata,
 }
 
+NODE_DISPLAY_NAME_MAPPINGS = {}
+
 WEB_DIRECTORY = "./web"
-__all__ = ["NODE_CLASS_MAPPINGS", "WEB_DIRECTORY"]
+__all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS", "WEB_DIRECTORY"]
+install_runtime_hooks("ImageSaveWithMetadata")
 
 print("\033[34m⚡ MNeMiC Nodes: \033[92mLoaded\033[0m")

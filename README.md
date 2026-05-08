@@ -45,6 +45,12 @@ Extracts the first occurrence of text between a pair of characters.
 Save text file, and return the saved file's path.
 <img width="1650" height="415" alt="image" src="https://github.com/user-attachments/assets/f283be20-dc90-4139-958c-5db5e8a8250d" />
 
+## 💾 [Save Image With Metadata](./README/image_save_with_metadata.md)
+Save images with Civitai-compatible metadata auto-detected from the workflow.
+
+Source reference:
+- https://github.com/KChronoKnight/Chrono-Save-for-Civitai
+
 
 ## 🖼️ [Download Image from URL](./README/download_image_from_url.md)
 Download an image from the web.
@@ -99,6 +105,9 @@ Load single images or iterate through image directories with mask support.
 ## 🖼️ [Load Image Advanced](./README/load_image_advanced.md)
 Loads an image, extracts metadata, provides the alpha channel as a mask, and outputs the image's dimensions.
 <img width="1933" height="875" alt="image" src="https://github.com/user-attachments/assets/e70c3c81-637d-4dfc-a20e-3d48409abf4c" />
+
+## 🖼️ [Load Image Temporarily](./README/load_image_temporarily.md)
+Loads an image from ComfyUI temp uploads and outputs image, mask, width, and height without using persistent `/input` storage.
 
 
 ## 🎨 [Colorful Starting Image](./README/colorful_starting_image.md)

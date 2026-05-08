@@ -10,6 +10,7 @@ from .string_cleaning import StringCleaning
 from .lora_tag_loader import LoraTagLoader
 from .resolution_selector import ResolutionSelector
 from .wildcard_processor import WildcardProcessor
+from .wildcard_processor_advanced import WildcardProcessor as WildcardProcessorAdvanced
 from .string_text_splitter import StringTextSplitter
 from .string_text_extractor import StringTextExtractor
 from .format_date_time import FormatDateTime
@@ -34,6 +35,8 @@ from .literal_bool import LiteralBool
 from .literal_int import LiteralInt
 from .literal_float import LiteralFloat
 from .literal_string import LiteralString
+from .load_image_temporarily import LoadImageTemporarily
+from .image_save_with_metadata import ImageSaveWithMetadata
 
 __all__ = [
     "DownloadImageFromURL",
@@ -48,6 +51,7 @@ __all__ = [
     "LoraTagLoader",
     "ResolutionSelector",
     "WildcardProcessor",
+    "WildcardProcessorAdvanced",
     "StringTextSplitter",
     "StringTextExtractor",
     "FormatDateTime",
@@ -72,4 +76,6 @@ __all__ = [
     "LiteralInt",
     "LiteralFloat",
     "LiteralString",
+    "LoadImageTemporarily",
+    "ImageSaveWithMetadata",
 ]
