@@ -5,7 +5,7 @@ from pathlib import Path
 import folder_paths
 import json
 from ..utils.file_utils import find_best_match
-from colorama import Fore, Style, init as colorama_init
+from colorama import Fore, Style
 
 class WildcardProcessor:
     """
@@ -23,7 +23,6 @@ class WildcardProcessor:
                          )
     
     def __init__(self):
-        colorama_init()
         # Caches to store wildcard file content and located file paths
         self.wildcard_cache = {}
         self.create_user_wildcard_paths_file()  # Ensure the user paths file exists

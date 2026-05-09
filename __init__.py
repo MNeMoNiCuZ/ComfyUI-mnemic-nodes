@@ -1,3 +1,6 @@
+from .utils.colorama import ensure_colorama_initialized
+ensure_colorama_initialized()
+
 from .nodes.download_image_from_url import DownloadImageFromURL
 from .nodes.save_text_file import SaveTextFile
 from .nodes.get_file_path import GetFilePath

@@ -5,11 +5,10 @@ from pathlib import Path
 import json
 import folder_paths
 from .file_utils import find_best_match
-from colorama import Fore, Style, init as colorama_init
+from colorama import Fore, Style
 
 class WildcardManager:
     def __init__(self, console_log=False):
-        colorama_init()
         self.console_log = console_log
         self.wildcard_cache = {}
         self.create_user_wildcard_paths_file()

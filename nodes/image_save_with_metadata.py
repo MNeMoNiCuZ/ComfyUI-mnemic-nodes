@@ -8,6 +8,7 @@ https://github.com/KChronoKnight/Chrono-Save-for-Civitai
 import json
 import os
 import re
+import threading
 from collections import deque
 from datetime import datetime
 
@@ -39,6 +40,20 @@ DENOISE_FIELDS = ("denoise",)
 WIDTH_FIELDS = ("width", "empty_latent_width")
 HEIGHT_FIELDS = ("height", "empty_latent_height")
 CKPT_NAME_FIELDS = ("ckpt_name", "unet_name")
+
+_WILDCARD_PROCESSOR = None
+_WILDCARD_PROCESSOR_LOCK = threading.Lock()
+
+
+def _get_wildcard_processor() -> WildcardProcessor:
+    global _WILDCARD_PROCESSOR
+    if _WILDCARD_PROCESSOR is not None:
+        return _WILDCARD_PROCESSOR
+    with _WILDCARD_PROCESSOR_LOCK:
+        if _WILDCARD_PROCESSOR is None:
+            _WILDCARD_PROCESSOR = WildcardProcessor()
+            _WILDCARD_PROCESSOR.console_log = False
+    return _WILDCARD_PROCESSOR
 
 
 def _is_direct_value(v) -> bool:
@@ -214,8 +229,7 @@ def _resolve_link_text(link, prompt: dict, depth=0, visited=None) -> str:
         sep = str(inputs.get("multiple_separator", _node_widget(node, 3, " ")) or " ")
         recache = bool(inputs.get("recache_wildcards", _node_widget(node, 4, False)))
         try:
-            wp = WildcardProcessor()
-            wp.console_log = False
+            wp = _get_wildcard_processor()
             return wp.process_wildcards(
                 wildcard_string=wildcard_string,
                 seed=seed,

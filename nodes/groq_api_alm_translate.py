@@ -1,14 +1,12 @@
 import os
 import json
 import time
-from colorama import init, Fore, Style
+from colorama import Fore, Style
 from groq import Groq
 import requests
 
 from ..utils.api_utils import load_prompt_options, get_prompt_content
 from ..utils.env_manager import ensure_env_file, get_api_key
-
-init()  # Initialize colorama
 
 class GroqAPIALMTranslate:
     DEFAULT_PROMPT = "Translate the audio file using the style and guidance of [user_input]"

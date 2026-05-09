@@ -3,13 +3,11 @@ import json
 import random
 import numpy as np
 import torch
-from colorama import init, Fore, Style
+from colorama import Fore, Style
 from groq import Groq
 
 from ..utils.api_utils import make_api_request, load_prompt_options, get_prompt_content
 from ..utils.env_manager import ensure_env_file, get_api_key
-
-init()  # Initialize colorama
 
 class GroqAPILLM:
     DEFAULT_PROMPT = "Use [system_message] and [user_input]"
