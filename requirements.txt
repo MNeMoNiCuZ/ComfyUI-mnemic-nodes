@@ -4,9 +4,10 @@ transformers
 torch
 tiktoken
 colorama
-python-dotenv>=1.0.0
+python-dotenv
 requests
 imageio
 opencv-python
 piexif
 tqdm
+
