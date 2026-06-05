@@ -13,6 +13,7 @@ This repository hosts a collection of nodes developed for ComfyUI. It aims to sh
 # Nodes
 ## 🔀 [Batch Wildcard Sampler](./README/batch_wildcard_sampler.md)
 Resolves wildcards independently for every image in a batch, so a single run resolves a different prompt. Adapted from [ChronoKnight's code](https://civitai.com/user/ChronoKnight).
+<img width="2175" height="639" alt="image" src="https://github.com/user-attachments/assets/14da44c8-4c23-40c9-9c44-35d9f9b8313e" />
 
 
 ## 💾 [Save Image With Metadata](./README/image_save_with_metadata.md)
