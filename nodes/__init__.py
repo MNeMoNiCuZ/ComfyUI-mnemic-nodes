@@ -11,6 +11,7 @@ from .lora_tag_loader import LoraTagLoader
 from .resolution_selector import ResolutionSelector
 from .wildcard_processor import WildcardProcessor
 from .wildcard_processor_advanced import WildcardProcessor as WildcardProcessorAdvanced
+from .batch_wildcard_sampler import BatchWildcardSampler
 from .string_text_splitter import StringTextSplitter
 from .string_text_extractor import StringTextExtractor
 from .format_date_time import FormatDateTime
@@ -52,6 +53,7 @@ __all__ = [
     "ResolutionSelector",
     "WildcardProcessor",
     "WildcardProcessorAdvanced",
+    "BatchWildcardSampler",
     "StringTextSplitter",
     "StringTextExtractor",
     "FormatDateTime",

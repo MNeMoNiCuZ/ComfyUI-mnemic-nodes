@@ -29,6 +29,7 @@ from ..utils.image_save_with_metadata_utils import (
     get_sha256,
 )
 from ..utils.image_save_runtime_capture import capture_runtime_prompt_and_loras
+from ..utils.batch_wildcard_runtime import get_batch_prompts
 from .wildcard_processor import WildcardProcessor
 
 SEED_FIELDS = ("seed", "noise_seed")
@@ -572,6 +573,63 @@ def _clean_prompt(prompt_text: str, extractor: PromptMetadataExtractor) -> str:
     return prompt_text
 
 
+def _build_a111_params(positive: str, negative: str, ctx: dict) -> str:
+    """
+    Build the A1111-style parameter string for a single positive/negative pair.
+
+    This is a verbatim extraction of the logic that previously lived inline in
+    save_images(); pulling it into a function lets the saver build per-image
+    metadata for batches without changing single-image behaviour.
+    """
+    wf = ctx["wf"]
+    extractor = PromptMetadataExtractor([positive, negative])
+    embeddings = extractor.get_embeddings()
+    prompt_loras = extractor.get_loras()
+
+    node_loras = {}
+    for lora_name, strength_model, _ in wf["loras"]:
+        key = civitai_lora_key_name(os.path.splitext(os.path.basename(lora_name))[0])
+        if key not in prompt_loras:
+            lora_path = full_lora_path_for(lora_name)
+            if lora_path:
+                lora_hash = get_sha256(lora_path)[:10]
+                node_loras[key] = (lora_path, strength_model, lora_hash)
+
+    loras = {**prompt_loras, **node_loras}
+
+    civitai_resources, hashes, add_model_hash = get_civitai_metadata(
+        ctx["modelname"], ctx["ckpt_path"], ctx["modelhash"], loras, embeddings, {}, False
+    )
+
+    pos_text = _clean_prompt(positive, extractor).strip() if ctx["strip_lora_prompt"] else positive.strip()
+    neg_text = _clean_prompt(negative, extractor).strip() if ctx["strip_lora_prompt"] else negative.strip()
+
+    model_hash_str = f", Model hash: {add_model_hash}" if add_model_hash else ""
+    hashes_str = f', Hashes: {json.dumps(hashes, separators=(",", ":"))}' if hashes else ""
+    direct_lora_names = [os.path.splitext(os.path.basename(n))[0] for (n, _, _) in wf.get("loras", []) if n]
+    direct_lora_names += ctx["runtime_loras"]
+    hash_lora_names = [name.replace("LORA:", "") for name in loras.keys()]
+    hash_lora_names += [
+        key.split(":", 1)[1]
+        for key in hashes.keys()
+        if isinstance(key, str) and key.lower().startswith("lora:")
+    ]
+    models_used = [ctx["basemodelname"]] + direct_lora_names + hash_lora_names
+    models_used_str = "\n".join(dict.fromkeys([m for m in models_used if m]))
+    model_field_value = ctx["basemodelname"]
+
+    a111_params = (
+        f"{pos_text}\n"
+        f"Negative prompt: {neg_text}\n"
+        f"Steps: {ctx['steps']}, Sampler: {ctx['display_sampler']}, CFG scale: {ctx['cfg']}, "
+        f"Seed: {ctx['seed']}, Size: {ctx['width']}x{ctx['height']}"
+        f"{model_hash_str}, Model: {model_field_value}{hashes_str}, Models used: {models_used_str}, Version: ComfyUI"
+    )
+    if civitai_resources:
+        a111_params += f', Civitai resources: {json.dumps(civitai_resources, separators=(",", ":"))}'
+    return a111_params
+
+
 class ImageSaveWithMetadata:
     CATEGORY = "⚡ MNeMiC Nodes"
     FUNCTION = "save_images"
@@ -649,7 +707,7 @@ class ImageSaveWithMetadata:
                 "strip_lora_prompt": ("BOOLEAN", {"default": False, "tooltip": "Strip LoRAs from prompt."}),
             },
             "optional": {
-                "positive_override": ("STRING", {"default": "", "multiline": True, "forceInput": True, "tooltip": "Override auto-detected positive prompt."}),
+                "positive_override": ("STRING", {"default": "", "multiline": True, "forceInput": True, "tooltip": "Override the auto-detected positive prompt. Accepts a single string (applied to every image) or a list of prompts (one per image, looping if the count differs from the number of images)."}),
             },
             "hidden": {
                 "prompt": "PROMPT",
@@ -670,14 +728,46 @@ class ImageSaveWithMetadata:
         prompt=None,
         extra_pnginfo=None,
     ):
+        # positive_override may be a single string or a list of per-image prompts
+        # (e.g. wired from the Batch Wildcard Sampler's resolved_prompts list output).
+        override_list = None
+        override_text = ""
+        if isinstance(positive_override, (list, tuple)):
+            items = [str(x) for x in positive_override]
+            if any(s.strip() for s in items):
+                override_list = items
+        elif isinstance(positive_override, str):
+            override_text = positive_override
+        elif positive_override is not None:
+            override_text = str(positive_override)
+
         wf = _extract_from_workflow(prompt or {})
         runtime = capture_runtime_prompt_and_loras()
         runtime_positive = (runtime or {}).get("positive", "")
         runtime_negative = (runtime or {}).get("negative", "")
         runtime_loras = (runtime or {}).get("loras", [])
 
-        positive = positive_override.strip() if positive_override.strip() else (runtime_positive or wf["positive"])
-        negative = runtime_negative or wf["negative"]
+        num_images = len(images)
+
+        # Batch Wildcard Sampler auto-pickup: per-image prompts published by that node.
+        # Guarded so it only engages when such a node is actually in the current graph.
+        batch_pos, batch_neg, batch_seed, batch_active = [], [], None, False
+        try:
+            has_batch_node = any(
+                str(n.get("class_type", "")) == "BatchWildcardSampler"
+                or "batch wildcard sampler" in str(n.get("class_type", "")).lower()
+                for n in (prompt or {}).values()
+            )
+            if has_batch_node:
+                batch = get_batch_prompts()
+                batch_pos = batch.get("positive") or []
+                batch_neg = batch.get("negative") or []
+                batch_seed = batch.get("seed")
+                batch_active = bool(batch_pos)
+        except Exception as e:
+            print(f"[ImageSaveWithMetadata] Batch prompt pickup skipped: {e}")
+            batch_active = False
+
         modelname = wf["modelname"]
         seed = wf["seed"]
         steps = wf["steps"]
@@ -693,53 +783,58 @@ class ImageSaveWithMetadata:
         ckpt_path = full_checkpoint_path_for(modelname)
         modelhash = get_sha256(ckpt_path)[:10] if ckpt_path else ""
 
-        extractor = PromptMetadataExtractor([positive, negative])
-        embeddings = extractor.get_embeddings()
-        prompt_loras = extractor.get_loras()
-
-        node_loras = {}
-        for lora_name, strength_model, _ in wf["loras"]:
-            key = civitai_lora_key_name(os.path.splitext(os.path.basename(lora_name))[0])
-            if key not in prompt_loras:
-                lora_path = full_lora_path_for(lora_name)
-                if lora_path:
-                    lora_hash = get_sha256(lora_path)[:10]
-                    node_loras[key] = (lora_path, strength_model, lora_hash)
-
-        loras = {**prompt_loras, **node_loras}
         display_sampler = get_civitai_sampler_name(sampler_name.replace("_gpu", ""), scheduler_name)
         basemodelname = _parse_ckpt_basename(modelname)
 
-        civitai_resources, hashes, add_model_hash = get_civitai_metadata(
-            modelname, ckpt_path, modelhash, loras, embeddings, {}, False
-        )
+        ctx = {
+            "wf": wf,
+            "modelname": modelname,
+            "ckpt_path": ckpt_path,
+            "modelhash": modelhash,
+            "runtime_loras": runtime_loras,
+            "strip_lora_prompt": strip_lora_prompt,
+            "steps": steps,
+            "cfg": cfg,
+            "display_sampler": display_sampler,
+            "seed": seed,
+            "width": width,
+            "height": height,
+            "basemodelname": basemodelname,
+        }
 
-        pos_text = _clean_prompt(positive, extractor).strip() if strip_lora_prompt else positive.strip()
-        neg_text = _clean_prompt(negative, extractor).strip() if strip_lora_prompt else negative.strip()
+        # Resolve the positive/negative/seed for a given image index. Lists loop
+        # (modulo) so a count mismatch never errors. Precedence for the positive:
+        # explicit override (list or text) > batch auto-pickup > runtime/workflow.
+        def positive_for(i):
+            if override_list:
+                return override_list[i % len(override_list)]
+            if override_text.strip():
+                return override_text
+            if batch_active:
+                return batch_pos[i % len(batch_pos)]
+            return runtime_positive or wf["positive"]
 
-        model_hash_str = f", Model hash: {add_model_hash}" if add_model_hash else ""
-        hashes_str = f', Hashes: {json.dumps(hashes, separators=(",", ":"))}' if hashes else ""
-        direct_lora_names = [os.path.splitext(os.path.basename(n))[0] for (n, _, _) in wf.get("loras", []) if n]
-        direct_lora_names += runtime_loras
-        hash_lora_names = [name.replace("LORA:", "") for name in loras.keys()]
-        hash_lora_names += [
-            key.split(":", 1)[1]
-            for key in hashes.keys()
-            if isinstance(key, str) and key.lower().startswith("lora:")
-        ]
-        models_used = [basemodelname] + direct_lora_names + hash_lora_names
-        models_used_str = "\n".join(dict.fromkeys([m for m in models_used if m]))
-        model_field_value = basemodelname
+        def negative_for(i):
+            if batch_active and batch_neg:
+                return batch_neg[i % len(batch_neg)]
+            return runtime_negative or wf["negative"]
 
-        a111_params = (
-            f"{pos_text}\n"
-            f"Negative prompt: {neg_text}\n"
-            f"Steps: {steps}, Sampler: {display_sampler}, CFG scale: {cfg}, "
-            f"Seed: {seed}, Size: {width}x{height}"
-            f"{model_hash_str}, Model: {model_field_value}{hashes_str}, Models used: {models_used_str}, Version: ComfyUI"
-        )
-        if civitai_resources:
-            a111_params += f', Civitai resources: {json.dumps(civitai_resources, separators=(",", ":"))}'
+        def seed_for(i):
+            if batch_active and batch_seed is not None:
+                return batch_seed + i
+            return seed
+
+        # Default (no override, no batch) collapses to the original single-string path.
+        a111_params = _build_a111_params(positive_for(0), negative_for(0), {**ctx, "seed": seed_for(0)})
+
+        # Build distinct per-image metadata only when there is genuine per-image variation.
+        per_image_active = num_images > 1 and (override_list is not None or batch_active)
+        per_image_params = None
+        if per_image_active:
+            per_image_params = [
+                _build_a111_params(positive_for(i), negative_for(i), {**ctx, "seed": seed_for(i)})
+                for i in range(num_images)
+            ]
 
         resolved_prefix = resolved_prefix.replace("%seed", str(seed))
         resolved_prefix = resolved_prefix.replace("%model", basemodelname)
@@ -750,12 +845,14 @@ class ImageSaveWithMetadata:
 
         ext = "jpg" if file_format == "jpeg" else file_format
         results = []
-        for image in images:
+        for idx, image in enumerate(images):
             i = 255.0 * image.cpu().numpy()
             img = Image.fromarray(np.clip(i, 0, 255).astype(np.uint8))
             unique_name = _get_unique_filename(full_output_path, resolved_prefix, ext)
             final_filename = f"{unique_name}.{ext}"
             filepath = os.path.join(full_output_path, final_filename)
+
+            image_params = per_image_params[idx] if per_image_params is not None else a111_params
 
             save_image(
                 img,
@@ -764,7 +861,7 @@ class ImageSaveWithMetadata:
                 quality,
                 True,
                 False,
-                a111_params,
+                image_params,
                 prompt if embed_workflow else None,
                 extra_pnginfo if embed_workflow else None,
                 embed_workflow,

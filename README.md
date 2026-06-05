@@ -11,6 +11,14 @@ This repository hosts a collection of nodes developed for ComfyUI. It aims to sh
 4. Edit `.env` with a text editor and edit the API key value inside.
 
 # Nodes
+## 🔀 [Batch Wildcard Sampler](./README/batch_wildcard_sampler.md)
+Resolves wildcards independently for every image in a batch, so a single run resolves a different prompt. Adapted from [ChronoKnight's code](https://civitai.com/user/ChronoKnight).
+
+
+## 💾 [Save Image With Metadata](./README/image_save_with_metadata.md)
+Save images with Civitai-compatible metadata auto-detected from the workflow. Adapted from [ChronoKnight's node](https://github.com/KChronoKnight/Chrono-Save-for-Civitai).
+<img width="1190" height="447" alt="image" src="https://github.com/user-attachments/assets/097ed56c-3ef9-495b-b9af-e39a2ca18125" />
+
 
 ## 📝 [Wildcard Processor](./README/wildcard_processor.md)
 A versatile text processor that replaces wildcards with content from wildcard files or inline lists.
@@ -45,10 +53,6 @@ Extracts the first occurrence of text between a pair of characters.
 Save text file, and return the saved file's path.
 <img width="1650" height="415" alt="image" src="https://github.com/user-attachments/assets/f283be20-dc90-4139-958c-5db5e8a8250d" />
 
-
-## 💾 [Save Image With Metadata](./README/image_save_with_metadata.md)
-Save images with Civitai-compatible metadata auto-detected from the workflow. Adapted from [ChronoKnight's node](https://github.com/KChronoKnight/Chrono-Save-for-Civitai).
-<img width="1190" height="447" alt="image" src="https://github.com/user-attachments/assets/097ed56c-3ef9-495b-b9af-e39a2ca18125" />
 
 
 ## 🖼️ [Download Image from URL](./README/download_image_from_url.md)

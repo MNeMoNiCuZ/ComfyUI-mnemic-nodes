@@ -15,6 +15,7 @@ from .nodes.lora_tag_loader import LoraTagLoader
 from .nodes.resolution_selector import ResolutionSelector
 from .nodes.wildcard_processor import WildcardProcessor
 from .nodes.wildcard_processor_advanced import WildcardProcessor as WildcardProcessorAdvanced
+from .nodes.batch_wildcard_sampler import BatchWildcardSampler
 from .nodes.string_text_splitter import StringTextSplitter
 from .nodes.string_text_extractor import StringTextExtractor
 from .nodes.format_date_time import FormatDateTime
@@ -58,6 +59,7 @@ NODE_CLASS_MAPPINGS = {
     "📐 Resolution Image Size Selector": ResolutionSelector,
     "📝 Wildcard Processor": WildcardProcessor,
     "📝 Wildcard Processor Advanced": WildcardProcessorAdvanced,
+    "🔀 Batch Wildcard Sampler": BatchWildcardSampler,
     "⚙️ Prompt Property Extractor": PromptPropertyExtractor,
     "⛔ Generate Negative Prompt": GenerateNegativePrompt,
     "✂️ String Text Splitter": StringTextSplitter,
