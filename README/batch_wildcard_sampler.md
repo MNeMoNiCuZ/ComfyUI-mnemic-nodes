@@ -8,6 +8,9 @@ Huge thanks and credits to ChronoKnight for the initial version of this node!
 - https://github.com/KChronoKnight
 - https://civitai.com/user/ChronoKnight
 
+<img width="2175" height="639" alt="image" src="https://github.com/user-attachments/assets/316a9bc4-16a7-4887-8fc7-ca06c6b149ae" />
+
+
 ## Explanation
 
 Internally, ComfyUI requires conditioning tensors to have a batch dimension of 1, which normally prevents giving each image in a batch its own prompt. This node works around that by looping internally:
