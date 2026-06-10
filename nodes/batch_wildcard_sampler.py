@@ -62,11 +62,13 @@ class BatchWildcardSampler:
 
     CATEGORY = "⚡ MNeMiC Nodes"
     FUNCTION = "generate_batch"
-    RETURN_TYPES = ("LATENT", "STRING")
-    RETURN_NAMES = ("latent", "resolved_prompts")
+    RETURN_TYPES = ("LATENT", "STRING", "MODEL", "CLIP")
+    RETURN_NAMES = ("latent", "resolved_prompts", "model", "clip")
     OUTPUT_TOOLTIPS = (
         "The combined batch of sampled latents (empty when sampling is skipped).",
         "The resolved positive prompt for each image, as a list with one entry per batch item.",
+        "The model after LoRA patches from the last batch item have been applied.",
+        "The CLIP after LoRA patches from the last batch item have been applied.",
     )
     OUTPUT_NODE = False
 
@@ -174,10 +176,12 @@ class BatchWildcardSampler:
             else:
                 print("  [Batch Wildcard Sampler] No model/clip connected — returning resolved prompts only.\n")
             empty_latent = torch.zeros([batch_size, 4, height // 8, width // 8])
-            return ({"samples": empty_latent}, positive_prompts)
+            return ({"samples": empty_latent}, positive_prompts, model, clip)
 
         # --- Generate each image individually ---
         all_samples = []
+        final_model = model
+        final_clip = clip
 
         # Get the latent format from the model
         latent_format = model.get_model_object("latent_format") if hasattr(model, "get_model_object") else None
@@ -192,6 +196,7 @@ class BatchWildcardSampler:
             model_i, clip_i, clean_positive = lora_loader.load_lora(
                 model, clip, positive_prompts[i], console_log
             )
+            final_model, final_clip = model_i, clip_i
             # The negative prompt is not used to load LoRAs, but strip any tags so
             # they are never sent to CLIP as text.
             clean_negative = _LORA_TAG_RE.sub("", negative_prompts[i])
@@ -231,7 +236,7 @@ class BatchWildcardSampler:
         print(f"\n  [Batch Wildcard Sampler] Batch complete — {batch_size} images generated.")
         print(f"{'='*60}\n")
 
-        return ({"samples": combined}, positive_prompts)
+        return ({"samples": combined}, positive_prompts, final_model, final_clip)
 
     @staticmethod
     def _latent_output_connected(extra_pnginfo, unique_id):
