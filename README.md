@@ -110,6 +110,7 @@ Load single images or iterate through image directories with mask support.
 Loads an image, extracts metadata, provides the alpha channel as a mask, and outputs the image's dimensions.
 <img width="1933" height="875" alt="image" src="https://github.com/user-attachments/assets/e70c3c81-637d-4dfc-a20e-3d48409abf4c" />
 
+
 ## 🖼️ [Load Image Temporarily](./README/load_image_temporarily.md)
 Loads an image and stores it in ComfyUI /temp-folder instead of the /input folder.
 <img width="1477" height="494" alt="image" src="https://github.com/user-attachments/assets/5c0aa05c-6c6d-48df-a6a9-12356cc4ea4f" />
@@ -123,6 +124,11 @@ Creates a colorful random shape-based image. Use it as a starting latent for fun
 ## 🎵📊 [Audio Visualizer](./README/audio_visualizer.md)
 Creates a visualizer from an input audio. Custom visualizer scripts can be created, and outputs can be saved as images or video.
 <img width="2205" height="638" alt="image" src="https://github.com/user-attachments/assets/35e70f68-09f2-4dfe-9676-18fe54a9af89" />
+
+
+## 🧩 [Ideogram 4 Prompt Builder](./README/ideogram4_prompt_builder.md)
+Visual bounding-box for Ideogram 4 with added automatic string input for each region. Use with wildcard processor to get more variation in your prompts. Adapted from [kijai's ComfyUI-KJNodes](https://github.com/kijai/ComfyUI-KJNodes).
+<img width="1611" height="530" alt="image" src="https://github.com/user-attachments/assets/2da9abb0-60db-4d68-a6b2-bea3dc183623" />
 
 
 ## ✨💬 [Groq LLM API](./README/groq_api_llm.md)
@@ -184,10 +190,6 @@ A simple floating-point input field. Use this to create a decimal number source 
 
 ## ✏️ [Literal String](./README/literal_string.md)
 A multiline text input field. Use this to create a text source in your workflow.
-
-
-## 🧩 [Ideogram 4 Prompt Builder](./README/ideogram4_prompt_builder.md)
-Visual bounding-box for Ideogram 4 with added automatic string input for each region. Use with wildcard processor to get more variation in your prompts. Adapted from [kijai's ComfyUI-KJNodes](https://github.com/kijai/ComfyUI-KJNodes).
 
 
 ## ⛔ [Generate Negative Prompt](./README/generate_negative_prompt.md)
