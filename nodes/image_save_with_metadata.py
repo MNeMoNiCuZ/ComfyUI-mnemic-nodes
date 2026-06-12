@@ -754,8 +754,7 @@ class ImageSaveWithMetadata:
         batch_pos, batch_neg, batch_seed, batch_active = [], [], None, False
         try:
             has_batch_node = any(
-                str(n.get("class_type", "")) == "BatchWildcardSampler"
-                or "batch wildcard sampler" in str(n.get("class_type", "")).lower()
+                "batch wildcard" in str(n.get("class_type", "")).lower()
                 for n in (prompt or {}).values()
             )
             if has_batch_node:
@@ -824,18 +823,6 @@ class ImageSaveWithMetadata:
                 return batch_seed + i
             return seed
 
-        # Default (no override, no batch) collapses to the original single-string path.
-        a111_params = _build_a111_params(positive_for(0), negative_for(0), {**ctx, "seed": seed_for(0)})
-
-        # Build distinct per-image metadata only when there is genuine per-image variation.
-        per_image_active = num_images > 1 and (override_list is not None or batch_active)
-        per_image_params = None
-        if per_image_active:
-            per_image_params = [
-                _build_a111_params(positive_for(i), negative_for(i), {**ctx, "seed": seed_for(i)})
-                for i in range(num_images)
-            ]
-
         resolved_prefix = resolved_prefix.replace("%seed", str(seed))
         resolved_prefix = resolved_prefix.replace("%model", basemodelname)
 
@@ -852,7 +839,14 @@ class ImageSaveWithMetadata:
             final_filename = f"{unique_name}.{ext}"
             filepath = os.path.join(full_output_path, final_filename)
 
-            image_params = per_image_params[idx] if per_image_params is not None else a111_params
+            # Always use the actual pixel dimensions of this image so the Size field
+            # in the metadata matches the file on disk.  When an upscale pass runs
+            # the decoded image is larger than the first-pass width/height stored in
+            # the workflow; using stale workflow dimensions causes tools like Civitai
+            # to reject the entire metadata block (including the prompt).
+            actual_w, actual_h = img.size  # PIL gives (width, height)
+            img_ctx = ctx if (actual_w == ctx["width"] and actual_h == ctx["height"]) else {**ctx, "width": actual_w, "height": actual_h}
+            image_params = _build_a111_params(positive_for(idx), negative_for(idx), {**img_ctx, "seed": seed_for(idx)})
 
             save_image(
                 img,

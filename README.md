@@ -186,6 +186,10 @@ A simple floating-point input field. Use this to create a decimal number source 
 A multiline text input field. Use this to create a text source in your workflow.
 
 
+## 🧩 [Ideogram 4 Prompt Builder](./README/ideogram4_prompt_builder.md)
+Visual bounding-box for Ideogram 4 with added automatic string input for each region. Use with wildcard processor to get more variation in your prompts. Adapted from [kijai's ComfyUI-KJNodes](https://github.com/kijai/ComfyUI-KJNodes).
+
+
 ## ⛔ [Generate Negative Prompt](./README/generate_negative_prompt.md)
 Generate negative prompts automatically.
 <img width="1577" height="359" alt="image" src="https://github.com/user-attachments/assets/a126dd5d-2d92-4069-8998-0f19ed5bcd2b" />

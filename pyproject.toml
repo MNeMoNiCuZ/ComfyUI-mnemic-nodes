@@ -1,7 +1,7 @@
 [project]
 name = "comfyui-mnemic-nodes"
-description = "Added Batch Wildcard Sampler node, supporting random wildcards per output in batch mode"
-version = "2.0.0"
+description = "Added Batch Wildcard Hires Sampler node, supporting random wildcards per output in batch mode, with upscaling. Added Ideogram 4 Prompt Builder with dynamic inputs-node"
+version = "2.1.0"
 license = { file = "LICENSE" }
 dependencies = ["configparser", "groq", "transformers", "torch", "tiktoken", "imageio", "tqdm", "piexif", "requests", "colorama", "opencv-python"]
 

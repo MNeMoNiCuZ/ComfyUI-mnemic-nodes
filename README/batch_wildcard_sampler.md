@@ -2,7 +2,7 @@
 
 The Batch Wildcard Sampler generates a batch of images where **every image resolves its own independent set of wildcards**. A normal sampler applies a single prompt to the whole batch; this node instead resolves the prompt separately for each batch index, so a single run produces a different prompt — and therefore a different image — for each item in the batch.
 
-It is an all-in-one node: it resolves the wildcards, loads any LoRAs referenced in the prompt, encodes each prompt through CLIP, and samples each image, returning one combined latent batch. It can also be used purely as a prompt previewer, with no model attached, to check what your wildcards resolve to.
+It is an all-in-one node: it resolves the wildcards, loads any LoRAs referenced in the prompt, encodes each prompt through CLIP, samples each image, and optionally runs an upscale second pass. It can also be used purely as a prompt previewer with no model attached, to check what your wildcards resolve to.
 
 Huge thanks and credits to ChronoKnight for the initial version of this node!
 - https://github.com/KChronoKnight
@@ -19,7 +19,8 @@ Internally, ComfyUI requires conditioning tensors to have a batch dimension of 1
 2. Load any LoRAs referenced by `<lora:...>` tags in the resolved prompt onto a clone of the model and CLIP.
 3. Encode the resolved positive and negative prompts through CLIP (with LoRA tags stripped from the text).
 4. Sample a single image with a unique seed.
-5. Repeat for every index, then combine all results into one output batch.
+5. Optionally run an upscale second pass on the result.
+6. Repeat for every index, then combine all results into one output batch.
 
 ### Example
 
@@ -87,24 +88,74 @@ Because both use the same base `seed`, re-running with the same `seed` and promp
 
 ## Inputs
 
+### Required
+
 - `text` — The positive prompt, with wildcard and `<lora:...>` support. Resolved independently for each image in the batch.
 - `negative` — The negative prompt. Supports the exact same wildcard syntax as the positive prompt, and is also resolved independently per image.
 - `seed` — Base seed for **both** wildcard resolution and noise generation. Each image uses `seed + index`.
 - `batch_size` — Number of images to generate. Each image resolves its own wildcards and gets its own prompt.
-- `width` / `height` — Output dimensions.
+- `width` / `height` — Output dimensions for the first pass.
 - `steps` — Number of sampling steps.
 - `cfg` — Classifier-free guidance scale.
 - `sampler_name` — The sampler to use (same list as KSampler).
 - `scheduler` — The scheduler to use (same list as KSampler).
-- `denoise` — Denoising strength.
-- `recache_wildcards` — Force a reload of all wildcard files from disk. Can be turned off again after running once.
-- `console_log` — Print detailed wildcard processing steps to the console.
+- `denoise` — Denoising strength for the first pass.
+- `upscale` — Enable the upscale second pass. See the [Upscale](#upscale) section below.
 
 ### Optional Inputs
 
-- `model` — Only needed to sample images.
+- `model` — Only needed to sample images. Leave disconnected to use the node as a prompt previewer.
 - `clip` — Only needed to sample images.
-- `vae` — Reserved for sampling workflows.
+- `vae` — Required for the upscale pass. The node decodes the first-pass latent to pixel space, upscales it, then re-encodes. Without a VAE the upscale pass is skipped.
+- `upscale_model` — Connect a **Load Upscale Model** node (e.g. an ESRGAN/4x model) to use AI super-resolution during the upscale instead of plain Lanczos. The model runs at its native scale, then the result is downscaled to the exact target size implied by `upscale_rate`.
+
+### Advanced Inputs
+
+These inputs are hidden behind the node's **Advanced** toggle and are collapsed by default.
+
+**Upscale settings** (only active when `upscale` is on):
+
+- `upscale_rate` — Upscale factor. For example, `2.0` doubles width and height. Larger values can be typed in manually.
+- `upscale_denoise` — Denoising strength for the upscale pass. Lower values keep the first-pass composition; higher values add more detail but can drift from the original.
+- `upscale_steps` — Number of sampling steps for the upscale pass.
+- `upscale_cfg` — CFG for the upscale pass. Set to `0` to reuse the first-pass CFG.
+- `upscale_sampler_name` — Sampler for the upscale pass. Select `(same as first pass)` to reuse the first-pass sampler.
+- `upscale_scheduler` — Scheduler for the upscale pass. Select `(same as first pass)` to reuse the first-pass scheduler.
+
+**Prompt encoding:**
+
+- `strip_prompt_weights` — Strip per-token weight syntax (e.g. `(word:1.3)`) from prompts before encoding, leaving only the plain text. Enable this when using LLM-based text encoders such as T5 (used in FLUX, SD3, and other newer models). Those encoders process prompts as natural language and do not support ComfyUI/A1111-style prompt weighting — feeding them weighted syntax causes the encoder to treat the parentheses and colons as literal characters, which can degrade prompt adherence.
+
+**Utilities:**
+
+- `recache_wildcards` — Force a reload of all wildcard files from disk. Useful after adding or editing wildcard files. Can be turned off again after running once.
+- `console_log` — Print detailed wildcard processing steps to the console.
+
+---
+
+## Upscale
+
+When `upscale` is enabled the node runs a second sampling pass on each image at a larger resolution. The process is:
+
+1. The first-pass latent is decoded to pixel space using the connected VAE.
+2. If an `upscale_model` is connected, AI super-resolution runs first (e.g. a 4x ESRGAN model). The output is then scaled down to the exact target size set by `upscale_rate`, so a 4x model with `upscale_rate = 2.0` gives a clean 2× final image.
+3. If no `upscale_model` is connected, Lanczos interpolation is used instead.
+4. The upscaled image is re-encoded to latent space and sampled again with the upscale denoise, steps, CFG, sampler, and scheduler settings.
+
+The upscale pass requires a VAE to be connected. If `upscale` is on but no VAE is connected, a warning is printed and the pass is skipped.
+
+---
+
+## Outputs
+
+- `model` — The model after LoRA patches from the last batch item have been applied. Useful for chaining into other nodes.
+- `clip` — The CLIP after LoRA patches from the last batch item have been applied.
+- `positive` — The positive conditioning encoded from the last batch item's resolved prompt.
+- `negative` — The negative conditioning encoded from the last batch item's resolved prompt.
+- `latent` — The combined batch of sampled latents (empty when sampling is skipped). Route this into a VAE Decode to get images.
+- `prompt` — The resolved positive prompt for each image, returned as a list (one entry per batch item). Connect to a **Show Text** node to see each resolved prompt as a separate entry.
+
+> The `model`, `clip`, `positive`, and `negative` outputs reflect the **last** batch item. They are useful for passing conditionings and a patched model downstream without needing separate encoder nodes.
 
 ---
 
@@ -115,16 +166,9 @@ The node only samples when it actually needs to. Sampling is **skipped** — and
 - `model` or `clip` is **not connected**, or
 - the `latent` output is **not connected** to anything.
 
-This makes it easy to use the node purely to test what your wildcards resolve to: leave the model/clip off (or leave the latent output unused) and read the `resolved_prompts` output. When sampling is skipped, the `latent` output is an empty placeholder.
+This makes it easy to use the node purely to test what your wildcards resolve to: leave the model/clip off (or leave the latent output unused) and read the `prompt` output. When sampling is skipped, the `latent` output is an empty placeholder.
 
 > Note: ComfyUI caches node results by input values. After connecting/disconnecting the `latent` output you may need to change an input (or re-queue) for the node to re-evaluate whether it should sample.
-
----
-
-## Outputs
-
-- `latent` — The combined batch of sampled latents (empty when sampling is skipped). Route this into a VAE Decode to get images.
-- `resolved_prompts` — The resolved positive prompt for each image, returned as a list (one entry per batch item). It behaves like the list outputs on the **Metadata Extractor (List)** and **String Text Splitter** nodes — connect it to a **Show Text** node to see each prompt as a separate entry.
 
 ---
 
@@ -140,7 +184,7 @@ This only engages when a Batch Wildcard Sampler is actually in the current graph
 
 ### Manual via the list output
 
-Alternatively, wire this node's `resolved_prompts` list output into the saver's `positive_override` input. The saver applies **one prompt per image**, looping through the list if its length differs from the number of images. A single string in `positive_override` still applies to every image as before.
+Alternatively, wire this node's `prompt` list output into the saver's `positive_override` input. The saver applies **one prompt per image**, looping through the list if its length differs from the number of images. A single string in `positive_override` still applies to every image as before.
 
 ---
 
@@ -151,11 +195,22 @@ Alternatively, wire this node's `resolved_prompts` list output into the saver's 
 1. Add the **Batch Wildcard Sampler** node.
 2. Write your positive (and optional negative) prompt using any wildcard syntax.
 3. Set `batch_size` to the number of varied images you want.
-4. Connect `model` and `clip`.
+4. Connect `model`, `clip`, and `vae`.
 5. Route the `latent` output into a **VAE Decode**, then into a preview or **Save Image With Metadata** node (metadata is picked up automatically).
+
+**To use the upscale pass:**
+
+1. Enable `upscale`.
+2. Make sure a `vae` is connected — the upscale pass requires it.
+3. Optionally connect an `upscale_model` (e.g. a 4x ESRGAN) for AI super-resolution instead of Lanczos.
+4. Expand the **Advanced** section to tune `upscale_rate`, `upscale_denoise`, `upscale_steps`, `upscale_cfg`, sampler, and scheduler.
 
 **To only test prompts:**
 
 1. Add the node and write your prompt.
 2. Leave `model`/`clip` disconnected (or leave the `latent` output unused).
-3. Connect `resolved_prompts` to a **Show Text** node and queue. No sampling happens.
+3. Connect `prompt` to a **Show Text** node and queue. No sampling happens.
+
+**To use downstream conditionings:**
+
+Connect the `positive` and `negative` outputs to other nodes (e.g. a second KSampler) to reuse the encoded conditioning from the last batch item without needing separate CLIPTextEncode nodes.
