@@ -4,6 +4,8 @@ A visual bounding-box editor that assembles the structured JSON caption format r
 
 Adapted from [kijai's Ideogram4PromptBuilderKJ](https://github.com/kijai/ComfyUI-KJNodes), converted to the classic node API and extended with **dynamic per-region STRING input pins**.
 
+<img width="1611" height="530" alt="image" src="https://github.com/user-attachments/assets/2da9abb0-60db-4d68-a6b2-bea3dc183623" />
+
 ---
 
 ## What makes this node unique
@@ -154,10 +156,3 @@ The node mirrors the Ideogram 4 structured caption format exactly:
 - The `style_description` block is omitted entirely when `style = none`.
 - `color_palette` is omitted from an element when no colors are set.
 - Elements drawn with no bbox (imported from JSON without coordinates) are exported without a `bbox` key.
-
----
-
-## Credits
-
-- Original node: [kijai / ComfyUI-KJNodes](https://github.com/kijai/ComfyUI-KJNodes)
-- Extensions: dynamic `region_N` STRING input pins, `+ Region` toolbar button, classic node API conversion — MNeMiC Nodes.
