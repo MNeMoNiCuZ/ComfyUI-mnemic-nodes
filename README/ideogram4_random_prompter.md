@@ -4,6 +4,8 @@ An experimental companion to the **Ideogram 4 Prompt Builder**. Instead of drawi
 
 <img width="2162" height="580" alt="image" src="https://github.com/user-attachments/assets/a1f90b99-1150-476a-9349-38640cfc63c8" />
 
+<img width="2434" height="1358" alt="image" src="https://github.com/user-attachments/assets/462a032f-79d6-458e-b4eb-66eb2c27320c" />
+
 
 Requires the `wonderwords` package:
 
