@@ -2,6 +2,9 @@
 
 An experimental companion to the **Ideogram 4 Prompt Builder**. Instead of drawing regions by hand, this node automatically generates a complete composition from scratch by scattering weighted-random regions across the canvas and filling each with descriptions built from real dictionary words.
 
+<img width="2162" height="580" alt="image" src="https://github.com/user-attachments/assets/a1f90b99-1150-476a-9349-38640cfc63c8" />
+
+
 Requires the `wonderwords` package:
 
 ```bash
