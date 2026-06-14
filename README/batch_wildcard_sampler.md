@@ -1,15 +1,21 @@
-# 🔀 Batch Wildcard Sampler
+# 🔀 Batch Wildcard Upscale Sampler
 
-The Batch Wildcard Sampler generates a batch of images where **every image resolves its own independent set of wildcards**. A normal sampler applies a single prompt to the whole batch; this node instead resolves the prompt separately for each batch index, so a single run produces a different prompt — and therefore a different image — for each item in the batch.
+The Batch Wildcard Sampler generates multiple images where **every image resolves its own independent set of wildcards and LoRA loading**. A normal sampler applies a single prompt to the whole batch; this node instead resolves the prompt separately for each index, so a single run produces a different prompt — and therefore a different image — for each item.
 
 It is an all-in-one node: it resolves the wildcards, loads any LoRAs referenced in the prompt, encodes each prompt through CLIP, samples each image, and optionally runs an upscale second pass. It can also be used purely as a prompt previewer with no model attached, to check what your wildcards resolve to.
 
+Additionally this node has an Upscale pass that can be enabled, using pixel-space upscaling with lanczos, or using an upscale model. Like `Hires-fix` from A1111/Forge.
+
 Huge thanks and credits to ChronoKnight for the initial version of this node!
+
 - https://github.com/KChronoKnight
 - https://civitai.com/user/ChronoKnight
 
 <img width="2175" height="639" alt="image" src="https://github.com/user-attachments/assets/316a9bc4-16a7-4887-8fc7-ca06c6b149ae" />
 
+## About Batching
+
+Despite the name, this node is **not currently** doing true sampler batching. It processes one image at a time internally: resolve wildcards, encode prompts, sample, optionally upscale, then move to the next item. The benefit is convenience and some speed-ups from keeping the whole sequence inside one node and returning one combined output at the end, but the actual image generation is still sequential rather than batched.
 
 ## Explanation
 
@@ -93,7 +99,7 @@ Because both use the same base `seed`, re-running with the same `seed` and promp
 - `text` — The positive prompt, with wildcard and `<lora:...>` support. Resolved independently for each image in the batch.
 - `negative` — The negative prompt. Supports the exact same wildcard syntax as the positive prompt, and is also resolved independently per image.
 - `seed` — Base seed for **both** wildcard resolution and noise generation. Each image uses `seed + index`.
-- `batch_size` — Number of images to generate. Each image resolves its own wildcards and gets its own prompt.
+- `batch_size` — Number of images to generate sequentially. This is not a true sampler batch; each image resolves its own wildcards and prompt, then runs one after another inside the node.
 - `width` / `height` — Output dimensions for the first pass.
 - `steps` — Number of sampling steps.
 - `cfg` — Classifier-free guidance scale.

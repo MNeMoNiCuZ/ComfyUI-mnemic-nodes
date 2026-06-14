@@ -75,10 +75,11 @@ class BatchWildcardSampler:
     )
     OUTPUT_NODE = False
 
-    DESCRIPTION = ("Resolves wildcards independently for every image in the batch, so a single run "
-                   "produces a different prompt — and a different image — for each batch index. "
-                   "LoRAs can be loaded per image via <lora:name:strength> tags in the prompt. "
-                   "Connect model and clip to sample, or leave them off to just preview the resolved prompts.")
+    DESCRIPTION = ("Resolves wildcards independently for every image, but processes them sequentially "
+                   "inside the node rather than as a true sampler batch. This still gives per-image "
+                   "prompt variation with some workflow speed-ups from staying inside one node. LoRAs can "
+                   "be loaded per image via <lora:name:strength> tags in the prompt. Connect model and "
+                   "clip to sample, or leave them off to just preview the resolved prompts.")
 
     @classmethod
     def INPUT_TYPES(cls):
@@ -88,9 +89,13 @@ class BatchWildcardSampler:
                     "multiline": True,
                     "dynamicPrompts": False,
                     "tooltip": (
-                        "The positive prompt, with wildcard support. Wildcards are resolved independently for "
-                        "each image in the batch, so every image in a single run gets a different result from "
-                        "the same prompt.\n\n" + _WILDCARD_SYNTAX_HELP
+                        "Positive prompt with full wildcard and <lora:...> support.\n\n"
+                        "How this node uses it:\n"
+                        "- Each image resolves this prompt independently.\n"
+                        "- Each image can end up with a different final prompt.\n"
+                        "- Images are processed sequentially inside the node, not as a true sampler batch.\n\n"
+                        "Use the same seed to reproduce the same sequence of resolved prompts.\n\n"
+                        + _WILDCARD_SYNTAX_HELP
                     ),
                     "placeholder": "A photo of a __sample_colors__ {dog|cat|monkey} <lora:mylora:0.75>"
                 }),
@@ -98,17 +103,30 @@ class BatchWildcardSampler:
                     "multiline": True,
                     "dynamicPrompts": False,
                     "tooltip": (
-                        "The negative prompt. Supports the exact same wildcard syntax as the positive prompt "
-                        "above, and is likewise resolved independently for each image in the batch."
+                        "Negative prompt.\n\n"
+                        "Supports the exact same wildcard syntax as the positive prompt.\n\n"
+                        "How this node uses it:\n"
+                        "- Each image resolves its own negative prompt independently.\n"
+                        "- Negative prompt wildcards follow the same per-image sequential flow as the positive prompt."
                     ),
                     "placeholder": "negative"
                 }),
                 "seed":          ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff,
-                    "tooltip": "The seed for both wildcard resolution and noise generation. Each image uses seed + index, so the same seed and prompt always reproduce the same batch.",
+                    "tooltip": "Base seed for both wildcard resolution and sampling noise.\n\n"
+                               "Per-image behavior:\n"
+                               "- Image 1 uses seed + 0\n"
+                               "- Image 2 uses seed + 1\n"
+                               "- Image 3 uses seed + 2\n\n"
+                               "Using the same seed and the same prompts reproduces the same sequential run.",
                 }),
                 "batch_size":    ("INT", {
                     "default": 4, "min": 1, "max": 64, "step": 1,
-                    "tooltip": "Number of images to generate. Each image resolves its own wildcards and gets its own prompt.",
+                    "tooltip": "How many images to generate.\n\n"
+                               "Important:\n"
+                               "- This is not a true sampler batch.\n"
+                               "- The node runs one image at a time internally.\n"
+                               "- For each item, it resolves wildcards, encodes prompts, samples, and optionally upscales.\n\n"
+                               "The final outputs are then combined into one batch-shaped result for downstream nodes.",
                 }),
                 "width":         ("INT", {"default": 1024, "min": 64, "max": 16384, "step": 8}),
                 "height":        ("INT", {"default": 1024, "min": 64, "max": 16384, "step": 8}),
