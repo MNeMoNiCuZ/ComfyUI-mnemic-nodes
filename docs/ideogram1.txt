@@ -1,0 +1,645 @@
+Ideogram 4.0 Prompt Guide: JSON, Color Control, and Text Rendering
+
+The complete Ideogram 4.0 prompting guide: plain-text prompts, JSON captions, bounding boxes, color palette conditioning, and in-image text rendering.
+Arooj Ishtiaq
+
+Arooj Ishtiaq
+
+Fri Jun 05 2026 • Updated Sat Jun 06 2026
+
+18 mins Read
+
+ON THIS PAGE
+
+Ideogram 4.0 accepts plain text prompts but was trained exclusively on structured JSON captions. Plain text works well. JSON works better for layout, typography, and color control. This guide covers both, with 20+ ready-to-use prompts across every major use case. Generate directly through ImagineArt's AI image generator.
+Ideogram 4.0 Prompt Guide
+
+Before diving into the mechanics, here is what this guide addresses and in what order. Each section builds on the previous one, so readers new to Ideogram 4.0 will benefit from reading sequentially, while experienced users can jump to the specific capability they need.
+
+    Plain text prompting: works out of the box, strong results for most use cases
+    JSON structure: the full schema explained with field-by-field guidance
+    Style description: controlling medium, lighting, and aesthetics
+    Bounding box layout: placing elements exactly where you want them
+    Color palette conditioning: steering the dominant color scheme via hex values
+    In-image text: rendering multi-line, multi-font typography in a single generation
+    Use case examples with 20+ prompts: posters, packaging, logos, social, product photography, and more
+    Common mistakes: what breaks output quality and how to avoid it
+
+For a full breakdown of what the model is and how it compares to Ideogram 3.0, the Ideogram 4.0 overview covers the architecture, capabilities, and leaderboard results.
+Plain Text Prompting for Ideogram 4.0
+
+Plain text prompts work well with Ideogram 4.0 and produce strong results across most use cases. If you are coming from Ideogram 3.0 or from other models, your existing prompts will transfer directly. You do not need to learn JSON to get useful output. For context on why text rendering in AI image generation has historically been a challenge and how Ideogram addresses it, the why AI image generators struggle with text breakdown is worth reading before diving into prompting.
+
+Plain text works best for:
+
+    Quick concept exploration before committing to a composition — the creative AI art prompt ideas guide covers prompt structures that work well for this stage
+    Photorealistic scenes, portraits, and landscapes where exact placement is not critical
+    Stylized illustrations where aesthetic direction matters more than spatial precision
+    Testing a visual direction before formalizing it into a JSON caption
+
+The difference between a weak plain text prompt and a strong one comes down to three things: the visual medium, the lighting condition, and the color direction. Specifying all three in every prompt improves output quality significantly.
+Plain Text Prompt Examples
+
+The following prompts are ready to use directly. Each one specifies medium, lighting, and color direction as the baseline for consistent output quality.
+
+Portrait: A close-up portrait of a woman with curly red hair at a sunlit window, soft morning light from the left, shallow depth of field, warm honey tones, 85mm lens, photorealistic
+
+potrait by ideogram 4potrait by ideogram 4
+
+Vintage travel poster: A bold vintage travel poster for Kyoto Japan, Mt. Fuji silhouette at dusk, cherry blossoms in the foreground, deep indigo sky and gold accents, large serif headline reading "KYOTO" centered at the top, screenprint style
+
+Vintage travel poster.webpVintage travel poster.webp
+
+Product photography:A sleek frosted glass perfume bottle on a white marble surface, single directional side light, one soft shadow, editorial product photography, minimalist, shallow depth of field
+
+Product photography by ideogram 4Product photography by ideogram 4
+
+Logo concept: A clean geometric mountain logo for an outdoor equipment brand called "RIDGE", two overlapping triangles forming a peak, dark slate and white, sans-serif wordmark below the mark, flat vector style
+
+Logo concept by Ideogram 4Logo concept by Ideogram 4
+
+Social media post: A modern Instagram post graphic for a specialty coffee brand, warm terracotta background, overhead shot of a ceramic cup with latte art, minimal text space reserved at the bottom third, lifestyle editorial aesthetic
+
+Social media post by ideogram 4Social media post by ideogram 4
+
+Event poster: A bold typographic music festival poster for "WAVELENGTH FEST", August 3 at Shoreline Amphitheater, dark navy and electric yellow color palette, large condensed uppercase sans-serif headline, geometric abstract shapes, minimal negative space
+
+Event poster by Ideogram 4Event poster by Ideogram 4
+
+Book cover: A literary fiction book cover for a novel called "The Weight of Salt", coastal landscape at low tide, overcast grey sky, lone figure standing at the shoreline, subdued blue-grey palette, serif title in the upper third
+
+Book cover by ideogram 4Book cover by ideogram 4
+
+Fashion editorial: A high fashion editorial photograph of a woman in a structured red coat standing on a wet cobblestone street in Paris, overcast daylight, puddle reflections, desaturated environment with the coat as the only saturated element, 50mm lens
+
+Fashion editorial by ideogram 4Fashion editorial by ideogram 4
+
+Multilingual text in image: A bilingual promotional poster for a luxury skincare brand, headline in English reading "GLOW STARTS HERE" at the top in bold serif, Arabic translation below in matching weight and style, centered product bottle on a cream background, gold and ivory color palette, clean editorial layout
+
+Multilingual text in image.webpMultilingual text in image.webp
+
+Illustration: A detailed editorial illustration of a futuristic city at dusk, floating architecture, warm amber sky, neon-lit streets below, flat color areas with fine ink-style linework, limited palette of deep teal, amber, and off-white, graphic novel aesthetic
+
+Illustration by ideogram 4Illustration by ideogram 4
+
+Album cover: A moody album cover for an indie artist called "LUNE", a lone figure standing in a foggy forest at night, a single shaft of moonlight breaking through the canopy, a dark blue and silver palette, title "LUNE" in delicate thin serif at the bottom center, cinematic and atmospheric
+
+Album cover by ideogram 4Album cover by ideogram 4
+
+Ideogram 4.0's combination of typed text elements and bounding-box placement makes it particularly well-suited for album cover design, where the artist name, album title, and visual composition need to work together as a single cohesive layout rather than as separate design steps. The how to create an AI album cover guide on ImagineArt covers the full workflow for musicians and designers producing release-ready artwork with AI image generation.
+
+For more details, read: Ideogram 4.0 vs Nano Banana Pro vs GPT Image 2 Guide
+JSON Prompting for Ideogram 4.0
+
+JSON prompting is where Ideogram 4.0 separates from every other image model. Because the model was trained on structured captions, providing a JSON object gives you significantly better compositional control, spatial precision, and style fidelity than plain text allows. This is especially true for design work, in-image text, and any output where exact placement matters. The full schema is documented in Ideogram's official GitHub repository and is the basis for all examples in this section.
+
+The JSON schema has three top-level fields:
+
+    high_level_description: a one or two-sentence summary of the full image (optional but strongly recommended)
+    style_description: controls visual style, lighting, medium, and color palette (optional)
+    compositional_deconstruction: defines the background and all individual elements with optional bounding boxes (required)
+
+The Full JSON Structure
+
+Below is the complete skeleton of a valid Ideogram 4.0 JSON caption. Every example in this guide uses this structure. Copy and modify it rather than writing from scratch.
+
+Structural rules that directly affect output quality:
+
+    background must come before elements inside compositional_deconstruction
+    For photographic output, use photo. For illustrations, use art_style. Never both at once.
+    Key order matters: the model was trained with a consistent key order and following it reduces generation drift
+    Hex colors must be uppercase: #FF6B35 not #ff6b35 or #f63
+    Bounding boxes use normalized 0 to 1000 coordinates in the format [y_min, x_min, y_max, x_max]
+
+JSON Prompting for Style Description
+
+The style_description field controls the aesthetic direction of the entire image. It tells the model what medium it is working in, how the scene is lit, what the visual mood is, and which colors should dominate. It is optional in the schema but strongly recommended for consistent output.
+
+Use photo for photographic outputs paired with "medium": "photograph". Use art_style for everything else, including illustration, graphic design, and 3D rendering. These two fields are mutually exclusive.
+
+For photographic output:
+"style\_description": {
+
+  "aesthetics": "warm, candid, golden hour",
+
+  "lighting": "soft directional sunlight from the left, long warm shadows",
+
+  "photo": "35mm, f/2.8, shallow depth of field, eye-level",
+
+  "medium": "photograph",
+
+  "color\_palette": \["\#F4A261", "\#E76F51", "\#264653", "\#2A9D8F", "\#E9C46A"\]
+
+}
+
+For illustration or graphic design output:
+"style\_description": {
+
+  "aesthetics": "minimal, clean, geometric",
+
+  "lighting": "even diffuse light, no harsh shadows",
+
+  "medium": "graphic\_design",
+
+  "art\_style": "flat vector illustration, bold outlines, generous whitespace",
+
+  "color\_palette": \["\#FFFFFF", "\#1A1A2E", "\#0066FF", "\#00CC88"\]
+
+}
+
+For cinematic, moody output:
+"style\_description": {
+
+  "aesthetics": "moody, cinematic, noir",
+
+  "lighting": "low-key, single practical light source, deep shadows, minimal fill",
+
+  "photo": "35mm, f/1.4, slight grain, high contrast",
+
+  "medium": "photograph",
+
+  "color\_palette": \["\#1B1B2F", "\#162447", "\#1F4068", "\#E43F5A", "\#F5F5F5"\]
+
+}
+JSON Prompting for Bounding Box Layout
+
+Bounding boxes are how you specify exactly where each element appears in the frame. The coordinate system uses a normalized 1000x1000 grid with the origin at the top left corner. The format is [y_min, x_min, y_max, x_max].
+
+Think of the frame as a 1000x1000 square. To place a headline across the top third, you want y values from around 50 to 300 and x values from 100 to 900. To place a subject in the lower center, use y values from 500 to 950 and x values from 250 to 750. Rough placement works well. The model handles small imprecision gracefully.
+
+"bbox": [50, 100, 300, 900] places the element in the top 30% of the frame, spanning most of the horizontal width
+
+"bbox": [500, 250, 950, 750] places the element in the bottom half, center column
+Example: Jazz Festival Poster With Bounding Box Layout
+
+This example places three distinct elements at explicit positions: a performer silhouette in the center, a headline across the top, and date and venue text at the bottom.
+{
+
+  "high\_level\_description": "A bold typographic event poster for a New Orleans jazz festival featuring a trumpet player silhouette.",
+
+  "style\_description": {
+
+    "aesthetics": "dramatic, high contrast, vintage",
+
+    "lighting": "strong stage spotlight from above, deep surrounding shadows",
+
+    "medium": "graphic\_design",
+
+    "art\_style": "screenprint aesthetic, limited color palette, bold geometric shapes",
+
+    "color\_palette": \["\#0A0A0A", "\#F5C518", "\#E63946", "\#FFFFFF"\]
+
+  },
+
+  "compositional\_deconstruction": {
+
+    "background": "Near-black background with subtle aged paper texture.",
+
+    "elements": \[
+
+      {
+
+        "type": "obj",
+
+        "bbox": \[200, 300, 850, 700\],
+
+        "desc": "A silhouette of a trumpet player mid-performance, arm raised, dramatic pose, rendered in deep gold against the dark background."
+
+      },
+
+      {
+
+        "type": "text",
+
+        "bbox": \[30, 100, 180, 900\],
+
+        "text": "NEW ORLEANS JAZZ FEST",
+
+        "desc": "Bold uppercase serif headline in bright white spanning the top of the poster."
+
+      },
+
+      {
+
+        "type": "text",
+
+        "bbox": \[870, 200, 960, 800\],
+
+        "text": "JULY 12 · ARMSTRONG PARK",
+
+        "desc": "Smaller red sans-serif text at the bottom with the date and venue."
+
+      }
+
+    \]
+
+  }
+
+}
+
+Jazz Festival Poster With Bounding Box LayoutJazz Festival Poster With Bounding Box Layout
+
+Example: Product Detail Shot With Subject Placement
+
+This example anchors the product in a specific position and leaves compositional space above for a headline.
+{
+
+  "high\_level\_description": "A clean editorial product shot of a matte black wireless speaker against a white background.",
+
+  "style\_description": {
+
+    "aesthetics": "clean, premium, minimal",
+
+    "lighting": "soft diffuse studio lighting, subtle shadow beneath the product",
+
+    "photo": "50mm, f/8, even exposure",
+
+    "medium": "photograph",
+
+    "color\_palette": \["\#FFFFFF", "\#F2F2F2", "\#1D1D1F", "\#CCCCCC"\]
+
+  },
+
+  "compositional\_deconstruction": {
+
+    "background": "Pure white studio background with an extremely subtle gradient to near-white at the bottom.",
+
+    "elements": \[
+
+      {
+
+        "type": "obj",
+
+        "bbox": \[280, 280, 820, 720\],
+
+        "desc": "A matte black cylindrical wireless speaker, centered, with minimal branding. Subtle soft shadow beneath it on the white surface."
+
+      }
+
+    \]
+
+  }
+
+}
+
+Product Detail Shot With Subject PlacementProduct Detail Shot With Subject Placement
+JSON Prompting for Color Palette Conditioning
+
+Color palette conditioning is one of Ideogram 4.0's most distinctive features. Providing hex values in color_palette steers the dominant colors of the generated image directly, rather than relying on imprecise descriptive language like "deep navy" or "warm amber."
+
+Up to 16 hex colors can be specified at the image level in style_description.color_palette. Up to 5 hex colors can be specified per individual element. All values must be uppercase #RRGGBB format. Include both highlight and shadow colors for controlled lighting, and always include the intended background color explicitly if you want a specific background tone.
+Example: Warm Sunset Palette
+
+This example from the official Ideogram documentation shows how the palette directly steers a seascape toward orange and pink tones without relying on language alone.
+{
+
+  "high\_level\_description": "A lone sailboat on calm water at sunset.",
+
+  "style\_description": {
+
+    "aesthetics": "serene, warm, golden hour",
+
+    "lighting": "golden hour backlighting, warm atmospheric haze",
+
+    "photo": "wide angle, f/8",
+
+    "medium": "photograph",
+
+    "color\_palette": \["\#FF6B35", "\#F7C59F", "\#004E89", "\#1A659E", "\#2B2D42"\]
+
+  },
+
+  "compositional\_deconstruction": {
+
+    "background": "A calm ocean stretching to a low horizon, sky washed in orange and pink with thin wisps of cloud.",
+
+    "elements": \[
+
+      {
+
+        "type": "obj",
+
+        "desc": "A single sailboat with a white triangular sail, silhouetted against the setting sun."
+
+      }
+
+    \]
+
+  }
+
+}
+
+Warm Sunset PaletteWarm Sunset Palette
+
+Example: Corporate Brand Palette
+
+This example shows how to enforce a brand color system on a business card layout by specifying exact brand hex values.
+{
+
+  "high\_level\_description": "A clean modern business card layout for a tech company.",
+
+  "style\_description": {
+
+    "aesthetics": "minimal, professional, geometric",
+
+    "lighting": "even diffuse studio lighting",
+
+    "medium": "graphic\_design",
+
+    "art\_style": "flat vector design, generous whitespace, sans-serif typography",
+
+    "color\_palette": \["\#FFFFFF", "\#F0F0F0", "\#333333", "\#0066FF", "\#00CC88"\]
+
+  },
+
+  "compositional\_deconstruction": {
+
+    "background": "A solid off-white card surface with subtle paper texture.",
+
+    "elements": \[
+
+      {
+
+        "type": "text",
+
+        "text": "NOVA TECH",
+
+        "desc": "Bold dark grey sans-serif company name across the upper third of the card."
+
+      },
+
+      {
+
+        "type": "text",
+
+        "text": "hello@novatech.io",
+
+        "desc": "Small blue sans-serif contact email near the bottom of the card."
+
+      }
+
+    \]
+
+  }
+
+}
+
+Corporate Brand PaletteCorporate Brand Palette
+JSON Prompting for In-Image Text
+
+In-image text rendering is Ideogram 4.0's most significant advantage over other open-weight models. The "text" element type carries the literal string to render and a separate visual description for how it should look. This separation is what allows multi-line, multi-font, multi-weight typography across a single generation without the spelling errors and glyph confusion that affect other models.
+
+Each text element uses this field order: type, bbox (optional but recommended), text (the exact string), desc (visual styling description), color_palette (optional, up to 5 hex values). The text field is separate from desc because one is what the model renders, and the other is how it should look.
+Example: Product Launch Poster With Multi-Text Layout
+
+This example places a headline, subtext, and availability date as three separate text elements, each in its own bounding box zone.
+{
+
+  "high\_level\_description": "A minimal product launch poster for a premium wireless speaker with a dark aesthetic.",
+
+  "style\_description": {
+
+    "aesthetics": "clean, high-end tech, premium",
+
+    "lighting": "soft studio lighting, no harsh shadows",
+
+    "medium": "graphic\_design",
+
+    "art\_style": "flat design, generous whitespace, premium minimal aesthetic",
+
+    "color\_palette": \["\#0A0A0A", "\#1A1A1A", "\#FFFFFF", "\#0071E3", "\#888888"\]
+
+  },
+
+  "compositional\_deconstruction": {
+
+    "background": "Deep near-black background with very subtle surface texture.",
+
+    "elements": \[
+
+      {
+
+        "type": "obj",
+
+        "bbox": \[200, 300, 720, 700\],
+
+        "desc": "A sleek matte black wireless speaker, centered, minimal industrial design, subtle specular highlight on the top edge."
+
+      },
+
+      {
+
+        "type": "text",
+
+        "bbox": \[60, 100, 170, 900\],
+
+        "text": "SOUND. REDEFINED.",
+
+        "desc": "Bold white sans-serif headline in large uppercase letters spanning the upper section."
+
+      },
+
+      {
+
+        "type": "text",
+
+        "bbox": \[750, 300, 820, 700\],
+
+        "text": "Available from June 15",
+
+        "desc": "Small blue sans-serif subtext centered below the product."
+
+      }
+
+    \]
+
+  }
+
+}
+
+Product Launch Poster With Multi-Text LayoutProduct Launch Poster With Multi-Text Layout
+Example: Vintage Coffee Shop Sign With Layered Typography
+
+This example demonstrates three layers of type at different weights, sizes, and vertical positions on a textured background.
+{
+
+  "high\_level\_description": "A vintage hand-lettered coffee shop sign on aged dark walnut wood.",
+
+  "style\_description": {
+
+    "aesthetics": "warm, artisanal, nostalgic",
+
+    "lighting": "warm tungsten interior light, soft directional glow",
+
+    "medium": "graphic\_design",
+
+    "art\_style": "hand-lettered sign painting style, vintage illustration, aged wood texture",
+
+    "color\_palette": \["\#3E2723", "\#5D4037", "\#F5F0E8", "\#D4A017", "\#8D6E63"\]
+
+  },
+
+  "compositional\_deconstruction": {
+
+    "background": "Aged dark walnut wood planks with visible grain and slight weathering.",
+
+    "elements": \[
+
+      {
+
+        "type": "text",
+
+        "bbox": \[80, 100, 280, 900\],
+
+        "text": "MORNING RITUAL",
+
+        "desc": "Large bold hand-lettered serif text in cream, slightly arched, dominant across the upper section."
+
+      },
+
+      {
+
+        "type": "text",
+
+        "bbox": \[300, 200, 420, 800\],
+
+        "text": "COFFEE & ESPRESSO",
+
+        "desc": "Medium weight sans-serif in warm gold, centered below the main headline."
+
+      },
+
+      {
+
+        "type": "text",
+
+        "bbox": \[450, 350, 550, 650\],
+
+        "text": "EST. 2019",
+
+        "desc": "Small spaced-out caps in muted cream, centered below the subtitle."
+
+      }
+
+    \]
+
+  }
+
+}
+
+Vintage Coffee Shop Sign With Layered TypographyVintage Coffee Shop Sign With Layered Typography
+
+Magic Prompt for Automatic JSON Expansion
+
+Writing JSON from scratch adds time to the generation process. Ideogram's Magic Prompt feature solves this by using a language model to expand a plain-text description into a full structured JSON caption automatically, giving you the quality benefits of a JSON prompt without writing the structure yourself.
+
+On Ideogram, Magic Prompt is enabled by default. For local inference, the package ships three configurations: Ideogram's hosted service (free with an API key), Claude Opus via OpenRouter, and Claude Sonnet via OpenRouter. The default configuration runs server-side and is free.
+
+On ImagineArt's AI image generator, the Enhance toggle in the generation interface performs a similar function, automatically optimizing your prompt before the model runs.
+Prompting for Specific Use Cases
+
+The sections below cover the most common Ideogram 4.0 use cases with both plain text and JSON approach notes. Each use case reflects scenarios where Ideogram's text rendering and layout control create a genuine advantage over other models.
+
+For a broader comparison of how Ideogram handles these tasks relative to other models, the Ideogram vs Midjourney vs ImagineArt guide provides useful context.
+Posters and Event Graphics
+
+Posters benefit most from JSON because multiple text elements need to land at specific positions. Use "medium": "graphic_design" with "art_style" describing the visual style. Assign each text block its own bounding box, and define the color palette in hex values to enforce brand or event identity.
+
+Plain text prompt: A bold screenprint-style festival poster for "SALT FLATS MUSIC FESTIVAL", late September in Utah, deep rust red and pale sand color scheme, abstract mountain range silhouette, condensed sans-serif headline across the top third, minimal geometric layout.
+
+Plain text prompt.webpPlain text prompt.webp
+
+Alternative: A retro art deco movie premiere poster for a film called "THE LAST MERIDIAN", gold and deep black color palette, geometric sunburst motif behind the title, serif typeface, classic Hollywood glamour aesthetic, vertical format.
+
+ideogram 4ideogram 4
+
+Product Packaging Mockups
+
+Specify the surface material in the background description (matte, glossy, kraft paper, frosted glass) since the material texture affects how the label reads. Place brand name and product descriptor as separate text elements. Include brand hex values at the element level for precise color application to the label.
+
+Plain text prompt: A product label mockup for an artisan hot sauce called "EMBER", bold condensed uppercase wordmark, hand-drawn chili pepper illustration, aged kraft paper texture, dark burgundy and charcoal color scheme, artisan food packaging aesthetic
+
+Product Packaging Mockups.webpProduct Packaging Mockups.webp
+
+Alternative: A premium skincare serum box packaging mockup for a brand called "LUMÉ", frosted white cardboard with subtle embossed texture, gold foil wordmark on the front panel, minimalist layout, one thin botanical line illustration
+
+Product Packaging Mockups by ideogram 4Product Packaging Mockups by ideogram 4
+
+Brand Identity and Logos
+
+Use "medium": "graphic_design" with "art_style": "flat vector". Describe the mark as an obj element and each text component as a separate text element. Keep the palette to three to four values maximum for clean vector output.
+
+Plain text prompt: A minimal geometric logo mark for a sustainable architecture studio called "FORM", two overlapping triangles forming a roof silhouette, dark forest green and off-white, clean sans-serif wordmark below, professional and environmental aesthetic
+
+Brand Identity and LogosBrand Identity and Logos
+
+Alternative: A bold monogram logo for a premium barber brand called "CUTLER CO", thick slab serif letterforms, black and aged gold, circular badge format with a straight razor illustration, masculine and heritage aesthetic
+
+Brand Identity and Logos by ideogram 4Brand Identity and Logos by ideogram 4
+
+Social Media Graphics
+
+For consistent social templates, use bounding boxes to reserve the text zone at a fixed position across multiple generations. Use the Ideogram AI features overview as a reference for how text handling has evolved across versions when planning social content at scale.
+
+Plain text prompt: A clean Instagram carousel slide for a wellness brand, dusty sage green background, centered overhead shot of a ceramic bowl with herbs and flowers, minimal text space at the bottom quarter, warm neutral tones, editorial lifestyle aesthetic
+
+Alternative: A bold YouTube thumbnail background for a personal finance channel, dark charcoal background, neon green accent color, large bold text area on the right third, minimal geometric shapes, high contrast for small-screen visibility
+
+Social Media GraphicsSocial Media Graphics
+
+Product Photography
+
+Native background transparency in Ideogram 4.0 makes product photography a natural use case. The generated subject arrives with a clean alpha channel ready for placement on any campaign background. Specify the surface, lighting direction, and shadow behavior explicitly for the most realistic output.
+
+Plain text prompt: A studio product photograph of a matte olive green water bottle on a concrete surface, soft diffused light from above, long subtle shadow to the right, brand logo visible on the front, minimalist outdoor lifestyle aesthetic
+
+Product Photography by ideogram 4Product Photography by ideogram 4
+
+Alternative: A lifestyle flat lay photograph of skincare products arranged on white linen, a glass dropper bottle, a small jade roller, and a ceramic tray, morning window light from the left, soft warm shadows, clean and aspirational aesthetic
+
+Product Photography by ideogram 4 Product Photography by ideogram 4
+
+Infographics and Data Visuals
+
+Multiple text elements with distinct bounding boxes allow precise placement of headers, labels, and data points. This is where JSON's spatial precision produces results that plain text cannot reliably achieve.
+
+Plain text prompt: A clean data visualization infographic showing global smartphone adoption from 2015 to 2025, line chart format, soft blue and teal color palette, clear axis labels, modern sans-serif typography, white background, editorial style
+
+Infographics and Data VisualsInfographics and Data Visuals
+
+Common Prompting Mistakes
+
+These are the most common issues that reduce output quality on Ideogram 4.0, drawn from the official schema documentation and observed generation behavior.
+
+    Describing color in language instead of hex. "Deep navy blue" is ambiguous. "#162447" is exact. Use hex values in color_palette whenever color accuracy matters.
+    Omitting the medium. Without "medium": "photograph" or "medium": "graphic_design", The model infers the format. Being explicit removes that ambiguity and produces more consistent results.
+    Overlapping text bounding boxes. If two text elements share overlapping bounding box coordinates, both will render poorly. Give each text element its own non-overlapping zone.
+    Wrong hex format. Colors must be uppercase #RRGGBB. Shorthand (#fff) and lowercase (#1b1b2f) both trigger schema warnings that reduce output quality.
+    Putting multi-line copy in a single text element. For multi-line text, use separate elements for each distinct line or block. The model handles individual lines more accurately than long strings with line breaks inside a single text field.
+    Using photo and art_style together. These are mutually exclusive. Choosing one based on your intended output format is required.
+    Burying important elements at the end of a long prompt. The model processes prompts from the beginning. For plain text, put the most important subject and action first.
+
+Conclusion
+
+Plain text works. JSON works better for layout and typography. Either way, Ideogram 4.0 is the strongest open-weight model for design-focused work available right now.
+
+Generate it directly through ImagineArt's AI image generator alongside the full model stack, no separate account needed.
+Frequently Asked Questions
+Do I have to use JSON to get good results from Ideogram 4.0?
+
+No. Plain text produces strong results for most use cases. JSON is worth the effort when compositional precision, specific color values, or accurate multi-element text placement are requirements.
+How many colors can I include in the palette?
+
+Up to 16 in style_description.color_palette for the overall image. Up to 5 per element in compositional_deconstruction.elements. All must be uppercase #RRGGBB format.
+How precise do bounding boxes need to be?
+
+Reasonably precise but not pixel-perfect. The 0 to 1000 coordinate grid means rough placement in hundreds works well. The model handles small positional imprecision without breaking output quality.
+What is Magic Prompt and should I use it?
+
+Magic Prompt automatically expands a plain text description into a full JSON caption. It is free with an Ideogram API key and enabled by default on Ideogram. Use it when you want JSON quality from a casual prompt without writing the structure manually.
+How does Ideogram 4.0 text rendering compare to 3.0?
+
+Ideogram 4.0 improves multi-line handling, multilingual support, and dense typography accuracy, including logos and signage. Creators who used Ideogram 3.0 specifically for text will find 4.0 is a direct and meaningful upgrade on every text-related capability. The best AI image generators for artistic visuals guide how Ideogram's text handling benchmarks against other leading models.
+Can I use Ideogram 4.0 for character consistency across a series?
+
+For dedicated character consistency, Ideogram Character on ImagineArt is the right tool. Ideogram 4.0 is optimized for compositional control, typography, and design output rather than multi-image character series.

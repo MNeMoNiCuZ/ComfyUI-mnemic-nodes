@@ -60,7 +60,30 @@ def _wrap(draw, text, font, max_w):
     return lines
 
 
-def _render_preview(boxes, width, height, bg=None, brightness=50):
+def _dashed_rect(draw, box, color, dash=7, gap=5, w=2):
+    # Draw a dashed rectangle outline (PIL has no native dashed stroke). Used to
+    # show freeform / box-less regions in the preview without implying a hard bbox.
+    import math
+    x1, y1, x2, y2 = box
+
+    def seg(ax, ay, bx, by):
+        length = math.hypot(bx - ax, by - ay)
+        if length <= 0:
+            return
+        dx, dy = (bx - ax) / length, (by - ay) / length
+        d = 0.0
+        while d < length:
+            e = min(length, d + dash)
+            draw.line([ax + dx * d, ay + dy * d, ax + dx * e, ay + dy * e], fill=color, width=w)
+            d += dash + gap
+
+    seg(x1, y1, x2, y1)
+    seg(x2, y1, x2, y2)
+    seg(x2, y2, x1, y2)
+    seg(x1, y2, x1, y1)
+
+
+def _render_preview(boxes, width, height, bg=None, brightness=50, draw_freeform=False):
     # Render the regions + prompts over the reference image (or a black canvas).
     if bg is not None:
         iw, ih = bg.size
@@ -86,7 +109,10 @@ def _render_preview(boxes, width, height, bg=None, brightness=50):
     lh = fs + 2
 
     for i, box in enumerate(boxes):
-        if not isinstance(box, dict) or box.get("nobbox"):
+        if not isinstance(box, dict):
+            continue
+        freeform = bool(box.get("nobbox"))
+        if freeform and not draw_freeform:
             continue                                        # skip unplaced elements (no real location)
         palette = [c for c in (box.get("palette") or []) if c]
         r, g, b = _hex_rgb(palette[0]) if palette else (140, 140, 140)   # box = first palette color, else grey
@@ -99,7 +125,10 @@ def _render_preview(boxes, width, height, bg=None, brightness=50):
         if y2 < y1:
             y1, y2 = y2, y1
 
-        draw.rectangle([x1, y1, x2, y2], outline=(r, g, b, 255), width=2)
+        if freeform:                                        # dashed = no hard bbox, soft-blended
+            _dashed_rect(draw, [x1, y1, x2, y2], (r, g, b, 200), dash=7, gap=5, w=2)
+        else:
+            draw.rectangle([x1, y1, x2, y2], outline=(r, g, b, 255), width=2)
 
         pal5 = palette[:5]                                   # palette shown as a strip along the top edge
         if pal5 and (x2 - x1) > 2:

@@ -43,6 +43,7 @@ from .nodes.literal_float import LiteralFloat
 from .nodes.literal_string import LiteralString
 from .nodes.load_image_temporarily import LoadImageTemporarily
 from .nodes.ideogram4_prompt_builder import Ideogram4PromptBuilder
+from .nodes.ideogram4_random_prompter import Ideogram4RandomPrompter
 from .nodes.image_save_with_metadata import ImageSaveWithMetadata
 from .utils.image_save_runtime_hook import install_runtime_hooks
 
@@ -88,6 +89,7 @@ NODE_CLASS_MAPPINGS = {
     "✏️ Literal String": LiteralString,
     "🖼️ Load Image Temporarily": LoadImageTemporarily,
     "🧩 Ideogram 4 Prompt Builder w. String Inputs": Ideogram4PromptBuilder,
+    "🎲 Ideogram 4 Random Prompter": Ideogram4RandomPrompter,
     "💾 Save Image With Metadata": ImageSaveWithMetadata,
 }
 
