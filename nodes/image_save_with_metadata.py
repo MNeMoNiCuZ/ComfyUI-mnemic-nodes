@@ -18,7 +18,6 @@ from PIL import Image
 
 from ..utils.image_save_with_metadata_civitai import (
     civitai_lora_key_name,
-    get_civitai_metadata,
     get_civitai_sampler_name,
 )
 from ..utils.image_save_with_metadata_prompt_extractor import PromptMetadataExtractor
@@ -26,7 +25,6 @@ from ..utils.image_save_with_metadata_saver import save_image
 from ..utils.image_save_with_metadata_utils import (
     full_checkpoint_path_for,
     full_lora_path_for,
-    get_sha256,
 )
 from ..utils.image_save_runtime_capture import capture_runtime_prompt_and_loras
 from ..utils.batch_wildcard_runtime import get_batch_prompts
@@ -574,60 +572,33 @@ def _clean_prompt(prompt_text: str, extractor: PromptMetadataExtractor) -> str:
 
 
 def _build_a111_params(positive: str, negative: str, ctx: dict) -> str:
-    """
-    Build the A1111-style parameter string for a single positive/negative pair.
-
-    This is a verbatim extraction of the logic that previously lived inline in
-    save_images(); pulling it into a function lets the saver build per-image
-    metadata for batches without changing single-image behaviour.
-    """
     wf = ctx["wf"]
     extractor = PromptMetadataExtractor([positive, negative])
-    embeddings = extractor.get_embeddings()
     prompt_loras = extractor.get_loras()
 
-    node_loras = {}
-    for lora_name, strength_model, _ in wf["loras"]:
+    node_lora_keys = []
+    for lora_name, _, _ in wf["loras"]:
         key = civitai_lora_key_name(os.path.splitext(os.path.basename(lora_name))[0])
         if key not in prompt_loras:
-            lora_path = full_lora_path_for(lora_name)
-            if lora_path:
-                lora_hash = get_sha256(lora_path)[:10]
-                node_loras[key] = (lora_path, strength_model, lora_hash)
+            node_lora_keys.append(key)
 
-    loras = {**prompt_loras, **node_loras}
-
-    civitai_resources, hashes, add_model_hash = get_civitai_metadata(
-        ctx["modelname"], ctx["ckpt_path"], ctx["modelhash"], loras, embeddings, {}, False
-    )
+    all_lora_names = [k.replace("LORA:", "") for k in list(prompt_loras.keys()) + node_lora_keys]
 
     pos_text = _clean_prompt(positive, extractor).strip() if ctx["strip_lora_prompt"] else positive.strip()
     neg_text = _clean_prompt(negative, extractor).strip() if ctx["strip_lora_prompt"] else negative.strip()
 
-    model_hash_str = f", Model hash: {add_model_hash}" if add_model_hash else ""
-    hashes_str = f', Hashes: {json.dumps(hashes, separators=(",", ":"))}' if hashes else ""
     direct_lora_names = [os.path.splitext(os.path.basename(n))[0] for (n, _, _) in wf.get("loras", []) if n]
     direct_lora_names += ctx["runtime_loras"]
-    hash_lora_names = [name.replace("LORA:", "") for name in loras.keys()]
-    hash_lora_names += [
-        key.split(":", 1)[1]
-        for key in hashes.keys()
-        if isinstance(key, str) and key.lower().startswith("lora:")
-    ]
-    models_used = [ctx["basemodelname"]] + direct_lora_names + hash_lora_names
+    models_used = [ctx["basemodelname"]] + direct_lora_names + all_lora_names
     models_used_str = "\n".join(dict.fromkeys([m for m in models_used if m]))
-    model_field_value = ctx["basemodelname"]
 
-    a111_params = (
+    return (
         f"{pos_text}\n"
         f"Negative prompt: {neg_text}\n"
         f"Steps: {ctx['steps']}, Sampler: {ctx['display_sampler']}, CFG scale: {ctx['cfg']}, "
         f"Seed: {ctx['seed']}, Size: {ctx['width']}x{ctx['height']}"
-        f"{model_hash_str}, Model: {model_field_value}{hashes_str}, Models used: {models_used_str}, Version: ComfyUI"
+        f", Model: {ctx['basemodelname']}, Models used: {models_used_str}, Version: ComfyUI"
     )
-    if civitai_resources:
-        a111_params += f', Civitai resources: {json.dumps(civitai_resources, separators=(",", ":"))}'
-    return a111_params
 
 
 class ImageSaveWithMetadata:
@@ -780,8 +751,6 @@ class ImageSaveWithMetadata:
         resolved_prefix = _resolve_strftime(filename_prefix)
 
         ckpt_path = full_checkpoint_path_for(modelname)
-        modelhash = get_sha256(ckpt_path)[:10] if ckpt_path else ""
-
         display_sampler = get_civitai_sampler_name(sampler_name.replace("_gpu", ""), scheduler_name)
         basemodelname = _parse_ckpt_basename(modelname)
 
@@ -789,7 +758,6 @@ class ImageSaveWithMetadata:
             "wf": wf,
             "modelname": modelname,
             "ckpt_path": ckpt_path,
-            "modelhash": modelhash,
             "runtime_loras": runtime_loras,
             "strip_lora_prompt": strip_lora_prompt,
             "steps": steps,

@@ -268,6 +268,10 @@ class Ideogram4PromptBuilder:
                      photo="", art_style="", aesthetics="", lighting="", medium="",
                      image=None, import_json="", style_palette_data="", elements_data="",
                      bg_brightness=25, **kwargs):
+        try:
+            bg_brightness = int(bg_brightness)
+        except (TypeError, ValueError):
+            bg_brightness = 0
         boxes = _parse_json_list(elements_data)
 
         # Dynamic region_N input pins (added by the node UI, one per region):

@@ -8,7 +8,7 @@ import re
 from typing import Dict, List, Tuple
 
 from .image_save_with_metadata_civitai import civitai_embedding_key_name, civitai_lora_key_name
-from .image_save_with_metadata_utils import full_embedding_path_for, full_lora_path_for, get_sha256
+from .image_save_with_metadata_utils import full_embedding_path_for, full_lora_path_for
 
 escape_important = None
 unescape_important = None
@@ -44,14 +44,14 @@ class PromptMetadataExtractor:
     LORA: str = r"<lora:([^>:]+)(?::([^>]+))?>"
 
     def __init__(self, prompts: List[str]) -> None:
-        self.__embeddings: Dict[str, Tuple[str, float, str]] = {}
-        self.__loras: Dict[str, Tuple[str, float, str]] = {}
+        self.__embeddings: Dict[str, Tuple[str, float]] = {}
+        self.__loras: Dict[str, Tuple[str, float]] = {}
         self.__perform(prompts)
 
-    def get_embeddings(self) -> Dict[str, Tuple[str, float, str]]:
+    def get_embeddings(self) -> Dict[str, Tuple[str, float]]:
         return self.__embeddings
 
-    def get_loras(self) -> Dict[str, Tuple[str, float, str]]:
+    def get_loras(self) -> Dict[str, Tuple[str, float]]:
         return self.__loras
 
     def __perform(self, prompts: List[str]) -> None:
@@ -70,8 +70,7 @@ class PromptMetadataExtractor:
         embedding_path = full_embedding_path_for(embedding)
         if embedding_path is None:
             return
-        sha = self.__get_shortened_sha(embedding_path)
-        self.__embeddings[embedding_name] = (embedding_path, weight, sha)
+        self.__embeddings[embedding_name] = (embedding_path, weight)
 
     def __extract_lora_information(self, lora: Tuple[str, str]) -> None:
         lora_name = civitai_lora_key_name(lora[0])
@@ -82,8 +81,4 @@ class PromptMetadataExtractor:
             lora_weight = float(lora[1].split(":")[0])
         except (ValueError, TypeError):
             lora_weight = 1.0
-        sha = self.__get_shortened_sha(lora_path)
-        self.__loras[lora_name] = (lora_path, lora_weight, sha)
-
-    def __get_shortened_sha(self, file_path: str) -> str:
-        return get_sha256(file_path)[:10]
+        self.__loras[lora_name] = (lora_path, lora_weight)
