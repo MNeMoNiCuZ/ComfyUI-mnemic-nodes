@@ -14,7 +14,7 @@ import os
 
 import numpy as np
 import torch
-from PIL import Image, ImageDraw, ImageFont, ImageEnhance
+from PIL import Image, ImageDraw, ImageFont
 
 
 _FONT_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "fonts", "FreeMono.ttf")
@@ -83,24 +83,21 @@ def _dashed_rect(draw, box, color, dash=7, gap=5, w=2):
     seg(x1, y2, x1, y1)
 
 
-def _render_preview(boxes, width, height, bg=None, brightness=50, draw_freeform=False):
-    # Render the regions + prompts over the reference image (or a black canvas).
+def _render_preview(boxes, width, height, bg=None, draw_freeform=False):
+    # Render the regions + prompts over a black canvas (the reference image, if any,
+    # is fully dimmed to black to match the editor).
     if bg is not None:
         iw, ih = bg.size
         long_edge = max(iw, ih)
         scale = min(1.0, 1024 / long_edge) if long_edge > 0 else 1.0
         rw, rh = max(1, round(iw * scale)), max(1, round(ih * scale))
-        base = bg.convert("RGB").resize((rw, rh), Image.LANCZOS)
-        if brightness < 100:                                # dim to match the editor's brightness slider
-            base = ImageEnhance.Brightness(base).enhance(max(0.0, brightness / 100.0))
-        img = base.convert("RGBA")
+        img = Image.new("RGBA", (rw, rh), (0, 0, 0, 255))
     else:
         long_edge = max(width, height)
         scale = min(1.0, 1024 / long_edge) if long_edge > 0 else 1.0
         rw = max(1, round(width * scale))
         rh = max(1, round(height * scale))
-        g = round(max(0, min(100, brightness)) / 100 * 128)  # blank canvas grey from the brightness slider
-        img = Image.new("RGBA", (rw, rh), (g, g, g, 255))
+        img = Image.new("RGBA", (rw, rh), (0, 0, 0, 255))
     overlay = Image.new("RGBA", (rw, rh), (0, 0, 0, 0))
     draw = ImageDraw.Draw(overlay)
     fs = max(10, round(rh / 64))
@@ -250,8 +247,6 @@ class Ideogram4PromptBuilder:
                                                   "tooltip": "Serialized style color palette from the editor (managed by the node UI)."}),
                 "elements_data": ("STRING", {"default": "",
                                              "tooltip": "Serialized regions from the editor (managed by the node UI)."}),
-                "bg_brightness": ("INT", {"default": 25, "min": 0, "max": 100,
-                                          "tooltip": "Background image brightness % (managed by the node UI slider)."}),
             },
         }
 
@@ -267,11 +262,7 @@ class Ideogram4PromptBuilder:
     def build_prompt(self, width, height, high_level_description="", background="", style="none",
                      photo="", art_style="", aesthetics="", lighting="", medium="",
                      image=None, import_json="", style_palette_data="", elements_data="",
-                     bg_brightness=25, **kwargs):
-        try:
-            bg_brightness = int(bg_brightness)
-        except (TypeError, ValueError):
-            bg_brightness = 0
+                     **kwargs):
         boxes = _parse_json_list(elements_data)
 
         # Dynamic region_N input pins (added by the node UI, one per region):
@@ -327,7 +318,7 @@ class Ideogram4PromptBuilder:
                 bg = Image.fromarray((image[0].detach().cpu().numpy() * 255).clip(0, 255).astype(np.uint8))
             except Exception:
                 bg = None
-        preview = _render_preview(boxes, width, height, bg, bg_brightness)
+        preview = _render_preview(boxes, width, height, bg)
 
         # Pixel-space bboxes ({x, y, width, height}) for SAM3 / BoundingBox consumers.
         bbox_dicts = []

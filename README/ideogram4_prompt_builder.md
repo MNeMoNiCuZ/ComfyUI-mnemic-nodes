@@ -34,7 +34,6 @@ The editor is a fully interactive canvas embedded in the node:
 | + Region button | Add a default staggered region (and its string input pin) |
 | Grab BG button | Use the last generated image as the canvas background |
 | Live checkbox | Feed the live sampling preview as the background while generating |
-| Brightness slider | Dim the background image or set the blank canvas grey level |
 | ~N tok | Rough token estimate; green = healthy, orange = nearing cap, red = at/over 2048 (model error) |
 | Copy button | Copy the assembled caption JSON to the clipboard |
 | Paste button | Import a caption JSON from the clipboard (or a paste prompt) into the editor |
@@ -83,11 +82,11 @@ Up to 16 colors for the style palette; up to 5 colors per region element.
 | `aesthetics` | STRING | Style descriptor. |
 | `lighting` | STRING | Style descriptor. |
 | `medium` | STRING | Style descriptor. |
-| `image` | IMAGE | Reference image shown as the dimmed canvas background and behind the preview. |
+| `image` | IMAGE | Reference image; the editor canvas and preview always render it fully dimmed to black (background brightness is fixed at minimum). |
 | `import_json` | STRING | A full caption JSON. When connected, loads into the editor on run. The output always reflects the editor, never the raw input. |
 | `region_N` | STRING | **Dynamic.** One pin per region drawn on the canvas. A connected, non-empty string overrides that region's description at run time. |
 
-The `style_palette_data`, `elements_data`, and `bg_brightness` inputs are managed internally by the node UI and are hidden from the widget list.
+The `style_palette_data` and `elements_data` inputs are managed internally by the node UI and are hidden from the widget list.
 
 ---
 
