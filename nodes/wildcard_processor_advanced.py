@@ -27,6 +27,7 @@ class WildcardProcessor:
         self.wildcard_cache = {}
         self.create_user_wildcard_paths_file()  # Ensure the user paths file exists
         self.wildcard_files = self._find_wildcard_files()
+        self.max_nested_passes = 10
         # Variables for the current processing run
         self.variables = {}
 
@@ -77,6 +78,22 @@ class WildcardProcessor:
         if self.console_log:
             indent = "  " * level
             print(f"{indent}{message}{Style.RESET_ALL}")
+
+
+    def _protect_resolved_text(self, text):
+        token = f"@@MNM_PROTECTED_{self._protect_counter}@@"
+        self._protect_counter += 1
+        self._protected_segments[token] = text
+        return token
+
+    def _restore_protected_text(self, text):
+        while True:
+            restored = text
+            for token, value in self._protected_segments.items():
+                restored = restored.replace(token, value)
+            if restored == text:
+                return restored
+            text = restored
 
     def create_user_wildcard_paths_file(self):
         """Creates an empty user wildcard paths file if it doesn't exist."""
@@ -223,7 +240,7 @@ class WildcardProcessor:
                 return match.group(0)
             chosen_option = self._process_text(random.choice(options))
             self.wildcard_log(f"{Style.DIM}Evaluated {match.group(0)} -> {Style.NORMAL}{Fore.MAGENTA}{chosen_option}", level=1)
-            return chosen_option
+            return self._protect_resolved_text(chosen_option)
 
         # If it is a glob pattern, perform a file search.
         self.wildcard_log(f"Detected glob pattern: {wildcard_name}", level=1)
@@ -269,7 +286,7 @@ class WildcardProcessor:
 
         chosen_option = self._process_text(random.choice(all_lines))
         self.wildcard_log(f"{Style.DIM}Evaluated glob {match.group(0)} -> {Style.NORMAL}{Fore.MAGENTA}{chosen_option}", level=1)
-        return chosen_option
+        return self._protect_resolved_text(chosen_option)
 
     def evaluate_curly_braces(self, match):
         """
@@ -346,17 +363,18 @@ class WildcardProcessor:
         
         # 5. Join and return using the provided separator.
         result = self.separator.join(selected_options)
+        resolved_result = self._process_text(result)
 
-        self.wildcard_log(f"{Style.DIM}Evaluated {{{match.group(1)}}} -> {Style.NORMAL}{Fore.CYAN}{result}", level=1)
-        return result
+        self.wildcard_log(f"{Style.DIM}Evaluated {{{match.group(1)}}} -> {Style.NORMAL}{Fore.CYAN}{resolved_result}", level=1)
+        return self._protect_resolved_text(resolved_result)
 
     def _process_text(self, text):
         """
         Iteratively processes a string, resolving wildcards from the inside out.
         This function handles both __file__ wildcards and {inline|wildcards}.
         """
-        # Loop until the string no longer changes, ensuring all nested wildcards are processed.
-        while True:
+        # Limit nested passes so inner resolutions cannot spin or bleed indefinitely.
+        for _ in range(self.max_nested_passes):
             original_text = text
             
             # First, substitute any defined variables.
@@ -372,7 +390,7 @@ class WildcardProcessor:
 
             if text == original_text:
                 break
-        return text
+        return self._restore_protected_text(text)
 
     def extract_and_process_tags(self, text, tag_delimiters_str):
         """
@@ -470,6 +488,8 @@ class WildcardProcessor:
         random.seed(seed)
         self.variables = {} # Reset variables for each run
         self.first_wildcard_processed = False # Reset for each run
+        self._protected_segments = {}
+        self._protect_counter = 0
 
         if recache:
             # Re-scan all wildcard directories and clear the cache.
@@ -503,7 +523,9 @@ class WildcardProcessor:
             # Use a new random seed for variable evaluation to not interfere with main seed
             var_seed = random.randint(0, 0xffffffffffffffff)
             # We pass console log as false to prevent recursive logging clutter.
+            outer_random_state = random.getstate()
             evaluated_value = temp_processor.process_wildcards(**{"wildcard_string": var_value_expr, "seed": var_seed, "console_log": False})[0]
+            random.setstate(outer_random_state)
             
             self.variables[var_name] = evaluated_value
             self.wildcard_log(f"Defined variable ${{{var_name}}} = {evaluated_value}")

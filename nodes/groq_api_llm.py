@@ -23,7 +23,6 @@ class GroqAPILLM:
         "deepseek-r1-distill-llama-70b",
         "qwen-qwq-32b",
         "gemma2-9b-it",
-        "meta-llama/llama-4-scout-17b-16e-instruct",
         "meta-llama/llama-4-maverick-17b-128e-instruct",
         "llama3-8b-8192",
         "llama3-70b-8192",
