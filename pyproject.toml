@@ -1,7 +1,7 @@
 [project]
 name = "comfyui-mnemic-nodes"
-description = "Fixed a bug in wildcard resolution nodes where incorrect wildcard usage would leak out to upper levels of wildcard nesting. Removed unsupported groq model"
-version = "2.2.2"
+description = "Added VAE output to the batch wildcard sampler."
+version = "2.2.3"
 license = { file = "LICENSE" }
 dependencies = ["configparser", "groq", "transformers", "torch", "tiktoken", "imageio", "tqdm", "piexif", "requests", "colorama", "opencv-python"]
 

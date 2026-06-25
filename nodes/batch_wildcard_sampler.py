@@ -63,11 +63,12 @@ class BatchWildcardSampler:
 
     CATEGORY = "⚡ MNeMiC Nodes"
     FUNCTION = "generate_batch"
-    RETURN_TYPES = ("MODEL", "CLIP", "CONDITIONING", "CONDITIONING", "LATENT", "STRING")
-    RETURN_NAMES = ("model", "clip", "positive", "negative", "latent", "prompt")
+    RETURN_TYPES = ("MODEL", "CLIP", "VAE", "CONDITIONING", "CONDITIONING", "LATENT", "STRING")
+    RETURN_NAMES = ("model", "clip", "vae", "positive", "negative", "latent", "prompt")
     OUTPUT_TOOLTIPS = (
         "The model after LoRA patches from the last batch item have been applied.",
         "The CLIP after LoRA patches from the last batch item have been applied.",
+        "The VAE input passed through for downstream use, including hi-res workflows.",
         "The positive conditioning encoded from the last batch item's prompt.",
         "The negative conditioning encoded from the last batch item's prompt.",
         "The combined batch of sampled latents (empty when sampling is skipped).",
@@ -264,7 +265,7 @@ class BatchWildcardSampler:
         print(f"\n{'='*60}")
         print(f"  BATCH WILDCARD SAMPLER — {batch_size} variant(s)")
         for i, r in enumerate(positive_prompts):
-            print(f"  [{i}] {r[:100]}{'...' if len(r) > 100 else ''}")
+            print(f"  [{i}] {r}")
         print(f"{'='*60}\n")
 
         # Publish the per-image prompts so Save Image With Metadata can pick them up.
@@ -282,7 +283,7 @@ class BatchWildcardSampler:
             else:
                 print("  [Batch Wildcard Sampler] No model/clip connected — returning resolved prompts only.\n")
             empty_latent = torch.zeros([batch_size, 4, height // 8, width // 8])
-            return (model, clip, None, None, {"samples": empty_latent}, positive_prompts)
+            return (model, clip, vae, None, None, {"samples": empty_latent}, positive_prompts)
 
         # --- Generate each image individually ---
         all_samples = []
@@ -421,7 +422,7 @@ class BatchWildcardSampler:
         print(f"\n  [Batch Wildcard Sampler] Batch complete — {batch_size} images generated.")
         print(f"{'='*60}\n")
 
-        return (final_model, final_clip, final_positive, final_negative,
+        return (final_model, final_clip, vae, final_positive, final_negative,
                 {"samples": combined}, positive_prompts)
 
     @staticmethod
@@ -526,7 +527,10 @@ class BatchWildcardSampler:
     def _latent_output_connected(extra_pnginfo, unique_id):
         """
         Inspect the workflow graph to determine whether this node's `latent`
-        output (slot 0) is connected to anything.
+        output is connected to anything.
+
+        The output slot is resolved from RETURN_NAMES so this keeps working if
+        outputs are reordered later.
 
         Returns True/False when it can be determined, or None when the graph
         info is unavailable (e.g. API runs) so the caller can fall back to its
@@ -535,6 +539,9 @@ class BatchWildcardSampler:
         try:
             if not extra_pnginfo or unique_id is None:
                 return None
+
+            # Resolve the current latent slot from the declared output order.
+            latent_slot = BatchWildcardSampler.RETURN_NAMES.index("latent")
 
             # EXTRA_PNGINFO is normally {"workflow": {...}}; tolerate a bare workflow too.
             workflow = extra_pnginfo.get("workflow") if isinstance(extra_pnginfo, dict) else None
@@ -549,7 +556,7 @@ class BatchWildcardSampler:
             for link in links:
                 # litegraph link: [link_id, origin_id, origin_slot, target_id, target_slot, type]
                 if isinstance(link, (list, tuple)) and len(link) >= 3:
-                    if str(link[1]) == node_id and link[2] == 4:
+                    if str(link[1]) == node_id and link[2] == latent_slot:
                         return True
             return False
         except Exception:
