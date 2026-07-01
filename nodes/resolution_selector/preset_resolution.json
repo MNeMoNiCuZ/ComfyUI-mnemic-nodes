@@ -69,6 +69,25 @@
 		{"name": "[Photo Portrait] 1056x1584 2:3", "width": 1056, "height": 1584},
 		{"name": "[Portrait] 928x1664 9:16", "width": 928, "height": 1664}
 	],
+	"Qwen-Image": [
+		{"name": "[Portrait] 672x1568 9:21", "width": 672, "height": 1568},
+		{"name": "[Portrait] 688x1504 9:20", "width": 688, "height": 1504},
+		{"name": "[Portrait] 720x1456 9:18", "width": 720, "height": 1456},
+		{"name": "[Portrait] 752x1392", "width": 752, "height": 1392},
+		{"name": "[Portrait] 800x1328 3:5", "width": 800, "height": 1328},
+		{"name": "[Portrait] 832x1248 2:3", "width": 832, "height": 1248},
+		{"name": "[Portrait] 880x1184 3:4", "width": 880, "height": 1184},
+		{"name": "[Portrait] 944x1104", "width": 944, "height": 1104},
+		{"name": "[Square] 1024x1024 1:1", "width": 1024, "height": 1024},
+		{"name": "[Landscape] 1104x944", "width": 1104, "height": 944},
+		{"name": "[Landscape] 1184x880 4:3", "width": 1184, "height": 880},
+		{"name": "[Landscape] 1248x832 3:2", "width": 1248, "height": 832},
+		{"name": "[Landscape] 1328x800 5:3", "width": 1328, "height": 800},
+		{"name": "[Landscape] 1392x752", "width": 1392, "height": 752},
+		{"name": "[Landscape] 1456x720 2:1", "width": 1456, "height": 720},
+		{"name": "[Landscape] 1504x688 21:9", "width": 1504, "height": 688},
+		{"name": "[Landscape] 1568x672 21:9", "width": 1568, "height": 672}
+	],
     "WAN Video": [
 		{"name": "[Portrait] 224x400 9:16", "width": 224, "height": 400},
 		{"name": "[Portrait] 448x800 9:16", "width": 448, "height": 800},
