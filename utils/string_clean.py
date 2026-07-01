@@ -16,7 +16,9 @@ def process_text(input_string,
                  strip_trailing_custom=None,
                  strip_all_custom=None,
                  find_list=None,
-                 replace_list=None):
+                 replace_list=None,
+                 remove_text_before=None,
+                 remove_text_after=None):
     """
     Cleans up the input string based on the provided options.
 
@@ -38,6 +40,8 @@ def process_text(input_string,
         strip_all_custom (list of str): List of custom strings to remove throughout the text.
         find_list (list of str): List of strings to find.
         replace_list (list of str): List of strings to replace with.
+        remove_text_before (list of str): Remove all text before these markers.
+        remove_text_after (list of str): Remove all text after these markers.
 
     Returns:
         str: The processed text.
@@ -53,6 +57,24 @@ def process_text(input_string,
         input_string = re.sub(r'\n+', '. ', input_string)
     elif strip_newlines:
         input_string = input_string.replace('\n', '')
+
+    # Remove text before markers
+    if remove_text_before:
+        for marker in remove_text_before:
+            if not marker:
+                continue
+            if marker in input_string:
+                # Keep everything AFTER the marker
+                input_string = input_string.partition(marker)[2]
+
+    # Remove text after markers
+    if remove_text_after:
+        for marker in remove_text_after:
+            if not marker:
+                continue
+            if marker in input_string:
+                # Keep everything BEFORE the marker
+                input_string = input_string.partition(marker)[0]
 
     # Strip inside tags
     if strip_inside_tags:

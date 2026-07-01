@@ -10,4 +10,4 @@ imageio
 opencv-python
 piexif
 tqdm
-
+wonderwords

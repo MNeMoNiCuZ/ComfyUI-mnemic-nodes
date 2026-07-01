@@ -8,3 +8,8 @@ nodes/wildcards/wildcards_paths_user.json
 node.tar.gz
 .env
 !.env.example
+wildcards/*
+!wildcards/sample_colors.txt
+todo.txt
+temp
+AGENTS.md

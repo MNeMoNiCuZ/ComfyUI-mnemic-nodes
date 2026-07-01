@@ -102,6 +102,20 @@ class StringCleaning:
                     "placeholder": "Remove Text Everywhere\nExample: the",
                     "default": ""
                 }),
+                "remove_text_before": ("STRING", {
+                    "multiline": True,
+                    "label": "Remove Text Before",
+                    "tooltip": "Enter markers to find. All text before (and including) these markers will be removed.\nExample: '<START>'\nInput: 'Header <START> Content'\nOutput: ' Content'",
+                    "placeholder": "Remove Text Before Marker\nExample: <START>",
+                    "default": ""
+                }),
+                "remove_text_after": ("STRING", {
+                    "multiline": True,
+                    "label": "Remove Text After",
+                    "tooltip": "Enter markers to find. All text after (and including) these markers will be removed.\nExample: '<END>'\nInput: 'Content <END> Footer'\nOutput: 'Content '",
+                    "placeholder": "Remove Text After Marker\nExample: <END>",
+                    "default": ""
+                }),
                 "multiline_find": ("STRING", {
                     "multiline": True,
                     "label": "Find Strings",
@@ -135,12 +149,16 @@ class StringCleaning:
                      strip_leading_custom="",
                      strip_trailing_custom="",
                      strip_all_custom="",
+                     remove_text_before="",
+                     remove_text_after="",
                      multiline_find="",
                      multiline_replace=""):
         # Parse multiline custom strings into lists without stripping spaces
         strip_leading_custom_list = [line for line in strip_leading_custom.split('\n') if line != '']
         strip_trailing_custom_list = [line for line in strip_trailing_custom.split('\n') if line != '']
         strip_all_custom_list = [line for line in strip_all_custom.split('\n') if line != '']
+        remove_text_before_list = [line.strip() for line in remove_text_before.split('\n') if line.strip()]
+        remove_text_after_list = [line.strip() for line in remove_text_after.split('\n') if line.strip()]
 
         # Parse strip_inside_tags and validate
         strip_inside_tags_list = [line for line in strip_inside_tags.split('\n') if line != '']
@@ -188,6 +206,8 @@ class StringCleaning:
             strip_leading_custom=strip_leading_custom_list,
             strip_trailing_custom=strip_trailing_custom_list,
             strip_all_custom=strip_all_custom_list,
+            remove_text_before=remove_text_before_list,
+            remove_text_after=remove_text_after_list,
             find_list=find_list,
             replace_list=replace_list
         )

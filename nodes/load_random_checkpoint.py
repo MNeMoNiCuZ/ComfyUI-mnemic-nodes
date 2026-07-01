@@ -94,7 +94,6 @@ class LoadRandomCheckpoint:
         return top_matches
 
     def load_checkpoint(self, checkpoints, seed, repeat_count, shuffle, limit_to_paths=""):
-        colorama.init()
         HEADER = "\n\n--- 🎲 Load Random Checkpoint 🎲 ---"
         FOOTER = "--- 🎲 End Load Random Checkpoint 🎲 ---\n\n"
 

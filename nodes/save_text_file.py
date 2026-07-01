@@ -4,6 +4,23 @@ from typing import List
 from ..utils.replace_tokens import replace_tokens
 from folder_paths import get_output_directory
 
+def sanitize_filename(string):
+    """
+    Sanitize a string to be safe for use as a filename on Windows/Linux.
+    Preserves Unicode characters while removing reserved characters and control codes.
+    """
+    # Define invalid characters: < > : " / \ | ? * and control characters
+    # We use a blacklist approach to preserve foreign characters (UTF-8)
+    invalid_chars = r'[<>:"/\\|?*\x00-\x1f]'
+    
+    # Remove invalid characters
+    sanitized = re.sub(invalid_chars, '', string)
+    
+    # Strip leading/trailing whitespaces and dots (Windows doesn't like trailing dots/spaces)
+    sanitized = sanitized.strip('. ')
+    
+    return sanitized
+
 class SaveTextFile:
     def __init__(self):
         pass
@@ -35,6 +52,28 @@ class SaveTextFile:
         prefix = replace_tokens(prefix)
         suffix = replace_tokens(suffix)
 
+        # Sanitize filename components
+        prefix = sanitize_filename(prefix)
+        suffix = sanitize_filename(suffix)
+
+        # Truncate to avoid MAX_PATH issues (Windows limit is 260 chars usually)
+        # User requested a limit of 250 chars max for the filename parts
+        # We assume some buffer for extension (e.g. .txt) and counter (e.g. _001)
+        # 250 - ~15 chars buffer = 235 chars available for prefix + suffix
+        max_filename_len = 235
+        
+        current_len = len(prefix) + len(suffix)
+        if current_len > max_filename_len:
+            # If combined length exceeds limit, truncate suffix first, then prefix
+            if len(prefix) < max_filename_len:
+                # Prefix fits, but combined doesn't; truncate suffix
+                remaining_space = max_filename_len - len(prefix)
+                suffix = suffix[:remaining_space]
+            else:
+                # Prefix itself is too long; truncate prefix and remove suffix
+                prefix = prefix[:max_filename_len]
+                suffix = ""
+
         # Safety check to ensure the extension is not empty
         if not output_extension.strip():
             raise ValueError("The output extension cannot be empty.")
@@ -59,8 +98,8 @@ class SaveTextFile:
             except OSError as e:
                 print(f"Error: The path `{full_path}` could not be created! Is there write access?\n{e}")
 
-        if file_text.strip() == '':
-            raise ValueError("There is no text specified to save! Text is empty.")
+        # if file_text.strip() == '':
+        #     raise ValueError("There is no text specified to save! Text is empty.")
 
         separator = counter_separator
         number_padding = int(counter_length)

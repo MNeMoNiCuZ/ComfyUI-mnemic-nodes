@@ -3,13 +3,11 @@ import json
 import random
 import numpy as np
 import torch
-from colorama import init, Fore, Style
+from colorama import Fore, Style
 from groq import Groq
 
 from ..utils.api_utils import make_api_request, load_prompt_options, get_prompt_content
 from ..utils.env_manager import ensure_env_file, get_api_key
-
-init()  # Initialize colorama
 
 class GroqAPILLM:
     DEFAULT_PROMPT = "Use [system_message] and [user_input]"
@@ -17,19 +15,21 @@ class GroqAPILLM:
     # Deprecation List - https://console.groq.com/docs/deprecations
 
     LLM_MODELS = [
-        "llama-3.1-8b-instant",
-        "llama-3.3-70b-versatile",
-        "moonshotai/kimi-k2-instruct-0905",
-        "openai/gpt-oss-120b",
         "openai/gpt-oss-20b",
+        "openai/gpt-oss-120b",
+        "moonshotai/kimi-k2-instruct-0905",
         "deepseek-r1-distill-llama-70b",
         "qwen-qwq-32b",
         "gemma2-9b-it",
-        "meta-llama/llama-4-scout-17b-16e-instruct",
         "meta-llama/llama-4-maverick-17b-128e-instruct",
         "llama3-8b-8192",
         "llama3-70b-8192",
         "llama-guard-3-8b",
+        "meta-llama/llama-guard-4-12b",
+        "meta-llama/llama-prompt-guard-2-22m",
+        "meta-llama/llama-prompt-guard-2-86m",
+        "openai/gpt-oss-safeguard-20b",
+        "qwen/qwen3-32b",
     ]
     
     def __init__(self):
