@@ -42,9 +42,10 @@ _LORA_TAG_RE = re.compile(r"<lora:[^>]+>", re.IGNORECASE)
 _WILDCARD_SYNTAX_HELP = (
     "File Wildcards:\nUse __filename__ to insert a random line from filename.txt in one of the supported wildcard directories. Lines starting with # are treated as comments and are ignored.\n\n"
     "Inline Choices:\nUse {a|b|c} to randomly choose between a, b, or c.\nExample Input: A photo of a {red|green|blue} car.\nExample Output: A photo of a green car.\n\n"
-    "Weighted Choices:\nUse {5::black|green|red} to make black 5 times more likely to be chosen than green or red.\n\n"
+    "Weighted Choices:\nUse {5::black|green|red} to make black 5 times more likely to be chosen than green or red. Weights are normalized to 100% based on the sum of all weights in the block (e.g. {5::red|4::green|7::blue|black} sums to 17, giving red ~29%, green ~24%, blue ~41%, black ~6%).\n\n"
     "Select Multiple Wildcards:\nUse {2$$a|b|c|d} to output a specific number of items from the result.\nExample Input: My favorite colors are {3$$red|green|blue|yellow|purple}.\nExample Output: My favorite colors are blue, yellow, purple.\n\n"
     "Ranged Select Multiple:\nUse {1-3$$red|green|blue|yellow|purple} to select a random number of 1-3 items within a range.\n\n"
+    "Custom Separator:\nUse {1-3$$, $$red|green|blue|yellow|purple} to join the selected items with a custom separator (here, \", \") instead of the default.\n\n"
     "Variables:\nDefine a variable to reuse a value. Can be defined directly, or using a wildcard\nExample Input: ${animal=!__animals__} The ${animal} is friends with the other ${animal}.\nExample Output: The cat is friends with the other cat.\n\n"
     "LoRAs:\nInclude <lora:name:strength> tags to load LoRAs automatically (no separate LoRA loader node needed).\nExample: <lora:mylora:0.75>\nThe best matching LoRA file is found by name. Strength is optional (defaults to 1.0); add a second value for a separate CLIP strength, e.g. <lora:mylora:0.8:0.6>. The tag stays in the resolved prompt for metadata and is removed before the text reaches CLIP."
 )

@@ -63,11 +63,14 @@ Makes one entry more likely to be chosen than others.
 ![image](https://github.com/user-attachments/assets/bbceea2a-3c23-4c3c-b19d-efc91bf705a1)
 
 -   **Syntax**: `{weight::option1|option2}`
--   **Description**: Changes the chance that an option gets randomly selected. `weight` is an integer number (e.g., `5`). Default weight is 1.
+-   **Description**: Changes the chance that an option gets randomly selected. `weight` is a number (e.g., `5`, decimals like `1.5` are also supported). Options without an explicit weight default to a weight of `1`. Each option's selection probability is its own weight divided by the sum of all weights in that `{}` block, i.e. probabilities are normalized to 100% across all options.
 -   **Example**: `A {4::red|2::green|blue} car.` -> `A red car.`
+    -   Weights: red=4, green=2, blue=1 (default). Sum = 7.
+    -   Chances: red = 4/7 (~57%), green = 2/7 (~29%), blue = 1/7 (~14%).
     -   Red is chosen randomly 4 times more often than Blue
     -   Green is twice as likely to be chosen as Blue
     -   Red is twice as likely to be chosen as Green
+-   **Example**: `{5::red|4::green|7::blue|black}` -> weights: red=5, green=4, blue=7, black=1 (default). Sum = 17, so chances are red ≈ 29.4%, green ≈ 23.5%, blue ≈ 41.2%, black ≈ 5.9%.
 
 ---
 
@@ -79,7 +82,7 @@ Returns X number of wildcard results based the input number. The input can also 
 
 
 -   **Syntax**: `{N$$...}` for a fixed number, `{N-M$$...}` for a random range.
--   **Description**: Selects multiple items from a list. In **Wildcard Processor Advanced**, selected values are joined by `multiple_separator`. In the lightweight **Wildcard Processor**, the separator is always a single space.
+-   **Description**: Selects multiple items from a list. In **Wildcard Processor Advanced**, selected values are joined by `multiple_separator`. In the lightweight **Wildcard Processor**, the separator is always a single space, unless overridden with a custom separator (see below).
 -   **Example (Fixed)**:
     -   **Prompt**: `{2$$red|green|blue|purple}`
     -   **Output**: `red, green`
@@ -87,6 +90,21 @@ Returns X number of wildcard results based the input number. The input can also 
     -   **Prompt**: `A {1-3$$red|green|blue|purple|white|gold} outfit`
     -   **Output**: `blue, white, purple` (Randomly got 1-4 outputs, we got 3 in this case. If the number of items to select is larger than the number of options, it will loop.)
 -   There is an option for the separator in the node. This is inserted between each selected entry.
+
+#### Custom Separator (`N$$sep$$...`)
+
+You can override the separator inline, per-expression, by placing it between a second pair of `$$`. This takes priority over the node's `multiple_separator` option (Advanced) or the default single-space separator (lightweight).
+
+-   **Syntax**: `{N$$sep$$...}` or `{N-M$$sep$$...}`, where `sep` is any text (including empty).
+-   **Example (space)**:
+    -   **Prompt**: `{1-3$$ $$red|blue|green|yellow|white}`
+    -   **Output**: `red blue green`
+-   **Example (comma-space)**:
+    -   **Prompt**: `{1-3$$, $$red|blue|green|yellow|white}`
+    -   **Output**: `red, blue, green`
+-   **Example (dash)**:
+    -   **Prompt**: `{1-3$$ - $$red|blue|green|yellow|white}`
+    -   **Output**: `red - blue - green`
 
 ---
 
@@ -171,7 +189,7 @@ Advanced functionality that lets you extract encapsulated results from the final
 - **File-based Wildcards**: Use `__filename__` to insert a random line from any `.txt` file in your `wildcards` folder. Lines starting with `#` are ignored.
 - **Glob Wildcards**: Use patterns like `__animals/*__` to randomly select a line from any file within the `animals` subdirectory.
 - **Inline Wildcards**: Use `{option1|option2|option3}` for simple, on-the-fly choices.
-- **Weighted Choices**: Give certain options a higher chance of being picked with `{2::option1|option2}`.
+- **Weighted Choices**: Give certain options a higher chance of being picked with `{2::option1|option2}`. Probabilities are normalized to 100% based on the sum of all weights in the block (unweighted options default to a weight of `1`).
 - **Multiple Selections**:
     - **Fixed**: Choose a specific number of items: `{3$$item1|item2|item3|item4}`. If the count is larger than the number of items, it will loop.
     - **Ranged**: Choose a random number of items within a range: `{1-3$$item1|item2|item3|item4}`.
@@ -233,11 +251,13 @@ For simple choices, you can define them directly in the prompt.
 
 ### Weighted Choices (`N::...`)
 
-To make an option more likely, prefix it with a number and `::`. The number represents its "weight". An option without a weight has a default weight of 1.
+To make an option more likely, prefix it with a number and `::`. The number represents its "weight". An option without a weight has a default weight of 1. Each option's selection probability is normalized to 100% based on the sum of all weights within the same `{}` block, so the probabilities are distributed evenly relative to the weights.
 
 -   **Example Input**: `A {5::majestic|tiny} {10::panda|ant|crawler}.`
--   **Explanation**: `majestic` is 5 times more likely to be chosen than `tiny`, and `panda` is 10 times more likely than `ant` or `crawler`.
+-   **Explanation**: `majestic` is 5 times more likely to be chosen than `tiny` (weights 5 and 1, sum 6, so 5/6 vs 1/6), and `panda` is 10 times more likely than `ant` or `crawler` (weights 10, 1, 1, sum 12, so 10/12, 1/12, 1/12).
 -   **Possible Output**: `A majestic panda.` (most of the time)
+-   **Example Input**: `{5::red|4::green|7::blue|black}`
+-   **Explanation**: Weights are red=5, green=4, blue=7, black=1 (default). Sum = 17. Resulting chances: red ≈ 29.4%, green ≈ 23.5%, blue ≈ 41.2%, black ≈ 5.9%.
 
 ### Fixed Multiple Selections (`N$$...`)
 

@@ -42,9 +42,10 @@ class WildcardProcessor:
                         "The text prompt to process. Supports multiple features:\n\n"
                         "File Wildcards:\nUse __filename__ to insert a random line from filename.txt in one of the supported wildcard directories. Lines starting with # are treated as comments and are ignored.\n\n"
                         "Inline Choices:\nUse {a|b|c} to randomly choose between a, b, or c.\nExample Input: A photo of a {red|green|blue} car.\nExample Output: A photo of a green car.\n\n"
-                        "Weighted Choices:\nUse {5::black|green|red} to make black 5 times more likely to be chosen than green or red.\n\n"
+                        "Weighted Choices:\nUse {5::black|green|red} to make black 5 times more likely to be chosen than green or red. Weights are normalized to 100% based on the sum of all weights in the block (e.g. {5::red|4::green|7::blue|black} sums to 17, giving red ~29%, green ~24%, blue ~41%, black ~6%).\n\n"
                         "Select Multiple Wildcards:\nUse {2$$a|b|c|d} to output a specific number of items from the result.\nExample Input: My favorite colors are {3$$red|green|blue|yellow|purple}.\nExample Output: My favorite colors are blue, yellow, purple.\n\n"
                         "Ranged Select Multiple:\nUse {1-3$$red|green|blue|yellow|purple} to select a random number of 1-3 items within a range.\n\n"
+                        "Custom Separator:\nUse {1-3$$, $$red|green|blue|yellow|purple} to join the selected items with a custom separator (here, \", \") instead of the default.\n\n"
                         "Variables:\nDefine a variable to reuse a value. Can be defined directly, or using a wildcard\nExample Input: ${animal=!__animals__} The ${animal} is friends with the other ${animal}.\nExample Output: The cat is friends with the other cat."
                     ),
                     "placeholder": "A photo of a __sample_colors__ {dog|cat|monkey}."
@@ -310,7 +311,14 @@ class WildcardProcessor:
 
         if is_range:
             count = random.randint(min_count, max_count)
-        
+
+        # 2b. Parse optional custom separator (e.g., {1-3$$, $$a|b|c})
+        separator = self.separator
+        if count_match:
+            separator_match = re.match(r'(.*?)\$\$(.*)', expression, re.DOTALL)
+            if separator_match:
+                separator, expression = separator_match.group(1), separator_match.group(2)
+
         # 3. Split into options and parse weights (e.g., {2::a|b})
         options_str = expression.split('|')
         choices = []
@@ -356,7 +364,7 @@ class WildcardProcessor:
                 remaining_count -= num_to_pick
         
         # 5. Join and return using the provided separator.
-        result = self.separator.join(selected_options)
+        result = separator.join(selected_options)
         resolved_result = self._process_text(result)
 
         self.wildcard_log(f"{Style.DIM}Evaluated {{{match.group(1)}}} -> {Style.NORMAL}{Fore.CYAN}{resolved_result}", level=1)

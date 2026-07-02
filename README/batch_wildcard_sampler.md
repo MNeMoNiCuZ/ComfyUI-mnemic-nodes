@@ -53,7 +53,7 @@ Wildcard resolution is handled by the exact same engine as the [Wildcard Process
 - **Glob Wildcards** — `__*color*__` (pool lines from all matching files) or `__folder/*__` (pick a random file in a folder).
 - **Inline Choices** — `{red|green|blue}` chooses one option.
 - **Weighted Choices** — `{5::black|green|red}` makes `black` 5× as likely.
-- **Multiple Selections** — `{2$$a|b|c|d}` (fixed count) and `{1-3$$a|b|c|d}` (ranged count).
+- **Multiple Selections** — `{2$$a|b|c|d}` (fixed count) and `{1-3$$a|b|c|d}` (ranged count), with an optional inline custom separator: `{1-3$$, $$a|b|c|d}`.
 - **Variables** — `${animal=!__animals__} ... ${animal}` to reuse a resolved value.
 - **Nesting** — all of the above can be combined.
 
