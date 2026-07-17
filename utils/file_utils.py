@@ -2,50 +2,89 @@ from pathlib import Path
 import os
 import re
 
+# Caps how many candidate files get printed when logging a wildcard search.
+# Wildcard folders can hold hundreds of matches (especially with fuzzy word
+# matching), so the console log only shows the most relevant ones.
+MAX_LOGGED_CANDIDATES = 15
+
 def score_filename_match(name, filename, base_path=None):
     """Score how well a filename matches the requested name."""
     p_filename = Path(filename)
     base_name = p_filename.name
     base_name_no_ext = p_filename.stem
-    name_no_ext = Path(name).stem
-    
-    # Calculate path depth score relative to the base_path if provided
-    path_depth = 0
+    p_name = Path(name)
+    name_no_ext = p_name.stem
+
+    # Calculate path depth, and the file's directory parts relative to the
+    # wildcard folder if provided (used both for the depth penalty and for
+    # comparing against any directory components in the search term).
     if base_path:
         try:
-            # Calculate depth relative to the wildcard folder
-            path_depth = len(p_filename.relative_to(base_path).parts)
+            rel_parts = p_filename.relative_to(base_path).parts
         except ValueError:
-            # This can happen if the file is not in the base_path, fallback to absolute depth
-            path_depth = len(p_filename.parts) - 1
+            # This can happen if the file is not in the base_path, fallback to absolute parts
+            rel_parts = p_filename.parts
     else:
-        path_depth = len(p_filename.parts) - 1
-        
-    path_penalty = path_depth * 0.0001
-    
+        rel_parts = p_filename.parts
+
+    path_depth = len(rel_parts)
+    file_dir_parts = tuple(part.lower() for part in rel_parts[:-1])
+    name_dir_parts = tuple(part.lower() for part in p_name.parts[:-1])
+
+    # Explicit, whole-number path priority tiers. A score is a percentage of
+    # a perfect match, so a match can only ever be penalized down from its
+    # base tier value (e.g. 100 for an exact name match) — never boosted
+    # above it. Penalties are kept well under the smallest gap between match
+    # types (5 points), so this only orders candidates within one match
+    # type — it never lets a weaker match type outrank a stronger one.
+    #
+    # Search has NO subfolder in it (e.g. "hair_color"):
+    #   root-level file (depth 1)       -> no penalty  (best)
+    #   1 subfolder deep                -> -1
+    #   2 subfolders deep               -> -2
+    #   ... capped at -3
+    #
+    # Search HAS subfolder(s) in it (e.g. "POS/head"):
+    #   file sits in that exact subfolder   -> no penalty (best, still 100%)
+    #   file sits at the root, no subfolder -> -2
+    #   file sits in a different subfolder  -> -4 (worst)
+    if name_dir_parts:
+        if len(file_dir_parts) >= len(name_dir_parts) and file_dir_parts[-len(name_dir_parts):] == name_dir_parts:
+            path_penalty = 0.0
+            path_bonus_note = ", exact subfolder match"
+        elif not file_dir_parts:
+            path_penalty = 2.0
+            path_bonus_note = ", root-level file"
+        else:
+            path_penalty = 4.0
+            path_bonus_note = ", wrong subfolder"
+    else:
+        path_penalty = min(max(path_depth - 1, 0) * 1.0, 3.0)
+        path_bonus_note = ""
+
     # If searching for a numbered variant, also match the base name
     base_search_name = re.sub(r'\d+$', '', name_no_ext).rstrip('-')
-    
-    # Perfect path match (highest priority)
+
+    # Perfect path match (highest priority) — still capped at 100, a perfect match is 100%
     if filename == name:
-        return (200, "perfect path match")
+        return (100, "perfect path match")
 
     # Exact match gets high priority
     if base_name_no_ext == name_no_ext:
-        return (100 - path_penalty, f"exact match (depth: {path_depth})")
-    
+        return (100 - path_penalty, f"exact match (depth: {path_depth}{path_bonus_note})")
+
     # Base version match when searching for numbered variant
     if base_name_no_ext == base_search_name:
-        return (90 - path_penalty, f"base version match (depth: {path_depth})")
-    
+        return (90 - path_penalty, f"base version match (depth: {path_depth}{path_bonus_note})")
+
     # Check if it's a numbered variant of the exact name
     if base_name.startswith(name + "-"):
         try:
             num = int(re.findall(r'-(\d+)', base_name)[0])
-            return (80 + (num * 0.001) - path_penalty, f"numbered variant ({num}, depth: {path_depth})")
+            return (80 + (num * 0.001) - path_penalty, f"numbered variant ({num}, depth: {path_depth}{path_bonus_note})")
         except (IndexError, ValueError):
             pass
-    
+
     # Check if we're looking for a specific number
     number_search = re.search(r'(\d+)$', name)
     if number_search:
@@ -56,18 +95,37 @@ def score_filename_match(name, filename, base_path=None):
                 file_number = int(re.findall(r'-(\d+)', base_name)[0])
                 number_diff = abs(target_number - file_number)
                 if number_diff == 0:
-                    return (95 - path_penalty, f"exact number match ({target_number}, depth: {path_depth})")
-                return (85 - (number_diff * 0.1) - path_penalty, f"number near match ({file_number}, depth: {path_depth})")
+                    return (95 - path_penalty, f"exact number match ({target_number}, depth: {path_depth}{path_bonus_note})")
+                return (85 - (number_diff * 0.1) - path_penalty, f"number near match ({file_number}, depth: {path_depth}{path_bonus_note})")
             except (IndexError, ValueError):
                 pass
-    
+
+    # Fuzzy word match: treat underscore/hyphen/space as interchangeable word
+    # delimiters, so "color_hair", "color-hair" and "color hair" all match
+    # "hair_color" regardless of word order. Only kicks in for multi-word
+    # names — a single word with no delimiters falls through to the
+    # prefix/contains checks below as before.
+    word_split = re.compile(r'[\s_-]+')
+    name_words = [w for w in word_split.split(name_no_ext.lower()) if w]
+    file_words = [w for w in word_split.split(base_name_no_ext.lower()) if w]
+    if len(name_words) > 1:
+        if sorted(name_words) == sorted(file_words):
+            return (70 - path_penalty, f"fuzzy match, reordered words (depth: {path_depth}{path_bonus_note})")
+
     # Simple startswith match
     if base_name_no_ext.startswith(name):
-        return (50 - path_penalty, f"prefix match (depth: {path_depth})")
-        
+        return (50 - path_penalty, f"prefix match (depth: {path_depth}{path_bonus_note})")
+
     # Contains match (lower priority)
     if name in base_name_no_ext:
-        return (40 - path_penalty, f"contains match (depth: {path_depth})")
+        return (40 - path_penalty, f"contains match (depth: {path_depth}{path_bonus_note})")
+
+    # Fuzzy word match (lower priority): some, but not all, words shared
+    if len(name_words) > 1 and file_words:
+        shared = set(name_words) & set(file_words)
+        if shared:
+            overlap = len(shared) / len(set(name_words))
+            return (30 * overlap - path_penalty, f"fuzzy match, {len(shared)}/{len(set(name_words))} words matched (depth: {path_depth}{path_bonus_note})")
 
     return (0, "no match")
 
@@ -104,16 +162,18 @@ def find_best_match(search_term, file_list, log=False, wildcard_paths=None):
     matches.sort(key=lambda x: x[0], reverse=True)
     
     if log and matches:
-        print("\nCandidate files (sorted by relevance):")
-        for score, file, reason, base_path in matches:
+        print(f"\nCandidate files (sorted by relevance, showing top {min(len(matches), MAX_LOGGED_CANDIDATES)} of {len(matches)}):")
+        for score, file, reason, base_path in matches[:MAX_LOGGED_CANDIDATES]:
             base_name = Path(file).name
             try:
                 display_name = str(Path(file).relative_to(base_path)) if base_path else base_name
             except (ValueError, TypeError):
                 display_name = base_name
-            
+
             print(f"  {display_name:<60} : {score:>5.1f} ({reason})")
-        
+        if len(matches) > MAX_LOGGED_CANDIDATES:
+            print(f"  ... and {len(matches) - MAX_LOGGED_CANDIDATES} more not shown")
+
         _score, selected_path_str, _reason, selected_base_path = matches[0]
         selected_path = Path(selected_path_str)
         try:

@@ -14,7 +14,14 @@ This node adds powerful dynamic capabilities to your prompts. Wildcards are gene
 ## Feature Summary
 
 ### Smart Wildcard Matching
-Smart wildcard matching:\nThe node will try to find the best match for a wildcard, even if the name is not an exact match. It will search for files in the wildcards directories and use the best match based on a scoring system. Exact matches have priority, and more root level files have priority after that.
+The node will try to find the best match for a wildcard, even if the name is not an exact match. It searches for files across all wildcards directories and scores every candidate:
+
+- **Exact filename matches** always rank highest.
+- If your wildcard name includes a subfolder (e.g. `__characters/head__`), a file in that exact subfolder ranks above a same-named file at the root, which in turn ranks above a same-named file in a different subfolder.
+- If your wildcard name has no subfolder (e.g. `__head__`), files closer to the root of a wildcards directory rank above same-named files buried deeper in subfolders.
+- **Fuzzy word matching**: `_`, `-`, and spaces are treated as interchangeable word separators, and word order doesn't matter. `__color_hair__`, `__color-hair__`, and `__color hair__` will all find `hair_color.txt`. This is a fallback used only when there's no exact/prefix/contains match, so literal matches always win over fuzzy ones.
+
+This same matching system is also used by other nodes that resolve a name to a file, such as the **Lora Tag Loader**, **Load Random Checkpoint**, and the checkpoint/CLIP/VAE/sampler/scheduler/LoRA lookups in **Prompt Property Extractor**.
 
 ### Multiple Wildcard Paths
 Wildcards can be placed in different directories. It's recommended to only use one, but they can all be combined.
@@ -226,7 +233,7 @@ This feature lets you manage large lists of options in separate text files. The 
 -   **User-Defined Paths**: Any folder paths you add to the `ComfyUI/custom_nodes/ComfyUI-mnemic-nodes/nodes/wildcards/wildcards_paths_user.json` file. This allows you to organize your wildcards anywhere you like.
 -   **Node's Own Wildcard Folder**: `ComfyUI/custom_nodes/ComfyUI-mnemic-nodes/wildcards/`
 
-The node scans all these locations recursively (including subfolders). When you use a wildcard like `__animals__`, it uses a smart matching system to find the best file. It prioritizes exact matches (`animals.txt`) and files closer to the root of each wildcard directory.
+The node scans all these locations recursively (including subfolders). When you use a wildcard like `__animals__`, it uses a smart matching system to find the best file: exact filename matches first, then files closer to the root of a wildcard directory over ones buried in subfolders (unless you specified a subfolder yourself, in which case a file in that exact subfolder wins). If nothing matches literally, it falls back to fuzzy word matching, where `_`, `-`, and spaces are interchangeable and word order doesn't matter (e.g. `__color hair__` still finds `hair_color.txt`).
 
 -   **Example**: If you have `wildcards/animals.txt`, you can use `__animals__` in your prompt.
 -   **Input**: `A cute little __animals__.`

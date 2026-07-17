@@ -388,7 +388,7 @@ class WildcardProcessor:
             
             # Process file-based wildcards
             # Process file-based wildcards (including glob patterns)
-            text = re.sub(r'__([a-zA-Z0-9_./\\*?\[\]-]+?)__', self._evaluate_file_wildcard, text)
+            text = re.sub(r'__([a-zA-Z0-9_./\\*?\[\] -]+?)__', self._evaluate_file_wildcard, text)
 
             if text == original_text:
                 break

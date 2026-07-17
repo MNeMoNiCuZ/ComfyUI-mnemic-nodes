@@ -240,7 +240,7 @@ class WildcardManager:
                 text = text.replace(f"${{{var_name}}}", var_value)
 
             text = re.sub(r'{([^{}]*?)}', self.evaluate_curly_braces, text)
-            text = re.sub(r'__([a-zA-Z0-9_./\\*?\[\]-]+?)__', self._evaluate_file_wildcard, text)
+            text = re.sub(r'__([a-zA-Z0-9_./\\*?\[\] -]+?)__', self._evaluate_file_wildcard, text)
 
             if text == original_text:
                 break
