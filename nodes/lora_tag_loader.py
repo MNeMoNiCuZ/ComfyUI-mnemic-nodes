@@ -129,7 +129,7 @@ class LoraTagLoader:
                     # wClip is already set to wModel, so no change needed here, just the warning.
 
             # Use our new matching system
-            lora_name = find_best_match(name, lora_files, log=True)
+            lora_name = find_best_match(name, lora_files, log=console_log)
             
             if lora_name is None:
                 if console_log:

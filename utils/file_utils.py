@@ -2,12 +2,14 @@ from pathlib import Path
 import os
 import re
 
+from .settings_utils import is_fuzzy_search_enabled
+
 # Caps how many candidate files get printed when logging a wildcard search.
 # Wildcard folders can hold hundreds of matches (especially with fuzzy word
 # matching), so the console log only shows the most relevant ones.
 MAX_LOGGED_CANDIDATES = 15
 
-def score_filename_match(name, filename, base_path=None):
+def score_filename_match(name, filename, base_path=None, fuzzy_search=False):
     """Score how well a filename matches the requested name."""
     p_filename = Path(filename)
     base_name = p_filename.name
@@ -108,7 +110,7 @@ def score_filename_match(name, filename, base_path=None):
     word_split = re.compile(r'[\s_-]+')
     name_words = [w for w in word_split.split(name_no_ext.lower()) if w]
     file_words = [w for w in word_split.split(base_name_no_ext.lower()) if w]
-    if len(name_words) > 1:
+    if fuzzy_search and len(name_words) > 1:
         if sorted(name_words) == sorted(file_words):
             return (70 - path_penalty, f"fuzzy match, reordered words (depth: {path_depth}{path_bonus_note})")
 
@@ -121,7 +123,7 @@ def score_filename_match(name, filename, base_path=None):
         return (40 - path_penalty, f"contains match (depth: {path_depth}{path_bonus_note})")
 
     # Fuzzy word match (lower priority): some, but not all, words shared
-    if len(name_words) > 1 and file_words:
+    if fuzzy_search and len(name_words) > 1 and file_words:
         shared = set(name_words) & set(file_words)
         if shared:
             overlap = len(shared) / len(set(name_words))
@@ -136,7 +138,8 @@ def find_best_match(search_term, file_list, log=False, wildcard_paths=None):
         print(f"\nFinding matches for '{search_term}':")
 
     seen_filenames = {}
-    
+    fuzzy_search = is_fuzzy_search_enabled()
+
     # Convert wildcard_paths to Path objects for comparison
     path_wildcard_paths = [Path(p) for p in wildcard_paths] if wildcard_paths else []
 
@@ -150,7 +153,7 @@ def find_best_match(search_term, file_list, log=False, wildcard_paths=None):
                 # Get the longest path, which is the most specific base path.
                 base_path = max(possible_bases, key=lambda p: len(p.as_posix()))
 
-        score, reason = score_filename_match(search_term, file_path, base_path=base_path)
+        score, reason = score_filename_match(search_term, file_path, base_path=base_path, fuzzy_search=fuzzy_search)
         if score > 0:
             base_name = Path(file_path).name
             if base_name in seen_filenames:

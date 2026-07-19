@@ -1,7 +1,7 @@
 [project]
 name = "comfyui-mnemic-nodes"
-description = "Updated wildcard matching rankings"
-version = "2.2.8"
+description = "Added fuzzy search to global settings, fixed a bug where LoRA loader wasn't respecting console logging settings on the node"
+version = "2.2.9"
 license = { file = "LICENSE" }
 dependencies = ["configparser", "groq", "transformers", "torch", "tiktoken", "imageio", "tqdm", "piexif", "requests", "colorama", "opencv-python"]
 
