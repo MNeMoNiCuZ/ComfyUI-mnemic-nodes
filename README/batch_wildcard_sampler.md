@@ -135,7 +135,8 @@ These inputs are hidden behind the node's **Advanced** toggle and are collapsed 
 **Utilities:**
 
 - `recache_wildcards` — Force a reload of all wildcard files from disk. Useful after adding or editing wildcard files. Can be turned off again after running once.
-- `console_log` — Print detailed wildcard processing steps to the console.
+
+Console logging is no longer a node input. This node resolves wildcards and LoRAs using the same engine as the Wildcard Processor and LoRA Loader Prompt Tags nodes, so enable it in ComfyUI's settings under **⚡MNeMiC Nodes → Wildcard Processing → Console Logging** and **⚡MNeMiC Nodes → LoRA Loading → Console Logging** to see detailed processing steps in your console.
 
 ---
 

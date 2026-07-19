@@ -11,6 +11,7 @@ from PIL import Image
 
 from ..utils.api_utils import load_prompt_options, get_prompt_content
 from ..utils.env_manager import ensure_env_file, get_api_key
+from ..utils.settings_utils import is_groq_completion_console_log_enabled, get_groq_completion_request_timeout
 
 class GroqAPICompletion:
     DEFAULT_PROMPT = "Use [system_message] and [user_input]"
@@ -130,17 +131,22 @@ class GroqAPICompletion:
         if stop:  # Only add stop if it's not empty
             data['stop'] = stop
         
-        print(f"Sending request to {url} with data: {json.dumps(data, indent=4)} and headers: {headers}")
-        
+        console_log = is_groq_completion_console_log_enabled()
+        if console_log:
+            print(f"Sending request to {url} with data: {json.dumps(data, indent=4)} and headers: {{'Authorization': 'Bearer ***'}}")
+
+        request_timeout = get_groq_completion_request_timeout()
         for attempt in range(max_retries):
-            response = requests.post(url, headers=headers, json=data)
-            print(f"Response status: {response.status_code}, Response body: {response.text}")
+            response = requests.post(url, headers=headers, json=data, timeout=request_timeout)
+            if console_log:
+                print(f"Response status: {response.status_code}, Response body: {response.text}")
             if response.status_code == 200:
                 try:
                     response_json = json.loads(response.text)
                     if 'choices' in response_json and response_json['choices']:
                         assistant_message = response_json['choices'][0]['message']['content']
-                        print(f"Extracted message: {assistant_message}")
+                        if console_log:
+                            print(f"Extracted message: {assistant_message}")
                         return assistant_message, True, "200 OK"
                     else:
                         return "No valid response content found.", False, "200 OK but no content"

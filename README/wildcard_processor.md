@@ -19,7 +19,7 @@ The node will try to find the best match for a wildcard, even if the name is not
 - **Exact filename matches** always rank highest.
 - If your wildcard name includes a subfolder (e.g. `__characters/head__`), a file in that exact subfolder ranks above a same-named file at the root, which in turn ranks above a same-named file in a different subfolder.
 - If your wildcard name has no subfolder (e.g. `__head__`), files closer to the root of a wildcards directory rank above same-named files buried deeper in subfolders.
-- **Fuzzy word matching**: `_`, `-`, and spaces are treated as interchangeable word separators, and word order doesn't matter. `__color_hair__`, `__color-hair__`, and `__color hair__` will all find `hair_color.txt`. This is a fallback used only when there's no exact/prefix/contains match, so literal matches always win over fuzzy ones.
+- **Fuzzy word matching**: `_`, `-`, and spaces are treated as interchangeable word separators, and word order doesn't matter. `__color_hair__`, `__color-hair__`, and `__color hair__` will all find `hair_color.txt`. This is a fallback used only when there's no exact/prefix/contains match, so literal matches always win over fuzzy ones. Disabled by default — enable it in ComfyUI's settings under **⚡MNeMiC Nodes → Wildcard Processing → Fuzzy Search**.
 
 This same matching system is also used by other nodes that resolve a name to a file, such as the **Lora Tag Loader**, **Load Random Checkpoint**, and the checkpoint/CLIP/VAE/sampler/scheduler/LoRA lookups in **Prompt Property Extractor**.
 
@@ -205,7 +205,7 @@ Advanced functionality that lets you extract encapsulated results from the final
 - **Nesting**: Combine any of the above features, like `A {__colors__} {car|truck} with a {__animal__|__colors__} decal.`
 - **Comments & Whitespace**: Add comments (`#`) and line breaks inside `{}` blocks to keep your prompts readable.
 - **Intelligent File Matching**: When looking for `__wildcard__` files, the processor uses a smart matching system to find the best possible file, prioritizing exact matches and handling subdirectories gracefully.
-- **Console Logging**: A toggleable option to print detailed processing steps to the console for easy debugging and verification. (Note: This is currently disabled from the UI but can be re-enabled in the code.)
+- **Console Logging**: Detailed processing steps can be printed to the console for debugging and verification. This is no longer a per-node input — enable it globally in ComfyUI's settings under **⚡MNeMiC Nodes → Wildcard Processing → Console Logging** (also used by Wildcard Processor Advanced and Batch Wildcard Sampler). The **Max Logged Candidates** setting in the same category controls how many candidate files are listed per match.
 - **Tag Extraction**: A powerful feature to pull specific parts out of your prompt for separate use, while removing them from the main text. (Note: This is currently disabled from the UI but can be re-enabled in the code.)
 
 ## How to Use
@@ -215,7 +215,7 @@ Advanced functionality that lets you extract encapsulated results from the final
     -   `wildcard_string`: This is where you write your prompt using the wildcard syntax.
     -   `seed`: Controls the randomization. Use the `control_after_generate` widget to set it to `fixed`, `randomize`, etc.
     -   `recache_wildcards`: Enable this to force a reload of all wildcard files from disk.
-    -   `consolewildcard_log`: (Default: False) Check this to see detailed output in your console.
+    -   Console logging is no longer a node input — enable it in ComfyUI's settings under **⚡MNeMiC Nodes → Wildcard Processing → Console Logging** to see detailed output in your console.
 3.  **Connect Outputs**:
     -   `processed_text`: The final, cleaned text to be used as your prompt.
 

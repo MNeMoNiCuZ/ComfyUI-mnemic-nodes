@@ -51,7 +51,6 @@ def _get_wildcard_processor() -> WildcardProcessor:
     with _WILDCARD_PROCESSOR_LOCK:
         if _WILDCARD_PROCESSOR is None:
             _WILDCARD_PROCESSOR = WildcardProcessor()
-            _WILDCARD_PROCESSOR.console_log = False
     return _WILDCARD_PROCESSOR
 
 
@@ -233,7 +232,6 @@ def _resolve_link_text(link, prompt: dict, depth=0, visited=None) -> str:
                 wildcard_string=wildcard_string,
                 seed=seed,
                 recache_wildcards=recache,
-                console_log=False,
                 tag_extraction_tags="",
             )[0]
         except Exception:

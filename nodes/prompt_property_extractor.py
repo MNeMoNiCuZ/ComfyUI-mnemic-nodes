@@ -6,6 +6,7 @@ import comfy.utils
 import comfy.model_management
 import os
 from ..utils.file_utils import find_best_match
+from ..utils.settings_utils import is_prompt_property_extractor_console_log_enabled, is_lora_fuzzy_search_enabled
 from .wildcard_processor import WildcardProcessor
 from comfy.samplers import SCHEDULER_NAMES  # Official global scheduler list – the correct one
 
@@ -77,22 +78,24 @@ class PromptPropertyExtractor:
         pass
 
     def parse_settings(self, input_string, load_clip_from_checkpoint, load_vae_from_checkpoint, cfg, steps, sampler_name, denoise, width, height, seed, start_step, end_step, model=None, clip=None, vae=None):
+        console_log = is_prompt_property_extractor_console_log_enabled()
+
         # Initialize with default values
         out_model, out_clip, out_vae = model, clip, vae
         out_cfg, out_steps, out_sampler, out_denoise = cfg, steps, sampler_name, denoise
         out_scheduler = 'normal'  # Hardcoded default since scheduler input/output is disabled
         out_width, out_height, out_seed, out_start_step, out_end_step = width, height, seed, start_step, end_step
-        
+
         # Initialize wildcard processor to handle wildcard logic
         wildcard_processor = WildcardProcessor()
-        wildcard_processor.console_log = False
         other_tags = []
         loras_to_apply = []
         positive_parts = []
         negative_parts = []
-        print(f"\n{'=' * 30} Prompt Property Extractor {'=' * 30}")
-        print(f"[INPUT] {repr(input_string)}")
-        
+        if console_log:
+            print(f"\n{'=' * 30} Prompt Property Extractor {'=' * 30}")
+            print(f"[INPUT] {repr(input_string)}")
+
         # STEP 1: Process wildcards FIRST (before tag extraction)
         string_with_wildcards_resolved = wildcard_processor.process_wildcards(
             wildcard_string=input_string,
@@ -102,21 +105,21 @@ class PromptPropertyExtractor:
             tag_extraction_tags=""
         )[0]
 
-        if input_string != string_with_wildcards_resolved:
+        if console_log and input_string != string_with_wildcards_resolved:
             print(f"[WILDCARDS RESOLVED] {repr(string_with_wildcards_resolved)}")
 
         # STEP 2: Find all property tags in the wildcard-resolved string
         # Regex supports escaped \> within tags: <neg:(cat:1.5)\, ugly>
         # Pattern: <(content)> where content can include \> as literal >
         tags_raw = re.findall(r"<((?:[^>\\]|\\.)*)>", string_with_wildcards_resolved)
-        
+
         # Unescape \> to > and \\ to \ in tag content
         tags = []
         for tag_raw in tags_raw:
             tag_unescaped = tag_raw.replace(r'\>', '>').replace(r'\\', '\\')
             tags.append(tag_unescaped)
-        
-        if tags:
+
+        if console_log and tags:
             print(f"[TAGS FOUND] {len(tags)} tags: {tags}")
 
         # STEP 3: Process each tag
@@ -136,80 +139,92 @@ class PromptPropertyExtractor:
             try:
                 if (tag_name == "checkpoint" or tag_name == "model" or tag_name == "ckpt") and tag_value:
                     ckpt_name = tag_value
-                    ckpt_filename = find_best_match(ckpt_name, folder_paths.get_filename_list("checkpoints"), log=False)
+                    ckpt_filename = find_best_match(ckpt_name, folder_paths.get_filename_list("checkpoints"), log=False, fuzzy_search=is_lora_fuzzy_search_enabled())
                     if ckpt_filename:
                         ckpt_path = folder_paths.get_full_path("checkpoints", ckpt_filename)
                         if ckpt_path and os.path.exists(ckpt_path):
-                            print(f"  [CHECKPOINT] <{tag}> -> {os.path.basename(ckpt_path)}")
+                            if console_log:
+                                print(f"  [CHECKPOINT] <{tag}> -> {os.path.basename(ckpt_path)}")
                             normalized_ckpt_path = os.path.normpath(os.path.abspath(ckpt_path)).replace('\\', '/')
                             loaded_checkpoint = comfy.sd.load_checkpoint_guess_config(normalized_ckpt_path)
                             out_model = loaded_checkpoint[0]
-                            
+
                             # Only load CLIP from checkpoint if NOT already set by a tag AND enabled
                             if load_clip_from_checkpoint and not clip_set_by_tag:
                                 out_clip = loaded_checkpoint[1]
                             elif clip_set_by_tag:
-                                print(f"  [INFO] Checkpoint CLIP ignored because <clip> tag was present.")
+                                if console_log:
+                                    print(f"  [INFO] Checkpoint CLIP ignored because <clip> tag was present.")
 
                             # Only load VAE from checkpoint if NOT already set by a tag AND enabled
                             if load_vae_from_checkpoint and not vae_set_by_tag:
                                 out_vae = loaded_checkpoint[2]
                             elif vae_set_by_tag:
-                                print(f"  [INFO] Checkpoint VAE ignored because <vae> tag was present.")
+                                if console_log:
+                                    print(f"  [INFO] Checkpoint VAE ignored because <vae> tag was present.")
 
                 elif tag_name == "clip" and tag_value:
                     clip_name = tag_value.strip()
-                    clip_filename = find_best_match(clip_name, folder_paths.get_filename_list("clip"), log=False)
+                    clip_filename = find_best_match(clip_name, folder_paths.get_filename_list("clip"), log=False, fuzzy_search=is_lora_fuzzy_search_enabled())
                     if clip_filename:
                         clip_path = folder_paths.get_full_path("clip", clip_filename)
                         if clip_path and os.path.exists(clip_path):
-                            print(f"  [CLIP] <{tag}> -> {os.path.basename(clip_path)}")
+                            if console_log:
+                                print(f"  [CLIP] <{tag}> -> {os.path.basename(clip_path)}")
                             normalized_clip_path = os.path.normpath(os.path.abspath(clip_path)).replace('\\', '/')
                             out_clip = comfy.sd.load_clip(ckpt_paths=[normalized_clip_path])
                             clip_set_by_tag = True
 
                 elif tag_name == "vae" and tag_value:
                     vae_name = tag_value.strip()
-                    vae_filename = find_best_match(vae_name, folder_paths.get_filename_list("vae"), log=False)
+                    vae_filename = find_best_match(vae_name, folder_paths.get_filename_list("vae"), log=False, fuzzy_search=is_lora_fuzzy_search_enabled())
                     if vae_filename:
                         vae_path = folder_paths.get_full_path("vae", vae_filename)
                         if vae_path and os.path.exists(vae_path):
-                            print(f"  [VAE] <{tag}> -> {os.path.basename(vae_path)}")
+                            if console_log:
+                                print(f"  [VAE] <{tag}> -> {os.path.basename(vae_path)}")
                             vae_sd = comfy.utils.load_torch_file(vae_path)
                             out_vae = comfy.sd.VAE(sd=vae_sd)
                             vae_set_by_tag = True
 
                 elif tag_name == "cfg" and tag_value:
                     out_cfg = max(1.0, float(tag_value))
-                    print(f"  [CFG] <{tag}> -> {out_cfg}")
+                    if console_log:
+                        print(f"  [CFG] <{tag}> -> {out_cfg}")
 
                 elif (tag_name == "sampler" or tag_name == "sampler_name") and tag_value:
                     sampler_match = find_best_match(tag_value.strip(), comfy.samplers.KSampler.SAMPLERS)
                     if sampler_match:
                         out_sampler = sampler_match
-                        print(f"  [SAMPLER] <{tag}> -> {out_sampler}")
+                        if console_log:
+                            print(f"  [SAMPLER] <{tag}> -> {out_sampler}")
 
                 elif tag_name == "scheduler" and tag_value:
                     scheduler_match = find_best_match(tag_value.strip(), list(SCHEDULER_NAMES))
                     if scheduler_match:
                         out_scheduler = scheduler_match
-                        print(f"  [SCHEDULER] <{tag}> -> {out_scheduler}")
+                        if console_log:
+                            print(f"  [SCHEDULER] <{tag}> -> {out_scheduler}")
 
                 elif (tag_name == "steps" or tag_name == "step") and tag_value:
                     out_steps = max(1, int(tag_value))
-                    print(f"  [STEPS] <{tag}> -> {out_steps}")
+                    if console_log:
+                        print(f"  [STEPS] <{tag}> -> {out_steps}")
 
                 elif tag_name == "denoise" and tag_value:
                     out_denoise = max(0.0, min(1.0, float(tag_value)))
-                    print(f"  [DENOISE] <{tag}> -> {out_denoise}")
+                    if console_log:
+                        print(f"  [DENOISE] <{tag}> -> {out_denoise}")
 
                 elif tag_name == "width" and tag_value:
                     out_width = int(tag_value)
-                    print(f"  [WIDTH] <{tag}> -> {out_width}")
+                    if console_log:
+                        print(f"  [WIDTH] <{tag}> -> {out_width}")
 
                 elif tag_name == "height" and tag_value:
                     out_height = int(tag_value)
-                    print(f"  [HEIGHT] <{tag}> -> {out_height}")
+                    if console_log:
+                        print(f"  [HEIGHT] <{tag}> -> {out_height}")
 
                 elif (tag_name == "resolution" or tag_name == "res") and tag_value:
                     res_string = tag_value.strip()
@@ -219,27 +234,31 @@ class PromptPropertyExtractor:
                         res_parts = res_string.split(':')
                     else:
                         res_parts = []
-                    
+
                     if len(res_parts) == 2:
                         try:
                             r_width = int(res_parts[0].strip())
                             r_height = int(res_parts[1].strip())
                             res_override = (r_width, r_height)
-                            print(f"  [RESOLUTION] <{tag}> -> {r_width}x{r_height}")
+                            if console_log:
+                                print(f"  [RESOLUTION] <{tag}> -> {r_width}x{r_height}")
                         except ValueError:
                             print(f"  [ERROR] Invalid resolution format: {res_string}")
 
                 elif tag_name == "seed" and tag_value:
                     out_seed = int(tag_value)
-                    print(f"  [SEED] <{tag}> -> {out_seed}")
+                    if console_log:
+                        print(f"  [SEED] <{tag}> -> {out_seed}")
 
                 elif (tag_name == "start_step" or tag_name == "start" or tag_name == "start_at_step") and tag_value:
                     out_start_step = int(tag_value)
-                    print(f"  [START STEP] <{tag}> -> {out_start_step}")
+                    if console_log:
+                        print(f"  [START STEP] <{tag}> -> {out_start_step}")
 
                 elif (tag_name == "end_step" or tag_name == "end" or tag_name == "end_at_step") and tag_value:
                     out_end_step = int(tag_value)
-                    print(f"  [END STEP] <{tag}> -> {out_end_step}")
+                    if console_log:
+                        print(f"  [END STEP] <{tag}> -> {out_end_step}")
 
                 elif tag_name == "lora" and tag_value:
                     # LoRA needs special handling: name:model_weight:clip_weight
@@ -266,22 +285,25 @@ class PromptPropertyExtractor:
                         except ValueError:
                             print(f"  [WARNING] Invalid LoRA CLIP weight: {lora_parts[2]}")
 
-                    lora_filename = find_best_match(lora_name, folder_paths.get_filename_list("loras"), log=False)
+                    lora_filename = find_best_match(lora_name, folder_paths.get_filename_list("loras"), log=False, fuzzy_search=is_lora_fuzzy_search_enabled())
                     if lora_filename:
                         lora_path = folder_paths.get_full_path("loras", lora_filename)
                         if lora_path and os.path.exists(lora_path):
-                            print(f"  [LORA QUEUED] <{tag}> -> {os.path.basename(lora_path)} (Model: {lora_model_weight}, CLIP: {lora_clip_weight})")
+                            if console_log:
+                                print(f"  [LORA QUEUED] <{tag}> -> {os.path.basename(lora_path)} (Model: {lora_model_weight}, CLIP: {lora_clip_weight})")
                             loras_to_apply.append((lora_path, lora_model_weight, lora_clip_weight))
 
                 elif (tag_name == "pos" or tag_name == "positive") and tag_value:
                     pos_value = tag_value.strip()
                     positive_parts.append(pos_value)
-                    print(f"  [POS] <{tag}> -> {pos_value}")
+                    if console_log:
+                        print(f"  [POS] <{tag}> -> {pos_value}")
 
                 elif (tag_name == "neg" or tag_name == "negative") and tag_value:
                     neg_value = tag_value.strip()
                     negative_parts.append(neg_value)
-                    print(f"  [NEG] <{tag}> -> {neg_value}")
+                    if console_log:
+                        print(f"  [NEG] <{tag}> -> {neg_value}")
 
                 elif tag_name not in ["checkpoint", "model", "ckpt", "clip", "vae", "cfg", "sampler", "sampler_name", "scheduler", "steps", "step", "denoise", "width", "height", "resolution", "res", "seed", "start_step", "start", "start_at_step", "end_step", "end", "end_at_step", "lora", "neg", "negative", "pos", "positive"]:
                     other_tags.append(f"<{tag}>")
@@ -292,7 +314,8 @@ class PromptPropertyExtractor:
         # Apply resolution override if present
         if res_override:
             out_width, out_height = res_override
-            print(f"  [INFO] Resolution tag override applied: {out_width}x{out_height}")
+            if console_log:
+                print(f"  [INFO] Resolution tag override applied: {out_width}x{out_height}")
 
         # STEP 4: Create the cleaned_string by removing all property tags
         cleaned_string_final = string_with_wildcards_resolved
@@ -304,7 +327,8 @@ class PromptPropertyExtractor:
             for lora_path, lora_model_weight, lora_clip_weight in loras_to_apply:
                 try:
                     lora = comfy.utils.load_torch_file(lora_path, safe_load=True)
-                    print(f"  [LORA APPLIED] {os.path.basename(lora_path)} (Model: {lora_model_weight}, CLIP: {lora_clip_weight})")
+                    if console_log:
+                        print(f"  [LORA APPLIED] {os.path.basename(lora_path)} (Model: {lora_model_weight}, CLIP: {lora_clip_weight})")
                     out_model, out_clip = comfy.sd.load_lora_for_models(out_model, out_clip, lora, lora_model_weight, lora_clip_weight)
                 except Exception as e:
                     print(f"  [ERROR] Failed to load LoRA {lora_path}: {e}")
@@ -325,13 +349,14 @@ class PromptPropertyExtractor:
         
         # Join other tags
         other_tags_str = "".join(other_tags)
-        if other_tags_str:
-            print(f"[UNRECOGNIZED TAGS] {other_tags_str}")
-        if positive_string:
-            print(f"[POSITIVE COMBINED] {repr(positive_string)}")
-        if negative_string:
-            print(f"[NEGATIVE COMBINED] {repr(negative_string)}")
-        print(f"[OUTPUT] {repr(cleaned_string)}")
+        if console_log:
+            if other_tags_str:
+                print(f"[UNRECOGNIZED TAGS] {other_tags_str}")
+            if positive_string:
+                print(f"[POSITIVE COMBINED] {repr(positive_string)}")
+            if negative_string:
+                print(f"[NEGATIVE COMBINED] {repr(negative_string)}")
+            print(f"[OUTPUT] {repr(cleaned_string)}")
         
         # Encode conditioning
         pos_conditioning = None
@@ -360,7 +385,8 @@ class PromptPropertyExtractor:
             print(f"[ERROR] Failed to create latent tensor: {e}")
             out_latent = None
 
-        print(f"{'=' * 30} Prompt Property Extractor End {'=' * 30}\n")
+        if console_log:
+            print(f"{'=' * 30} Prompt Property Extractor End {'=' * 30}\n")
 
         # REMOVED SCHEDULER OUTPUT: was (out_model, out_clip, out_vae, out_cfg, out_steps, out_sampler, out_scheduler, out_denoise, ...)
         return (out_model, out_clip, out_vae, pos_conditioning, neg_conditioning, out_latent, out_seed, out_steps, out_cfg, out_sampler, out_denoise, out_start_step, out_end_step, cleaned_string, negative_string, other_tags_str, string_with_wildcards_resolved, out_width, out_height)

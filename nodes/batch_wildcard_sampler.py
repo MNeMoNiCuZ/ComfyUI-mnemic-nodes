@@ -32,6 +32,7 @@ import comfy.utils
 from .wildcard_processor import WildcardProcessor
 from .lora_tag_loader import LoraTagLoader
 from ..utils.batch_wildcard_runtime import set_batch_prompts
+from ..utils.settings_utils import is_wildcard_console_log_enabled
 
 
 # Matches <lora:name:strength> tags so they can be stripped before CLIP encoding.
@@ -213,10 +214,6 @@ class BatchWildcardSampler:
                     "default": False, "advanced": True,
                     "tooltip": "Force a reload of all wildcard files from disk. Can be disabled again after you have ran it once.",
                 }),
-                "console_log": ("BOOLEAN", {
-                    "default": False, "advanced": True,
-                    "tooltip": "Enable or disable detailed logging of the wildcard processing steps in the console.",
-                }),
             },
             "optional": {
                 "model": ("MODEL", {"tooltip": "Optional. Only needed to sample images. Leave disconnected (or leave the latent output unused) to just resolve and preview prompts."}),
@@ -237,10 +234,12 @@ class BatchWildcardSampler:
                        upscale_sampler_name="(same as first pass)",
                        upscale_scheduler="(same as first pass)",
                        upscale_noise_inject_strength=0.0,
-                       recache_wildcards=False, console_log=False,
+                       recache_wildcards=False,
                        strip_prompt_weights=False,
                        model=None, clip=None, vae=None, upscale_model=None,
                        extra_pnginfo=None, unique_id=None):
+
+        console_log = is_wildcard_console_log_enabled()
 
         # --- Resolve positive and negative prompts for each batch index ---
         # A single processor instance is reused so its file caches persist across
@@ -253,21 +252,20 @@ class BatchWildcardSampler:
                 wildcard_string=text,
                 seed=seed + i,
                 recache_wildcards=(recache_wildcards and i == 0),
-                console_log=console_log,
             )[0])
             negative_prompts.append(processor.process_wildcards(
                 wildcard_string=negative,
                 seed=seed + i,
                 recache_wildcards=False,
-                console_log=console_log,
             )[0])
 
         # --- Print summary ---
-        print(f"\n{'='*60}")
-        print(f"  BATCH WILDCARD SAMPLER — {batch_size} variant(s)")
-        for i, r in enumerate(positive_prompts):
-            print(f"  [{i}] {r}")
-        print(f"{'='*60}\n")
+        if console_log:
+            print(f"\n{'='*60}")
+            print(f"  BATCH WILDCARD SAMPLER — {batch_size} variant(s)")
+            for i, r in enumerate(positive_prompts):
+                print(f"  [{i}] {r}")
+            print(f"{'='*60}\n")
 
         # Publish the per-image prompts so Save Image With Metadata can pick them up.
         set_batch_prompts(positive_prompts, negative_prompts, seed)
@@ -279,10 +277,11 @@ class BatchWildcardSampler:
         should_sample = model is not None and clip is not None and latent_connected is not False
 
         if not should_sample:
-            if latent_connected is False:
-                print("  [Batch Wildcard Sampler] Latent output not connected — returning resolved prompts only.\n")
-            else:
-                print("  [Batch Wildcard Sampler] No model/clip connected — returning resolved prompts only.\n")
+            if console_log:
+                if latent_connected is False:
+                    print("  [Batch Wildcard Sampler] Latent output not connected — returning resolved prompts only.\n")
+                else:
+                    print("  [Batch Wildcard Sampler] No model/clip connected — returning resolved prompts only.\n")
             empty_latent = torch.zeros([batch_size, 4, height // 8, width // 8])
             return (model, clip, vae, None, None, {"samples": empty_latent}, positive_prompts)
 
@@ -304,7 +303,7 @@ class BatchWildcardSampler:
             # clones of the model/clip. load_lora returns the model/clip with the
             # LoRAs applied and the prompt cleaned of its tags for CLIP encoding.
             model_i, clip_i, clean_positive = lora_loader.load_lora(
-                model, clip, positive_prompts[i], console_log
+                model, clip, positive_prompts[i]
             )
             final_model, final_clip = model_i, clip_i
             # The negative prompt is not used to load LoRAs, but strip any tags so
@@ -334,7 +333,8 @@ class BatchWildcardSampler:
             noise = comfy.sample.prepare_noise(latent_image, image_seed)
 
             # Sample with the (LoRA-applied) model
-            print(f"  [Batch Wildcard Sampler] Sampling image {i + 1}/{batch_size}: seed={image_seed}")
+            if console_log:
+                print(f"  [Batch Wildcard Sampler] Sampling image {i + 1}/{batch_size}: seed={image_seed}")
             samples = comfy.sample.sample(
                 model_i, noise, steps, cfg,
                 sampler_name, scheduler,
@@ -362,10 +362,11 @@ class BatchWildcardSampler:
                 eff_sampler = sampler_name if upscale_sampler_name == "(same as first pass)" else upscale_sampler_name
                 eff_scheduler = scheduler if upscale_scheduler == "(same as first pass)" else upscale_scheduler
 
-                print(f"  [Batch Wildcard Sampler] Upscale pass {i + 1}/{batch_size}: "
-                      f"{width}x{height} -> {upscale_width}x{upscale_height} "
-                      f"(rate={upscale_rate}, denoise={upscale_denoise}, steps={eff_steps}, cfg={eff_cfg}, "
-                      f"sampler={eff_sampler}, scheduler={eff_scheduler})")
+                if console_log:
+                    print(f"  [Batch Wildcard Sampler] Upscale pass {i + 1}/{batch_size}: "
+                          f"{width}x{height} -> {upscale_width}x{upscale_height} "
+                          f"(rate={upscale_rate}, denoise={upscale_denoise}, steps={eff_steps}, cfg={eff_cfg}, "
+                          f"sampler={eff_sampler}, scheduler={eff_scheduler})")
 
                 upscaled = self._run_upscale(
                     samples, upscale_width, upscale_height, vae, upscale_model, model_i,
@@ -385,7 +386,7 @@ class BatchWildcardSampler:
                     noise_inject_cb = self._make_noise_inject_callback(
                         upscale_noise_inject_strength,
                         upscale_denoise, eff_scheduler, eff_steps,
-                        model_i, image_seed,
+                        model_i, image_seed, console_log,
                     )
 
                 # The upscale pass uses the SAME positive/negative conditioning that
@@ -420,14 +421,15 @@ class BatchWildcardSampler:
         # --- Combine all results into one batch ---
         combined = torch.cat(all_samples, dim=0)
 
-        print(f"\n  [Batch Wildcard Sampler] Batch complete — {batch_size} images generated.")
-        print(f"{'='*60}\n")
+        if console_log:
+            print(f"\n  [Batch Wildcard Sampler] Batch complete — {batch_size} images generated.")
+            print(f"{'='*60}\n")
 
         return (final_model, final_clip, vae, final_positive, final_negative,
                 {"samples": combined}, positive_prompts)
 
     @staticmethod
-    def _make_noise_inject_callback(strength, denoise, scheduler, steps, model_i, seed):
+    def _make_noise_inject_callback(strength, denoise, scheduler, steps, model_i, seed, console_log=False):
         """
         Returns a per-step callback for comfy.sample.sample that injects
         scheduler-scaled Gaussian noise at every denoising step.
@@ -450,9 +452,10 @@ class BatchWildcardSampler:
         start_idx = max(0, min(int(n * (1.0 - denoise)), n - 2))
         active_sigmas = sigmas[start_idx:]
 
-        print(f"  [Batch Wildcard Sampler] Upscale noise inject: strength={strength:.3f}, "
-              f"σ_start={active_sigmas[0].item():.4f}, σ_end={active_sigmas[-1].item():.4f}, "
-              f"active_steps={len(active_sigmas) - 1}")
+        if console_log:
+            print(f"  [Batch Wildcard Sampler] Upscale noise inject: strength={strength:.3f}, "
+                  f"σ_start={active_sigmas[0].item():.4f}, σ_end={active_sigmas[-1].item():.4f}, "
+                  f"active_steps={len(active_sigmas) - 1}")
 
         def callback(step, x0, x, total_steps):
             if step < len(active_sigmas) - 1:
@@ -477,10 +480,13 @@ class BatchWildcardSampler:
         before encoding, so the VAE wrapper does its own correct 4D -> native-rank
         conversion (feeding it a hand-built 5D tensor bypasses that and breaks).
         """
+        console_log = is_wildcard_console_log_enabled()
+
         # 1) Decode latent -> pixels.
         image = vae.decode(samples)  # NHWC (4D) or NTHWC (5D), values 0..1
-        print(f"  [Batch Wildcard Sampler] pixel upscale: latent {tuple(samples.shape)} "
-              f"-> decoded image {tuple(image.shape)}")
+        if console_log:
+            print(f"  [Batch Wildcard Sampler] pixel upscale: latent {tuple(samples.shape)} "
+                  f"-> decoded image {tuple(image.shape)}")
 
         # 2) Flatten any temporal/extra leading axis into the batch so we have a
         #    plain 4D NHWC batch of images.
@@ -496,9 +502,11 @@ class BatchWildcardSampler:
 
         # 4) Re-encode. Always hand the VAE a 4D NHWC image (same as the native VAE
         #    Encode node); the wrapper adds any temporal axis the VAE needs.
-        print(f"  [Batch Wildcard Sampler] pixel upscale: encoding image {tuple(image.shape)}")
+        if console_log:
+            print(f"  [Batch Wildcard Sampler] pixel upscale: encoding image {tuple(image.shape)}")
         upscaled = vae.encode(image[:, :, :, :3])
-        print(f"  [Batch Wildcard Sampler] pixel upscale: encoded latent {tuple(upscaled.shape)}")
+        if console_log:
+            print(f"  [Batch Wildcard Sampler] pixel upscale: encoded latent {tuple(upscaled.shape)}")
 
         # 5) Match the first-pass latent's rank (3D image VAEs hand back a 5D latent
         #    with a temporal axis of 1) so the second sampling pass sees the same

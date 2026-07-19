@@ -8,6 +8,7 @@ from groq import Groq
 
 from ..utils.api_utils import make_api_request, load_prompt_options, get_prompt_content
 from ..utils.env_manager import ensure_env_file, get_api_key
+from ..utils.settings_utils import is_groq_llm_console_log_enabled, get_groq_llm_request_timeout
 
 class GroqAPILLM:
     DEFAULT_PROMPT = "Use [system_message] and [user_input]"
@@ -118,7 +119,9 @@ class GroqAPILLM:
         if stop:  # Only add stop if it's not empty
             data['stop'] = stop
         
-        print(f"Sending request to {url} with data: {json.dumps(data, indent=4)} and headers: {headers}")
-        
-        assistant_message, success, status_code = make_api_request(data, headers, url, max_retries)
+        console_log = is_groq_llm_console_log_enabled()
+        if console_log:
+            print(f"Sending request to {url} with data: {json.dumps(data, indent=4)} and headers: {{'Authorization': 'Bearer ***'}}")
+
+        assistant_message, success, status_code = make_api_request(data, headers, url, max_retries, console_log=console_log, timeout=get_groq_llm_request_timeout())
         return assistant_message, success, status_code

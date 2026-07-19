@@ -2,6 +2,7 @@ from pathlib import Path
 import folder_paths
 import re
 from ..utils.file_utils import find_best_match
+from ..utils.settings_utils import is_lora_console_log_enabled, is_lora_fuzzy_search_enabled, get_lora_max_logged_candidates
 
 # Import ComfyUI files
 import comfy.sd
@@ -66,7 +67,6 @@ class LoraTagLoader:
                 "MODEL": ("MODEL", {"tooltip": "The model (checkpoint) to apply the LoRA to"}),
                 "CLIP": ("CLIP", {"tooltip": "The CLIP model being used"}),
                 "STRING": ("STRING", {"multiline": True, "forceInput": True, "tooltip": "Input text containing LoRA tags to be processed. Tags should be enclosed in angle brackets, e.g., <lora:loraName:1>"}),
-                "console_log": ("BOOLEAN", {"default": False, "tooltip": "Enable or disable logging of LoRA loading information."}),
             }
         }
 
@@ -80,7 +80,8 @@ class LoraTagLoader:
     DESCRIPTION = "Loads LoRA tags from the provided input string (usually the prompt) and applies them to the model without needing one or multiple LoRA Loader nodes"
 
 
-    def load_lora(self, MODEL, CLIP, STRING, console_log=False):
+    def load_lora(self, MODEL, CLIP, STRING):
+        console_log = is_lora_console_log_enabled()
         if console_log:
             print(f"\nLoraTagLoader processing text: {STRING}")
 
@@ -129,7 +130,7 @@ class LoraTagLoader:
                     # wClip is already set to wModel, so no change needed here, just the warning.
 
             # Use our new matching system
-            lora_name = find_best_match(name, lora_files, log=console_log)
+            lora_name = find_best_match(name, lora_files, log=console_log, fuzzy_search=is_lora_fuzzy_search_enabled(), max_logged=get_lora_max_logged_candidates())
             
             if lora_name is None:
                 if console_log:

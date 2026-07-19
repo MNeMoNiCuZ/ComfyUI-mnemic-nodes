@@ -5,6 +5,12 @@ from pathlib import Path
 import folder_paths
 import json
 from ..utils.file_utils import find_best_match
+from ..utils.settings_utils import (
+    is_wildcard_console_log_enabled,
+    is_wildcard_fuzzy_search_enabled,
+    get_wildcard_max_logged_candidates,
+    get_wildcard_max_nested_passes,
+)
 from colorama import Fore, Style
 
 class WildcardProcessor:
@@ -16,18 +22,17 @@ class WildcardProcessor:
     OUTPUT_NODE = True
     FUNCTION = "process_wildcards"
     CATEGORY = "⚡ MNeMiC Nodes"
-    # Set to True to enable console logging, False to disable.
-    console_log = True
 
     DESCRIPTION = ("A text processor that replaces wildcards with dynamic content from files or inline lists."
                          )
-    
+
     def __init__(self):
         # Caches to store wildcard file content and located file paths
+        self.console_log = is_wildcard_console_log_enabled()
         self.wildcard_cache = {}
         self.create_user_wildcard_paths_file()  # Ensure the user paths file exists
         self.wildcard_files = self._find_wildcard_files()
-        self.max_nested_passes = 10
+        self.max_nested_passes = get_wildcard_max_nested_passes()
         # Variables for the current processing run
         self.variables = {}
 
@@ -52,7 +57,6 @@ class WildcardProcessor:
                 }),
                 "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff, "tooltip": "The seed for the random number generator. Using the same seed with the same prompt will produce the same output."}),
                 "recache_wildcards": ("BOOLEAN", {"default": False, "tooltip": "Force a reload of all wildcard files from disk. Can be disabled again after you have ran it once."}),
-                "console_log": ("BOOLEAN", {"default": False, "tooltip": "Enable or disable detailed logging of the wildcard processing steps in the console."}),
                 # "tag_extraction_tags": ("STRING", {
                 #     "default": "",
                 #     "multiline": False,
@@ -194,7 +198,7 @@ class WildcardProcessor:
                 # Add a separator between wildcard processing logs
                 print(f"\n{Fore.CYAN}{'-----' * 21}{Style.RESET_ALL}\n") # Match length of the start/end separator
             # Pass wildcard_paths to find_best_match for accurate logging
-            find_best_match(wildcard_name, self.wildcard_files, log=True, wildcard_paths=self.get_all_wildcard_paths())
+            find_best_match(wildcard_name, self.wildcard_files, log=True, wildcard_paths=self.get_all_wildcard_paths(), fuzzy_search=is_wildcard_fuzzy_search_enabled(), max_logged=get_wildcard_max_logged_candidates())
             self.first_wildcard_processed = True
 
         # Now, get the content, using cache if possible.
@@ -202,7 +206,7 @@ class WildcardProcessor:
             return self.wildcard_cache[wildcard_name]
 
         # Cache miss, so find the file (silently) and read it.
-        best_match = find_best_match(wildcard_name, self.wildcard_files, log=False, wildcard_paths=self.get_all_wildcard_paths())
+        best_match = find_best_match(wildcard_name, self.wildcard_files, log=False, wildcard_paths=self.get_all_wildcard_paths(), fuzzy_search=is_wildcard_fuzzy_search_enabled())
 
         if not best_match:
             self.wildcard_cache[wildcard_name] = None # Cache the failure
@@ -483,7 +487,8 @@ class WildcardProcessor:
         wildcard_string = kwargs.get("wildcard_string", "")
         seed = kwargs.get("seed", 0)
         self.separator = " "
-        self.console_log = kwargs.get("console_log", False)
+        self.console_log = is_wildcard_console_log_enabled()
+        self.max_nested_passes = get_wildcard_max_nested_passes()
         recache = kwargs.get("recache_wildcards", False)
         tag_extraction_tags = kwargs.get("tag_extraction_tags", "")
 
@@ -524,9 +529,8 @@ class WildcardProcessor:
             temp_processor = WildcardProcessor()
             # Use a new random seed for variable evaluation to not interfere with main seed
             var_seed = random.randint(0, 0xffffffffffffffff)
-            # We pass console log as false to prevent recursive logging clutter.
             outer_random_state = random.getstate()
-            evaluated_value = temp_processor.process_wildcards(**{"wildcard_string": var_value_expr, "seed": var_seed, "console_log": False})[0]
+            evaluated_value = temp_processor.process_wildcards(**{"wildcard_string": var_value_expr, "seed": var_seed})[0]
             random.setstate(outer_random_state)
             
             self.variables[var_name] = evaluated_value

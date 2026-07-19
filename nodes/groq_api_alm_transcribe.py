@@ -7,6 +7,7 @@ import requests
 
 from ..utils.api_utils import load_prompt_options, get_prompt_content
 from ..utils.env_manager import ensure_env_file, get_api_key
+from ..utils.settings_utils import is_groq_transcribe_console_log_enabled, get_groq_transcribe_request_timeout
 
 class GroqAPIALMTranscribe:
     DEFAULT_PROMPT = "Transcribe the audio file"
@@ -103,7 +104,9 @@ class GroqAPIALMTranscribe:
             prompt_template = get_prompt_content(self.prompt_options, preset)
             prompt = prompt_template.replace('[user_input]', user_input.strip()) if user_input else prompt_template
 
-        print(f"Using prompt: {prompt}")
+        console_log = is_groq_transcribe_console_log_enabled()
+        if console_log:
+            print(f"Using prompt: {prompt}")
 
         # Limit the prompt to 224 tokens
         # if prompt:
@@ -130,16 +133,21 @@ class GroqAPIALMTranscribe:
         if prompt:
             data['prompt'] = prompt
 
-        print(f"Sending request to {url} with data: {data} and headers: {headers}")
+        if console_log:
+            print(f"Sending request to {url} with data: {data} and headers: {{'Authorization': 'Bearer ***'}}")
 
         # Send the request
+        request_timeout = get_groq_transcribe_request_timeout()
         for attempt in range(max_retries):
             try:
-                print(f"Attempt {attempt + 1} of {max_retries}")
-                response = requests.post(url, headers=headers, data=data, files=files)
-                print(f"Response status: {response.status_code}")
+                if console_log:
+                    print(f"Attempt {attempt + 1} of {max_retries}")
+                response = requests.post(url, headers=headers, data=data, files=files, timeout=request_timeout)
+                if console_log:
+                    print(f"Response status: {response.status_code}")
                 if response.status_code == 200:
-                    print("Request successful.")
+                    if console_log:
+                        print("Request successful.")
                     if api_response_format == "text":
                         if response_format == "text":
                             # Return plain text as is
@@ -183,7 +191,8 @@ class GroqAPIALMTranscribe:
                         return "Unknown api_response_format.", False, "400 Bad Request"
                 else:
                     print(Fore.RED + f"Error: {response.status_code} {response.reason}" + Style.RESET_ALL)
-                    print(f"Response body: {response.text}")
+                    if console_log:
+                        print(f"Response body: {response.text}")
                     return response.text, False, f"{response.status_code} {response.reason}"
             except Exception as e:
                 print(Fore.RED + f"Request failed: {str(e)}" + Style.RESET_ALL)

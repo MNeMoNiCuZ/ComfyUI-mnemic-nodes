@@ -2,8 +2,6 @@ from pathlib import Path
 import os
 import re
 
-from .settings_utils import is_fuzzy_search_enabled
-
 # Caps how many candidate files get printed when logging a wildcard search.
 # Wildcard folders can hold hundreds of matches (especially with fuzzy word
 # matching), so the console log only shows the most relevant ones.
@@ -131,14 +129,13 @@ def score_filename_match(name, filename, base_path=None, fuzzy_search=False):
 
     return (0, "no match")
 
-def find_best_match(search_term, file_list, log=False, wildcard_paths=None):
+def find_best_match(search_term, file_list, log=False, wildcard_paths=None, fuzzy_search=False, max_logged=MAX_LOGGED_CANDIDATES):
     """Find the best matching file from a list based on scoring."""
     matches = []
     if log:
         print(f"\nFinding matches for '{search_term}':")
 
     seen_filenames = {}
-    fuzzy_search = is_fuzzy_search_enabled()
 
     # Convert wildcard_paths to Path objects for comparison
     path_wildcard_paths = [Path(p) for p in wildcard_paths] if wildcard_paths else []
@@ -165,8 +162,8 @@ def find_best_match(search_term, file_list, log=False, wildcard_paths=None):
     matches.sort(key=lambda x: x[0], reverse=True)
     
     if log and matches:
-        print(f"\nCandidate files (sorted by relevance, showing top {min(len(matches), MAX_LOGGED_CANDIDATES)} of {len(matches)}):")
-        for score, file, reason, base_path in matches[:MAX_LOGGED_CANDIDATES]:
+        print(f"\nCandidate files (sorted by relevance, showing top {min(len(matches), max_logged)} of {len(matches)}):")
+        for score, file, reason, base_path in matches[:max_logged]:
             base_name = Path(file).name
             try:
                 display_name = str(Path(file).relative_to(base_path)) if base_path else base_name
@@ -174,8 +171,8 @@ def find_best_match(search_term, file_list, log=False, wildcard_paths=None):
                 display_name = base_name
 
             print(f"  {display_name:<60} : {score:>5.1f} ({reason})")
-        if len(matches) > MAX_LOGGED_CANDIDATES:
-            print(f"  ... and {len(matches) - MAX_LOGGED_CANDIDATES} more not shown")
+        if len(matches) > max_logged:
+            print(f"  ... and {len(matches) - max_logged} more not shown")
 
         _score, selected_path_str, _reason, selected_base_path = matches[0]
         selected_path = Path(selected_path_str)

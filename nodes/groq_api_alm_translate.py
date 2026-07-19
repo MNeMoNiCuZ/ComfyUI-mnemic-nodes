@@ -7,6 +7,7 @@ import requests
 
 from ..utils.api_utils import load_prompt_options, get_prompt_content
 from ..utils.env_manager import ensure_env_file, get_api_key
+from ..utils.settings_utils import is_groq_translate_console_log_enabled, get_groq_translate_request_timeout
 
 class GroqAPIALMTranslate:
     DEFAULT_PROMPT = "Translate the audio file using the style and guidance of [user_input]"
@@ -121,13 +122,17 @@ class GroqAPIALMTranslate:
         if prompt:
             data['prompt'] = prompt
 
-        print(f"Sending request to {url} with data: {data} and headers: {headers}")
+        console_log = is_groq_translate_console_log_enabled()
+        if console_log:
+            print(f"Sending request to {url} with data: {data} and headers: {{'Authorization': 'Bearer ***'}}")
 
         # Send the request
+        request_timeout = get_groq_translate_request_timeout()
         for attempt in range(max_retries):
             try:
-                response = requests.post(url, headers=headers, data=data, files=files)
-                print(f"Response status: {response.status_code}")
+                response = requests.post(url, headers=headers, data=data, files=files, timeout=request_timeout)
+                if console_log:
+                    print(f"Response status: {response.status_code}")
                 if response.status_code == 200:
                     if api_response_format == "text":
                         if response_format == "text":
