@@ -6,48 +6,48 @@ import difflib
 import hashlib
 import colorama
 
+from comfy_api.latest import io
+
 from ..utils.settings_utils import is_load_random_checkpoint_console_log_enabled
 
 POOL_CACHE = {}
 
-class LoadRandomCheckpoint:
-    def __init__(self):
-        self.cached_path = None
-        self.cached_index = -1
-        self.last_input_hash = ""
-        self.shuffled_pool = []
+# Per-node instance state in V1; module level here because V3 nodes execute as
+# classmethods on a per-run class clone.
+_CACHED_PATH = None
+_CACHED_INDEX = -1
+_SHUFFLED_POOL = []
+
+class LoadRandomCheckpoint(io.ComfyNode):
+    @classmethod
+    def define_schema(cls) -> io.Schema:
+        return io.Schema(
+            node_id="MNeMiC_LoadRandomCheckpoint",
+            display_name="🎲 Load Random Checkpoint",
+            category="⚡ MNeMiC Nodes",
+            description="Load checkpoints from a flexible list with repeat control. Supports fuzzy name matching, file paths, and directories. Perfect for batch processing with varied model selection.",
+            inputs=[
+                io.String.Input(
+                    "checkpoints",
+                    multiline=True,
+                    placeholder="model_one or model_two.safetensors\nRelative paths (SDXL/Realistic/) based from checkpoints folder\nAbsolute paths (C:/path/to/model.safetensors)",
+                    tooltip="Enter checkpoint names, file paths, or directory paths - one per line.\n\n• Names (model_one) are fuzzy-matched against checkpoint files\n• Relative paths (SDXL/Realistic/) based from checkpoints folder\n• Absolute paths (C:/path/to/model.safetensors)\n• Directory paths add all .ckpt/.safetensors files within them\n\n• Empty lines are ignored",
+                ),
+                io.Int.Input("seed", default=0, min=0, max=0xffffffffffffffff, tooltip="Controls checkpoint selection. Works with repeat_count:\n\n• repeat_count=1: Each seed gives different checkpoint\n• repeat_count=3: Seeds 0,1,2 → same checkpoint, seeds 3,4,5 → same different checkpoint\n\nSet 'Control After Generate' to 'Increment' for repeat_count to work."),
+                io.Int.Input("repeat_count", default=1, min=1, max=1000, tooltip="Set 'Control After Generate' to 'Increment' for repeat_count to work.\n\nHow many consecutive seeds use the same checkpoint.\n\n• 1 = Each seed picks a different checkpoint\n• 3 = Seeds 0,1,2 all use checkpoint A, seeds 3,4,5 all use checkpoint B"),
+                io.Boolean.Input("shuffle", default=False, tooltip="Selection mode:\n\n• False: Checkpoints will not repeat until all possible candidates has been used\n\n• True: Random selection from the pool. The same checkpoint could be used multiple times in a row"),
+            ],
+            outputs=[
+                io.Model.Output(display_name="model", tooltip="The loaded checkpoint model (MODEL)"),
+                io.Clip.Output(display_name="clip", tooltip="The CLIP model from the checkpoint (CLIP)"),
+                io.Vae.Output(display_name="vae", tooltip="The VAE model from the checkpoint (VAE)"),
+                io.String.Output(display_name="path", tooltip="The full file path of the selected checkpoint file (STRING)"),
+            ],
+        )
+
 
     @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "checkpoints": ("STRING", {
-                    "multiline": True,
-                    "placeholder": "model_one or model_two.safetensors\nRelative paths (SDXL/Realistic/) based from checkpoints folder\nAbsolute paths (C:/path/to/model.safetensors)",
-                    "tooltip": "Enter checkpoint names, file paths, or directory paths - one per line.\n\n• Names (model_one) are fuzzy-matched against checkpoint files\n• Relative paths (SDXL/Realistic/) based from checkpoints folder\n• Absolute paths (C:/path/to/model.safetensors)\n• Directory paths add all .ckpt/.safetensors files within them\n\n• Empty lines are ignored"
-                }),
-                "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff, "tooltip": "Controls checkpoint selection. Works with repeat_count:\n\n• repeat_count=1: Each seed gives different checkpoint\n• repeat_count=3: Seeds 0,1,2 → same checkpoint, seeds 3,4,5 → same different checkpoint\n\nSet 'Control After Generate' to 'Increment' for repeat_count to work."}),
-                "repeat_count": ("INT", {"default": 1, "min": 1, "max": 1000, "tooltip": "Set 'Control After Generate' to 'Increment' for repeat_count to work.\n\nHow many consecutive seeds use the same checkpoint.\n\n• 1 = Each seed picks a different checkpoint\n• 3 = Seeds 0,1,2 all use checkpoint A, seeds 3,4,5 all use checkpoint B"}),
-                "shuffle": ("BOOLEAN", {"default": False, "tooltip": "Selection mode:\n\n• False: Checkpoints will not repeat until all possible candidates has been used\n\n• True: Random selection from the pool. The same checkpoint could be used multiple times in a row"
-                }),
-            }
-        }
-
-    RETURN_TYPES = ("MODEL", "CLIP", "VAE", "STRING")
-    RETURN_NAMES = ("model", "clip", "vae", "path")
-    OUTPUT_TOOLTIPS = (
-        "The loaded checkpoint model (MODEL)",
-        "The CLIP model from the checkpoint (CLIP)",
-        "The VAE model from the checkpoint (VAE)",
-        "The full file path of the selected checkpoint file (STRING)",
-    )
-
-    FUNCTION = "load_checkpoint"
-    CATEGORY = "⚡ MNeMiC Nodes"
-    DESCRIPTION = "Load checkpoints from a flexible list with repeat control. Supports fuzzy name matching, file paths, and directories. Perfect for batch processing with varied model selection."
-
-
-    def find_best_matches_custom(self, query, candidates, console_log=False):
+    def find_best_matches_custom(cls, query, candidates, console_log=False):
         if console_log:
             print(f"Finding best matches for '{query}'...")
         if not candidates:
@@ -98,7 +98,9 @@ class LoadRandomCheckpoint:
 
         return top_matches
 
-    def load_checkpoint(self, checkpoints, seed, repeat_count, shuffle, limit_to_paths=""):
+    @classmethod
+    def execute(cls, checkpoints, seed, repeat_count, shuffle, limit_to_paths="") -> io.NodeOutput:
+        global _CACHED_PATH, _CACHED_INDEX, _SHUFFLED_POOL
         console_log = is_load_random_checkpoint_console_log_enabled()
         HEADER = "\n\n--- 🎲 Load Random Checkpoint 🎲 ---"
         FOOTER = "--- 🎲 End Load Random Checkpoint 🎲 ---\n\n"
@@ -110,12 +112,12 @@ class LoadRandomCheckpoint:
         effective_index = seed // repeat_count
         if console_log:
             print(f"Calculated > Effective Index: {effective_index} (Seed / Repeat)")
-            print(f"Cached > Previous Index: {self.cached_index}")
+            print(f"Cached > Previous Index: {_CACHED_INDEX}")
 
-        if self.cached_index == effective_index and self.cached_path:
+        if _CACHED_INDEX == effective_index and _CACHED_PATH:
             if console_log:
                 print("Status > CACHE HIT: Using cached path for this repeat run.")
-            path = self.cached_path
+            path = _CACHED_PATH
         else:
             if console_log:
                 print("Status > CACHE MISS: Selecting a new checkpoint.")
@@ -150,50 +152,50 @@ class LoadRandomCheckpoint:
                     elif os.path.isabs(line) and os.path.exists(line):
                         final_pool.append(line)
                     else:
-                        best_matches_relative = self.find_best_matches_custom(line, search_candidates, console_log=console_log)
+                        best_matches_relative = cls.find_best_matches_custom(line, search_candidates, console_log=console_log)
                         for match in best_matches_relative:
                             final_pool.append(folder_paths.get_full_path("checkpoints", match))
 
-                self.shuffled_pool = sorted(list(set(final_pool)))
+                _SHUFFLED_POOL = sorted(list(set(final_pool)))
                 # Use effective_index=0 for initial pool shuffling to ensure consistency
                 rng = random.Random(0)
-                rng.shuffle(self.shuffled_pool)
-                POOL_CACHE[input_hash] = self.shuffled_pool
+                rng.shuffle(_SHUFFLED_POOL)
+                POOL_CACHE[input_hash] = _SHUFFLED_POOL
                 if console_log:
-                    print(f"Pool > Rebuilt pool with {len(self.shuffled_pool)} unique items.")
+                    print(f"Pool > Rebuilt pool with {len(_SHUFFLED_POOL)} unique items.")
             else:
-                self.shuffled_pool = POOL_CACHE[input_hash]
+                _SHUFFLED_POOL = POOL_CACHE[input_hash]
                 if console_log:
-                    print(f"Pool > Using cached pool with {len(self.shuffled_pool)} items.")
+                    print(f"Pool > Using cached pool with {len(_SHUFFLED_POOL)} items.")
 
             # Print the final pool with status
             if console_log:
                 if shuffle:
                     print("Final pool (shuffled, all active):")
-                    for item in self.shuffled_pool:
+                    for item in _SHUFFLED_POOL:
                         print(colorama.Fore.YELLOW + f"  - {os.path.basename(item)}" + colorama.Style.RESET_ALL)
                 else:
-                    idx = effective_index % len(self.shuffled_pool) if self.shuffled_pool else 0
+                    idx = effective_index % len(_SHUFFLED_POOL) if _SHUFFLED_POOL else 0
                     print("Final pool (ordered, cycling):")
-                    for i, item in enumerate(self.shuffled_pool):
+                    for i, item in enumerate(_SHUFFLED_POOL):
                         if i < idx:
                             print(colorama.Fore.LIGHTBLACK_EX + f"  - {os.path.basename(item)} (used)" + colorama.Style.RESET_ALL)
                         else:
                             print(colorama.Fore.YELLOW + f"  - {os.path.basename(item)} (pending)" + colorama.Style.RESET_ALL)
 
-            if not self.shuffled_pool:
+            if not _SHUFFLED_POOL:
                 raise ValueError("Could not resolve any valid checkpoint files from the input list.")
 
             if shuffle:
                 # Use effective_index for final selection to ensure repeats work
                 rng = random.Random(effective_index)
-                path = rng.choice(self.shuffled_pool)
+                path = rng.choice(_SHUFFLED_POOL)
             else:
-                idx = effective_index % len(self.shuffled_pool)
-                path = self.shuffled_pool[idx]
+                idx = effective_index % len(_SHUFFLED_POOL)
+                path = _SHUFFLED_POOL[idx]
 
-            self.cached_path = path
-            self.cached_index = effective_index
+            _CACHED_PATH = path
+            _CACHED_INDEX = effective_index
 
         if not path:
             raise FileNotFoundError(f"Could not select a valid checkpoint file from the resolved pool.")
@@ -211,12 +213,5 @@ class LoadRandomCheckpoint:
 
         if console_log:
             print(FOOTER)
-        return (model, clip, vae, path)
+        return io.NodeOutput(model, clip, vae, path)
 
-NODE_CLASS_MAPPINGS = {
-    "LoadRandomCheckpoint": LoadRandomCheckpoint
-}
-
-NODE_DISPLAY_NAME_MAPPINGS = {
-    "LoadRandomCheckpoint": "Load Random Checkpoint"
-}

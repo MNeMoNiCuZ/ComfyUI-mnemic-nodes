@@ -1,37 +1,32 @@
-class LiteralString:
+from comfy_api.latest import io
+
+
+class LiteralString(io.ComfyNode):
     """
     A simple literal string input node.
     Provides a multiline text input field.
     """
 
-    def __init__(self):
-        pass
+    @classmethod
+    def define_schema(cls) -> io.Schema:
+        return io.Schema(
+            node_id="MNeMiC_LiteralString",
+            display_name="✏️ Literal String",
+            category="⚡ MNeMiC Nodes",
+            description="A simple string literal input. Enter any text, supports multiple lines.",
+            inputs=[
+                io.String.Input(
+                    "value",
+                    default="",
+                    multiline=True,
+                    tooltip="Text string value. Supports multiple lines.",
+                ),
+            ],
+            outputs=[
+                io.String.Output(display_name="value", tooltip="The text entered above, passed straight through."),
+            ],
+        )
 
     @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "value": ("STRING", {
-                    "default": "",
-                    "multiline": True,
-                    "tooltip": "Text string value. Supports multiple lines."
-                }),
-            }
-        }
-
-    RETURN_TYPES = ("STRING",)
-    RETURN_NAMES = ("value",)
-    FUNCTION = "get_value"
-    CATEGORY = "⚡ MNeMiC Nodes"
-    DESCRIPTION = "A simple string literal input. Enter any text, supports multiple lines."
-
-    def get_value(self, value):
-        return (value,)
-
-NODE_CLASS_MAPPINGS = {
-    "LiteralString": LiteralString,
-}
-
-NODE_DISPLAY_NAME_MAPPINGS = {
-    "LiteralString": "Literal String",
-}
+    def execute(cls, value) -> io.NodeOutput:
+        return io.NodeOutput(value)

@@ -5,45 +5,67 @@ import numpy as np
 from PIL import Image
 from io import BytesIO
 
+from comfy_api.latest import io
+
+
 def pil2tensor(image):
     return torch.from_numpy(np.array(image).astype(np.float32) / 255.0).unsqueeze(0)
 
-class DownloadImageFromURL:
-    OUTPUT_NODE = True
-    RETURN_TYPES = ("IMAGE", "INT", "INT")  # Image, Width, Height
-    RETURN_NAMES = ("image", "width", "height")
-    OUTPUT_TOOLTIPS = ("The downloaded image", "The width of the image", "The height of the image")
-    FUNCTION = "DownloadImageFromURL"
-    CATEGORY = "⚡ MNeMiC Nodes"
-    DESCRIPTION = "Downloads an image from a URL."
+
+class DownloadImageFromURL(io.ComfyNode):
+    @classmethod
+    def define_schema(cls) -> io.Schema:
+        return io.Schema(
+            node_id="MNeMiC_DownloadImageFromURL",
+            display_name="🖼️ Download Image from URL",
+            category="⚡ MNeMiC Nodes",
+            description="Downloads an image from a URL.",
+            inputs=[
+                io.String.Input(
+                    "image_url",
+                    multiline=False,
+                    default="",
+                    tooltip="URL of the image to download.",
+                ),
+                io.String.Input(
+                    "save_file_name_override",
+                    optional=True,
+                    default="",
+                    multiline=False,
+                    tooltip="Optional override for the name of the saved image file.",
+                ),
+                io.String.Input(
+                    "save_path",
+                    optional=True,
+                    default="",
+                    multiline=False,
+                    tooltip="Optional path to save the image. Defaults to the current directory.",
+                ),
+            ],
+            outputs=[
+                io.Image.Output(display_name="image", tooltip="The downloaded image"),
+                io.Int.Output(display_name="width", tooltip="The width of the image"),
+                io.Int.Output(display_name="height", tooltip="The height of the image"),
+            ],
+            is_output_node=True,
+        )
 
     @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "image_url": ("STRING", {"multiline": False, "default": "", "tooltip": "URL of the image to download."}),
-            },
-            "optional": {
-                "save_file_name_override": ("STRING", {"default": "", "multiline": False, "tooltip": "Optional override for the name of the saved image file."}),
-                "save_path": ("STRING", {"default": "", "multiline": False, "tooltip": "Optional path to save the image. Defaults to the current directory."})
-            }
-        }
-
-    def DownloadImageFromURL(self, image_url, save_path='', save_file_name_override=''):
+    def execute(cls, image_url, save_path='', save_file_name_override='') -> io.NodeOutput:
         if not image_url:
             print("Error: No image URL provided.")
-            return None, None, None
+            return io.NodeOutput(None, None, None)
 
         file_extension = os.path.splitext(image_url)[1].lower()
         if file_extension not in ['.jpg', '.jpeg', '.png', '.webp']:
             print(f"Error: Unsupported image format `{file_extension}`")
-            return None, None, None
+            return io.NodeOutput(None, None, None)
 
         try:
             response = requests.get(image_url)
             if response.status_code != 200:
                 print(f"Error: Failed to fetch image from URL with status code {response.status_code}")
-                return None, None, None
+                return io.NodeOutput(None, None, None)
 
             image = Image.open(BytesIO(response.content)).convert('RGB')
             width, height = image.size
@@ -65,6 +87,6 @@ class DownloadImageFromURL:
 
         except Exception as e:
             print(f"Error processing the image: {e}")
-            return None, None, None
+            return io.NodeOutput(None, None, None)
 
-        return image_tensor, width, height
+        return io.NodeOutput(image_tensor, width, height)

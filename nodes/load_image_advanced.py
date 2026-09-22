@@ -3,34 +3,45 @@ from PIL import Image
 import numpy as np
 import folder_paths
 import os
+
+from comfy_api.latest import io
+
 from ..utils.image_utils import load_image_metadata
 
-class LoadImageAdvanced:
+
+class LoadImageAdvanced(io.ComfyNode):
     @classmethod
-    def INPUT_TYPES(s):
+    def define_schema(cls) -> io.Schema:
         input_dir = folder_paths.get_input_directory()
-        files = [f for f in os.listdir(input_dir) if os.path.isfile(os.path.join(input_dir, f))]
-        return {
-            "required": {
-                "image": (sorted(files), {"image_upload": True, "tooltip": "The image file to load. The node will also attempt to extract metadata from this image."}),
-            },
-        }
+        try:
+            files = [f for f in os.listdir(input_dir) if os.path.isfile(os.path.join(input_dir, f))]
+        except OSError:
+            files = []
+        return io.Schema(
+            node_id="MNeMiC_LoadImageAdvanced",
+            display_name="🖼️ Load Image Advanced",
+            category="⚡ MNeMiC Nodes",
+            description="Loads an image and extracts its file path and positive prompt from metadata.",
+            inputs=[
+                io.Combo.Input(
+                    "image",
+                    options=sorted(files),
+                    upload=io.UploadType.image,
+                    tooltip="The image file to load. The node will also attempt to extract metadata from this image.",
+                ),
+            ],
+            outputs=[
+                io.Image.Output(display_name="image", tooltip="The loaded image."),
+                io.Mask.Output(display_name="mask", tooltip="The alpha channel of the image, if it exists."),
+                io.String.Output(display_name="image_path", tooltip="The full file path of the loaded image."),
+                io.String.Output(display_name="positive_prompt", tooltip="The positive prompt extracted from the image's metadata."),
+                io.Int.Output(display_name="width", tooltip="The width of the loaded image."),
+                io.Int.Output(display_name="height", tooltip="The height of the loaded image."),
+            ],
+        )
 
-    CATEGORY = "⚡ MNeMiC Nodes"
-    DESCRIPTION = "Loads an image and extracts its file path and positive prompt from metadata."
-    RETURN_TYPES = ("IMAGE", "MASK", "STRING", "STRING", "INT", "INT")
-    RETURN_NAMES = ("image", "mask", "image_path", "positive_prompt", "width", "height")
-    OUTPUT_TOOLTIPS = (
-        "The loaded image.",
-        "The alpha channel of the image, if it exists.",
-        "The full file path of the loaded image.",
-        "The positive prompt extracted from the image's metadata.",
-        "The width of the loaded image.",
-        "The height of the loaded image."
-    )
-    FUNCTION = "load_image"
-
-    def load_image(self, image):
+    @classmethod
+    def execute(cls, image) -> io.NodeOutput:
         image_path = folder_paths.get_annotated_filepath(image)
         try:
             with Image.open(image_path) as img:
@@ -50,8 +61,4 @@ class LoadImageAdvanced:
         except Exception as e:
             raise RuntimeError(f"Failed to load image '{image_path}': {e}")
 
-        return (output_image, mask, image_path, positive_prompt, width, height)
-
-NODE_DISPLAY_NAME_MAPPINGS = {
-    "LoadImageAdvanced": "🖼️ Load Image Advanced",
-}
+        return io.NodeOutput(output_image, mask, image_path, positive_prompt, width, height)

@@ -7,7 +7,9 @@ import math
 import colorsys
 import cv2
 
-class ColorfulStartingImage:
+from comfy_api.latest import io
+
+class ColorfulStartingImage(io.ComfyNode):
     COLOR_PALETTE_OPTIONS = ["random_color", "muted", "grayscale", "binary", "neon", "pastel", "colorized"]
     COLOR_HARMONY_OPTIONS = ["none", "complementary", "analogous", "triadic", "tetradic"]
     MULTI_COLOR_MODE_OPTIONS = ["none", "gradient", "blocks"]
@@ -21,40 +23,43 @@ class ColorfulStartingImage:
     WARP_TYPE_OPTIONS = ["none", "wave", "noise_field", "swirl"]
 
     @classmethod
-    def INPUT_TYPES(s):
-        return {
-            "required": {
-                "width": ("INT", {"default": 1024, "min": 64, "step": 64, "tooltip": "The width of the generated image in pixels."}),
-                "height": ("INT", {"default": 1024, "min": 64, "step": 64, "tooltip": "The height of the generated image in pixels."}),
-                "components": ("INT", {"default": 20, "min": 0, "tooltip": "The total number of components (shapes) to draw on the image. More components create a more complex image."}),
-                "component_scale": ("FLOAT", {"default": 0.5, "min": 0.01, "step": 0.01, "tooltip": "Controls the maximum potential size of shapes. A shape's max width is `image_width * component_scale`.\nExample: With a 1024px wide image and 0.5 scale, the largest shapes will be around 512px wide."} ),
-                "shape_string": ("STRING", {"default": "rectangle, ellipse, circle, line, spline, dot, stripes, triangle, polygon, arc, concentric_circles", "multiline": True, "tooltip": "A comma-separated list of shapes to draw from.\n\nAvailable shapes:\n- rectangle, ellipse, circle, line, spline, dot, stripes, triangle, polygon, arc, concentric_circles"}),
-                "color_palette": (["random"] + s.COLOR_PALETTE_OPTIONS, {"tooltip": "The color palette for the shapes.\n\nOptions:\n- random: Picks one of the other palette options at random.\n- random_color: Any RGB color.\n- muted: Less saturated, softer colors.\n- grayscale: Shades of gray.\n- binary: Pure black and white.\n- neon: Bright, highly saturated colors.\n- pastel: Soft, low-saturation colors.\n- colorized: Grayscale tinted with a single random hue across all shapes."} ),
-                "color_harmony": (["random"] + s.COLOR_HARMONY_OPTIONS, {"tooltip": "Apply a color harmony rule to the generated colors.\n\nOptions:\n- none: No harmony.\n- complementary: Two colors from opposite sides.\n- analogous: Three colors next to each other.\n- triadic: Three colors evenly spaced.\n- tetradic: Four colors in square harmony.\n\nNote: Color harmony has no effect when the 'binary' color palette is selected."} ),
-                "fill_mode": (["random"] + s.MULTI_COLOR_MODE_OPTIONS, {"tooltip": "Fill shapes with multiple colors.\n\nOptions:\n- none: Shapes are filled with a single color.\n- gradient: Blends two colors in a vertical gradient across each shape.\n- blocks: Divides each shape into vertical strips of solid, related colors."} ),
-                "shape_opacity": ("FLOAT", {"default": 1.0, "min": 0.1, "max": 1.0, "step": 0.05, "tooltip": "The alpha value (0.0 to 1.0) for the drawn shapes. 1.0 is fully opaque."} ),
-                "background_color": ("STRING", {"default": "black", "tooltip": "The background color of the image.\n\nSupported options:\n• Color names: black, white, red, blue, etc.\n• Hex codes: #FF0000, #00FF00, etc.\n• Special values:\n  - random (random color)\n  - noise (monochrome Gaussian noise)\n  - noise_large (large monochrome noise)\n  - noise_color (colored Gaussian noise)\n  - noise_color_large (large colored noise)\n\nFor full color name list, see: https://www.w3.org/TR/css-color-3/#svg-color"}),
-                "positioning_bias": (["random"] + s.POSITIONING_BIAS_OPTIONS, {"tooltip": "Controls where shapes are likely to appear.\n\nOptions:\n- scattered: Anywhere on the canvas.\n- center_weighted: Clustered in the center.\n- edge_weighted: Clustered along the edges.\n- grid_aligned: Aligned to a grid.\n- random_weighted: Clustered around two random points.\n- north/south/east/west: Clustered on that edge.\n- nw/ne/sw/se: Clustered in that corner."} ),
-                "arrangement": (["random"] + s.ARRANGEMENT_OPTIONS, {"tooltip": "Arrange shapes in a structured, less random pattern.\n\nOptions:\n- none: Random placement.\n- spiral: Shapes are arranged in a spiral.\n- burst: Shapes burst outwards from the center.\n- grid: Shapes are aligned to a grid."} ),
-                "size_distribution": (["random"] + s.SIZE_DISTRIBUTION_OPTIONS, {"tooltip": "Controls the distribution of shape sizes.\n\nOptions:\n- uniform: All sizes are equally likely.\n- prefer_small: Favors smaller shapes.\n- prefer_large: Favors larger shapes."} ),
-                "allow_rotation": ("BOOLEAN", {"default": True, "tooltip": "Allow random rotation of shapes like rectangles and lines."} ),
-                "noise_level": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 5.0, "step": 0.05, "tooltip": "Controls the amount of Gaussian noise added to shape fills. It acts as a multiplier for the noise intensity, where 0 is no noise and 1 is maximum intensity."} ),
-                "noise_scale": ("FLOAT", {"default": 1.0, "min": 1.0, "max": 100.0, "step": 1.0, "tooltip": "Scale of the noise pattern. A scale of 1 creates fine, per-pixel noise. Higher values create larger, more coherent noise patterns."} ),
-                "noise_color": (["random", "colored", "monochrome"], {"tooltip": "Whether the noise should be colored or monochrome."} ),
-                "warp_type": (["random"] + s.WARP_TYPE_OPTIONS, {"tooltip": "Type of distortion to apply to the final image.\n\nOptions:\n- none: No distortion.\n- wave: Sine wave distortion.\n- noise_field: Random, noisy distortion.\n- swirl: Swirls the image around the center."} ),
-                "warp_intensity": ("FLOAT", {"default": 0.5, "min": 0.0, "step": 0.1, "tooltip": "Multiplier for the warp effect. For wave/turbulence, it scales pixel displacement. For swirl, it scales the rotation angle."} ),
-                "blur_radius": ("FLOAT", {"default": 0.0, "min": 0.0, "step": 0.1, "tooltip": "The radius in pixels for the final Gaussian blur filter."} ),
-                "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff, "tooltip": "The seed for the random number generator. Using the same seed and parameters will produce the same image."}),
-            }
-        }
+    def define_schema(cls) -> io.Schema:
+        return io.Schema(
+            node_id="MNeMiC_ColorfulStartingImage",
+            display_name="🎨 Colorful Starting Image",
+            category="⚡ MNeMiC Nodes",
+            description="Creates a highly customizable, colorful image with random patterns and shapes, useful as a starting point for image generation.",
+            inputs=[
+                io.Int.Input("width", default=1024, min=64, step=64, tooltip="The width of the generated image in pixels."),
+                io.Int.Input("height", default=1024, min=64, step=64, tooltip="The height of the generated image in pixels."),
+                io.Int.Input("components", default=20, min=0, tooltip="The total number of components (shapes) to draw on the image. More components create a more complex image."),
+                io.Float.Input("component_scale", default=0.5, min=0.01, step=0.01, tooltip="Controls the maximum potential size of shapes. A shape's max width is `image_width * component_scale`.\nExample: With a 1024px wide image and 0.5 scale, the largest shapes will be around 512px wide."),
+                io.String.Input("shape_string", default="rectangle, ellipse, circle, line, spline, dot, stripes, triangle, polygon, arc, concentric_circles", multiline=True, tooltip="A comma-separated list of shapes to draw from.\n\nAvailable shapes:\n- rectangle, ellipse, circle, line, spline, dot, stripes, triangle, polygon, arc, concentric_circles"),
+                io.Combo.Input("color_palette", options=["random"] + cls.COLOR_PALETTE_OPTIONS, tooltip="The color palette for the shapes.\n\nOptions:\n- random: Picks one of the other palette options at random.\n- random_color: Any RGB color.\n- muted: Less saturated, softer colors.\n- grayscale: Shades of gray.\n- binary: Pure black and white.\n- neon: Bright, highly saturated colors.\n- pastel: Soft, low-saturation colors.\n- colorized: Grayscale tinted with a single random hue across all shapes."),
+                io.Combo.Input("color_harmony", options=["random"] + cls.COLOR_HARMONY_OPTIONS, tooltip="Apply a color harmony rule to the generated colors.\n\nOptions:\n- none: No harmony.\n- complementary: Two colors from opposite sides.\n- analogous: Three colors next to each other.\n- triadic: Three colors evenly spaced.\n- tetradic: Four colors in square harmony.\n\nNote: Color harmony has no effect when the 'binary' color palette is selected."),
+                io.Combo.Input("fill_mode", options=["random"] + cls.MULTI_COLOR_MODE_OPTIONS, tooltip="Fill shapes with multiple colors.\n\nOptions:\n- none: Shapes are filled with a single color.\n- gradient: Blends two colors in a vertical gradient across each shape.\n- blocks: Divides each shape into vertical strips of solid, related colors."),
+                io.Float.Input("shape_opacity", default=1.0, min=0.1, max=1.0, step=0.05, tooltip="The alpha value (0.0 to 1.0) for the drawn shapes. 1.0 is fully opaque."),
+                io.String.Input("background_color", default="black", tooltip="The background color of the image.\n\nSupported options:\n• Color names: black, white, red, blue, etc.\n• Hex codes: #FF0000, #00FF00, etc.\n• Special values:\n  - random (random color)\n  - noise (monochrome Gaussian noise)\n  - noise_large (large monochrome noise)\n  - noise_color (colored Gaussian noise)\n  - noise_color_large (large colored noise)\n\nFor full color name list, see: https://www.w3.org/TR/css-color-3/#svg-color"),
+                io.Combo.Input("positioning_bias", options=["random"] + cls.POSITIONING_BIAS_OPTIONS, tooltip="Controls where shapes are likely to appear.\n\nOptions:\n- scattered: Anywhere on the canvas.\n- center_weighted: Clustered in the center.\n- edge_weighted: Clustered along the edges.\n- grid_aligned: Aligned to a grid.\n- random_weighted: Clustered around two random points.\n- north/south/east/west: Clustered on that edge.\n- nw/ne/sw/se: Clustered in that corner."),
+                io.Combo.Input("arrangement", options=["random"] + cls.ARRANGEMENT_OPTIONS, tooltip="Arrange shapes in a structured, less random pattern.\n\nOptions:\n- none: Random placement.\n- spiral: Shapes are arranged in a spiral.\n- burst: Shapes burst outwards from the center.\n- grid: Shapes are aligned to a grid."),
+                io.Combo.Input("size_distribution", options=["random"] + cls.SIZE_DISTRIBUTION_OPTIONS, tooltip="Controls the distribution of shape sizes.\n\nOptions:\n- uniform: All sizes are equally likely.\n- prefer_small: Favors smaller shapes.\n- prefer_large: Favors larger shapes."),
+                io.Boolean.Input("allow_rotation", default=True, tooltip="Allow random rotation of shapes like rectangles and lines."),
+                io.Float.Input("noise_level", default=0.0, min=0.0, max=5.0, step=0.05, tooltip="Controls the amount of Gaussian noise added to shape fills. It acts as a multiplier for the noise intensity, where 0 is no noise and 1 is maximum intensity."),
+                io.Float.Input("noise_scale", default=1.0, min=1.0, max=100.0, step=1.0, tooltip="Scale of the noise pattern. A scale of 1 creates fine, per-pixel noise. Higher values create larger, more coherent noise patterns."),
+                io.Combo.Input("noise_color", options=["random", "colored", "monochrome"], tooltip="Whether the noise should be colored or monochrome."),
+                io.Combo.Input("warp_type", options=["random"] + cls.WARP_TYPE_OPTIONS, tooltip="Type of distortion to apply to the final image.\n\nOptions:\n- none: No distortion.\n- wave: Sine wave distortion.\n- noise_field: Random, noisy distortion.\n- swirl: Swirls the image around the center."),
+                io.Float.Input("warp_intensity", default=0.5, min=0.0, step=0.1, tooltip="Multiplier for the warp effect. For wave/turbulence, it scales pixel displacement. For swirl, it scales the rotation angle."),
+                io.Float.Input("blur_radius", default=0.0, min=0.0, step=0.1, tooltip="The radius in pixels for the final Gaussian blur filter."),
+                io.Int.Input("seed", default=0, min=0, max=0xffffffffffffffff, tooltip="The seed for the random number generator. Using the same seed and parameters will produce the same image."),
+            ],
+            outputs=[
+                io.Image.Output(display_name="image", tooltip="The generated image."),
+                io.Mask.Output(display_name="mask", tooltip="White where shapes were drawn, black where the background shows through."),
+            ],
+        )
 
-    RETURN_TYPES = ("IMAGE", "MASK")
-    RETURN_NAMES = ("image", "mask")
-    FUNCTION = "generate_image"
-    CATEGORY = "⚡ MNeMiC Nodes"
-    DESCRIPTION = "Creates a highly customizable, colorful image with random patterns and shapes, useful as a starting point for image generation."
-
-    def get_harmonized_colors(self, harmony):
+    @classmethod
+    def get_harmonized_colors(cls, harmony):
         base_hue = np.random.rand()
         if harmony == "complementary": return [colorsys.hsv_to_rgb(h, np.random.uniform(0.5, 1), np.random.uniform(0.5, 1)) for h in [base_hue, (base_hue + 0.5) % 1]]
         if harmony == "analogous": return [colorsys.hsv_to_rgb(h, np.random.uniform(0.5, 1), np.random.uniform(0.5, 1)) for h in [base_hue, (base_hue + 0.083) % 1, (base_hue - 0.083) % 1]]
@@ -62,7 +67,8 @@ class ColorfulStartingImage:
         if harmony == "tetradic": return [colorsys.hsv_to_rgb(h, np.random.uniform(0.5, 1), np.random.uniform(0.5, 1)) for h in [base_hue, (base_hue + 0.25) % 1, (base_hue + 0.5) % 1, (base_hue + 0.75) % 1]]
         return []
 
-    def get_color(self, palette, harmony_colors, colorized_hue=None):
+    @classmethod
+    def get_color(cls, palette, harmony_colors, colorized_hue=None):
         if palette == "grayscale" and harmony_colors:
             gray_val = np.random.randint(0, 255)
             harmonious_color = random.choice(harmony_colors)
@@ -99,7 +105,8 @@ class ColorfulStartingImage:
             return (int(r*255), int(g*255), int(b*255))
         return (np.random.randint(0, 255), np.random.randint(0, 255), np.random.randint(0, 255))
 
-    def get_biased_position(self, width, height, bias, arrangement, arrangement_params):
+    @classmethod
+    def get_biased_position(cls, width, height, bias, arrangement, arrangement_params):
         x, y = 0, 0
         if arrangement != "none":
             if arrangement == "spiral":
@@ -141,14 +148,16 @@ class ColorfulStartingImage:
         else: x, y = np.random.randint(0, width), np.random.randint(0, height)
         return (max(0, min(width-1, x)), max(0, min(height-1, y)))
 
-    def get_biased_size(self, max_size, distribution):
+    @classmethod
+    def get_biased_size(cls, max_size, distribution):
         if distribution == "prefer_small": return int(abs(np.random.normal(0, max_size / 3))) + 1
         if distribution == "prefer_large":
             val = int(max_size - abs(np.random.normal(0, max_size / 3)))
             return max(1, val)
         return np.random.randint(1, max(2, int(max_size)))
 
-    def draw_pulsating_line(self, draw, points, color, component_scale, width, height):
+    @classmethod
+    def draw_pulsating_line(cls, draw, points, color, component_scale, width, height):
         if not points or len(points) < 2: return
 
         max_thickness = max(2, int(min(width, height) * component_scale * 0.05))
@@ -183,7 +192,8 @@ class ColorfulStartingImage:
 
             draw.polygon(polygon_points, fill=color)
 
-    def _create_gradient_fill(self, width, height, color1, color2, opacity):
+    @classmethod
+    def _create_gradient_fill(cls, width, height, color1, color2, opacity):
         c1 = np.array(color1)
         c2 = np.array(color2)
         ramp = np.linspace(0, 1, height).reshape(height, 1, 1)
@@ -194,7 +204,8 @@ class ColorfulStartingImage:
         gradient_rgba = np.concatenate((gradient_rgb_w, alpha), axis=2)
         return Image.fromarray(gradient_rgba, 'RGBA')
 
-    def _create_blocks_fill(self, width, height, palette, harmony_colors, colorized_hue, opacity):
+    @classmethod
+    def _create_blocks_fill(cls, width, height, palette, harmony_colors, colorized_hue, opacity):
         num_strips = np.random.randint(3, 6)
         blocks_rgba = np.zeros((height, width, 4), dtype=np.uint8)
         strip_boundaries = np.linspace(0, width, num_strips + 1, dtype=int)
@@ -202,23 +213,24 @@ class ColorfulStartingImage:
             strip_x1 = strip_boundaries[i]
             strip_x2 = strip_boundaries[i+1]
             if strip_x1 >= strip_x2: continue
-            block_color = self.get_color(palette, harmony_colors, colorized_hue)
+            block_color = cls.get_color(palette, harmony_colors, colorized_hue)
             strip_color = (*block_color, int(255 * opacity))
             blocks_rgba[:, strip_x1:strip_x2] = strip_color
         return Image.fromarray(blocks_rgba, 'RGBA')
 
-    def draw_shape(self, width, height, component_scale, shape, palette, image, mask, pos_bias, size_dist, rotation, harmony_colors, opacity, noise_level, noise_scale, noise_color, arrangement, arrangement_params, fill_mode, noise_rng, colorized_hue=None):
+    @classmethod
+    def draw_shape(cls, width, height, component_scale, shape, palette, image, mask, pos_bias, size_dist, rotation, harmony_colors, opacity, noise_level, noise_scale, noise_color, arrangement, arrangement_params, fill_mode, noise_rng, colorized_hue=None):
         shape_layer = Image.new('RGBA', image.size, (0,0,0,0))
         mask_layer = Image.new('L', mask.size, 0)
         shape_draw = ImageDraw.Draw(shape_layer)
         mask_draw = ImageDraw.Draw(mask_layer)
 
-        x1_orig, y1_orig = self.get_biased_position(width, height, pos_bias, arrangement, arrangement_params)
+        x1_orig, y1_orig = cls.get_biased_position(width, height, pos_bias, arrangement, arrangement_params)
         
         max_size_x = width * component_scale
         max_size_y = height * component_scale
-        size_x = self.get_biased_size(max_size_x, size_dist) * np.random.choice([-1, 1])
-        size_y = self.get_biased_size(max_size_y, size_dist) * np.random.choice([-1, 1])
+        size_x = cls.get_biased_size(max_size_x, size_dist) * np.random.choice([-1, 1])
+        size_y = cls.get_biased_size(max_size_y, size_dist) * np.random.choice([-1, 1])
 
         if shape == 'circle':
             size_x = size_y = min(abs(size_x), abs(size_y))
@@ -302,11 +314,11 @@ class ColorfulStartingImage:
 
                 fill_img = None
                 if fill_mode == 'gradient':
-                    color1 = self.get_color(palette, harmony_colors, colorized_hue)
-                    color2 = self.get_color(palette, harmony_colors, colorized_hue)
-                    fill_img = self._create_gradient_fill(shape_w, shape_h, color1, color2, opacity)
+                    color1 = cls.get_color(palette, harmony_colors, colorized_hue)
+                    color2 = cls.get_color(palette, harmony_colors, colorized_hue)
+                    fill_img = cls._create_gradient_fill(shape_w, shape_h, color1, color2, opacity)
                 elif fill_mode == 'blocks':
-                    fill_img = self._create_blocks_fill(shape_w, shape_h, palette, harmony_colors, colorized_hue, opacity)
+                    fill_img = cls._create_blocks_fill(shape_w, shape_h, palette, harmony_colors, colorized_hue, opacity)
                 
                 if fill_img:
                     shape_layer.paste(fill_img, (bx1, by1), shape_mask)
@@ -315,12 +327,12 @@ class ColorfulStartingImage:
             center_x, center_y, max_radius, num_circles = x1, y1, min(abs(size_x), abs(size_y)) // 2, np.random.randint(3, 10)
             for i in range(num_circles, 0, -1):
                 radius = int(max_radius * (i / num_circles))
-                circle_color = (*self.get_color(palette, harmony_colors, colorized_hue), int(255 * opacity))
+                circle_color = (*cls.get_color(palette, harmony_colors, colorized_hue), int(255 * opacity))
                 shape_draw.ellipse([center_x-radius, center_y-radius, center_x+radius, center_y+radius], fill=circle_color)
                 mask_draw.ellipse([center_x-radius, center_y-radius, center_x+radius, center_y+radius], fill=255)
         
         else: # Solid fill for fillable shapes, or line-based shapes
-            color = self.get_color(palette, harmony_colors, colorized_hue)
+            color = cls.get_color(palette, harmony_colors, colorized_hue)
             color_with_alpha = (*color, int(255 * opacity))
             
             if shape in fillable_shapes:
@@ -331,8 +343,8 @@ class ColorfulStartingImage:
                 points = []
                 if shape == "line": points = [(x1_orig, y1_orig), (x2_orig, y2_orig)]
                 elif shape == "spline": points = [(np.random.randint(0, width), np.random.randint(0, height)) for _ in range(np.random.randint(3, 6))]
-                self.draw_pulsating_line(shape_draw, points, color_with_alpha, component_scale, width, height)
-                self.draw_pulsating_line(mask_draw, points, 255, component_scale, width, height)
+                cls.draw_pulsating_line(shape_draw, points, color_with_alpha, component_scale, width, height)
+                cls.draw_pulsating_line(mask_draw, points, 255, component_scale, width, height)
 
             elif shape == "arc": 
                 start_angle, end_angle = np.random.randint(0, 360), np.random.randint(30, 180)
@@ -347,9 +359,9 @@ class ColorfulStartingImage:
                         elif edge == 1: points.append((width, np.random.randint(0, height)))
                         elif edge == 2: points.append((np.random.randint(0, width), height))
                         else: points.append((0, np.random.randint(0, height)))
-                    stripe_color = (*self.get_color(palette, harmony_colors, colorized_hue), int(255 * opacity))
-                    self.draw_pulsating_line(shape_draw, points, stripe_color, component_scale, width, height)
-                    self.draw_pulsating_line(mask_draw, points, 255, component_scale, width, height)
+                    stripe_color = (*cls.get_color(palette, harmony_colors, colorized_hue), int(255 * opacity))
+                    cls.draw_pulsating_line(shape_draw, points, stripe_color, component_scale, width, height)
+                    cls.draw_pulsating_line(mask_draw, points, 255, component_scale, width, height)
 
         shape_layer = apply_noise_to_layer(shape_layer, mask_layer)
 
@@ -361,7 +373,8 @@ class ColorfulStartingImage:
         
         return Image.alpha_composite(image, shape_layer), ImageChops.lighter(mask, mask_layer)
 
-    def apply_warp(self, image, warp_type, intensity):
+    @classmethod
+    def apply_warp(cls, image, warp_type, intensity):
         if warp_type == 'none' or intensity == 0: return image
         img_array = np.array(image)
         rows, cols, _ = img_array.shape
@@ -387,7 +400,8 @@ class ColorfulStartingImage:
         map_x, map_y = np.clip(map_x, 0, cols-1).astype(np.float32), np.clip(map_y, 0, rows-1).astype(np.float32)
         return Image.fromarray(cv2.remap(img_array, map_x, map_y, interpolation=cv2.INTER_LINEAR))
 
-    def _create_noise_background(self, width, height, background_color, seed):
+    @classmethod
+    def _create_noise_background(cls, width, height, background_color, seed):
         rng = np.random.RandomState(seed % (2**32))
 
         # Parse background_color for noise options
@@ -421,26 +435,27 @@ class ColorfulStartingImage:
         noise_rgba = np.concatenate((noise, np.full((height, width, 1), 255, dtype=np.uint8)), axis=2)
         return Image.fromarray(noise_rgba, 'RGBA')
 
-    def generate_image(self, width, height, components, component_scale, shape_string, color_palette, color_harmony, fill_mode, shape_opacity, background_color, positioning_bias, arrangement, size_distribution, allow_rotation, noise_level, noise_scale, noise_color, warp_type, warp_intensity, blur_radius, seed):
+    @classmethod
+    def execute(cls, width, height, components, component_scale, shape_string, color_palette, color_harmony, fill_mode, shape_opacity, background_color, positioning_bias, arrangement, size_distribution, allow_rotation, noise_level, noise_scale, noise_color, warp_type, warp_intensity, blur_radius, seed) -> io.NodeOutput:
         random.seed(seed); np.random.seed(seed % (2**32))
         noise_rng = np.random.RandomState(seed % (2**32))
 
         if background_color.startswith("noise"):
-            image = self._create_noise_background(width, height, background_color, seed)
+            image = cls._create_noise_background(width, height, background_color, seed)
             mask = Image.new("L", (width, height), 0)
         else:
             if background_color == "random":
                 background_color = (np.random.randint(0, 255), np.random.randint(0, 255), np.random.randint(0, 255))
             image, mask = Image.new("RGBA", (width, height), background_color), Image.new("L", (width, height), 0)
 
-        if positioning_bias == "random": positioning_bias = random.choice(self.POSITIONING_BIAS_OPTIONS)
-        if arrangement == "random": arrangement = random.choice(self.ARRANGEMENT_OPTIONS)
+        if positioning_bias == "random": positioning_bias = random.choice(cls.POSITIONING_BIAS_OPTIONS)
+        if arrangement == "random": arrangement = random.choice(cls.ARRANGEMENT_OPTIONS)
         colorize_selected = color_palette == "colorized"
-        if color_palette == "random": color_palette = random.choice(self.COLOR_PALETTE_OPTIONS)
-        if color_harmony == "random": color_harmony = random.choice(self.COLOR_HARMONY_OPTIONS)
-        if fill_mode == "random": fill_mode = random.choice(self.MULTI_COLOR_MODE_OPTIONS)
-        if size_distribution == "random": size_distribution = random.choice(self.SIZE_DISTRIBUTION_OPTIONS)
-        if warp_type == "random": warp_type = random.choice(self.WARP_TYPE_OPTIONS)
+        if color_palette == "random": color_palette = random.choice(cls.COLOR_PALETTE_OPTIONS)
+        if color_harmony == "random": color_harmony = random.choice(cls.COLOR_HARMONY_OPTIONS)
+        if fill_mode == "random": fill_mode = random.choice(cls.MULTI_COLOR_MODE_OPTIONS)
+        if size_distribution == "random": size_distribution = random.choice(cls.SIZE_DISTRIBUTION_OPTIONS)
+        if warp_type == "random": warp_type = random.choice(cls.WARP_TYPE_OPTIONS)
         if colorize_selected or color_palette == "colorized":
             colorized_hue = np.random.rand()
         else:
@@ -448,7 +463,7 @@ class ColorfulStartingImage:
 
         try: import cv2
         except ImportError: raise ImportError("OpenCV is required for the warp effect. Please install it with 'pip install opencv-python'.")
-        harmony_colors = self.get_harmonized_colors(color_harmony) if color_harmony != "none" else []
+        harmony_colors = cls.get_harmonized_colors(color_harmony) if color_harmony != "none" else []
         available_shapes = [s.strip().lower() for s in shape_string.split(',') if s.strip()]
         arrangement_params = {}
         if arrangement == "spiral": arrangement_params['radius_step'] = min(width, height) / (2 * components)
@@ -468,17 +483,13 @@ class ColorfulStartingImage:
                 current_shape = random.choice(available_shapes)
             else:
                 continue
-            image, mask = self.draw_shape(width, height, component_scale, current_shape, color_palette, image, mask, positioning_bias, size_distribution, allow_rotation, harmony_colors, shape_opacity, noise_level, noise_scale, noise_color, arrangement, arrangement_params, fill_mode, noise_rng, colorized_hue)
+            image, mask = cls.draw_shape(width, height, component_scale, current_shape, color_palette, image, mask, positioning_bias, size_distribution, allow_rotation, harmony_colors, shape_opacity, noise_level, noise_scale, noise_color, arrangement, arrangement_params, fill_mode, noise_rng, colorized_hue)
         
-        if warp_type != 'none' and warp_intensity > 0: image = self.apply_warp(image, warp_type, warp_intensity)
+        if warp_type != 'none' and warp_intensity > 0: image = cls.apply_warp(image, warp_type, warp_intensity)
         if blur_radius > 0: image = image.filter(ImageFilter.GaussianBlur(radius=blur_radius))
         image = image.convert("RGB")
         image_np, mask_np = np.array(image).astype(np.float32) / 255.0, np.array(mask).astype(np.float32) / 255.0
         image_tensor, mask_tensor = torch.from_numpy(image_np)[None,], torch.from_numpy(mask_np).unsqueeze(0)
-        return (image_tensor, mask_tensor)
+        return io.NodeOutput(image_tensor, mask_tensor)
 
-NODE_CLASS_MAPPINGS = { "ColorfulStartingImage": ColorfulStartingImage }
-NODE_DISPLAY_NAME_MAPPINGS = { "ColorfulStartingImage": "🎨 Colorful Starting Image" }
 
-NODE_CLASS_MAPPINGS = { "ColorfulStartingImage": ColorfulStartingImage }
-NODE_DISPLAY_NAME_MAPPINGS = { "ColorfulStartingImage": "🎨 Colorful Starting Image" }

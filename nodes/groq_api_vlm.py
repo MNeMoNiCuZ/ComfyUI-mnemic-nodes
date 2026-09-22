@@ -10,7 +10,35 @@ from ..utils.api_utils import make_api_request, load_prompt_options, get_prompt_
 from ..utils.env_manager import ensure_env_file, get_api_key
 from ..utils.image_utils import encode_image, tensor_to_pil
 
-class GroqAPIVLM:
+from comfy_api.latest import io
+
+# Lazily-initialised API key and prompt options, shared by every instance of the
+# node. V3 nodes execute as classmethods, so this replaces the old __init__.
+_CONTEXT = None
+
+
+def _get_context():
+    """Return (api_key, prompt_options), initialising them on first use."""
+    global _CONTEXT
+    if _CONTEXT is None:
+        current_directory = os.path.dirname(os.path.realpath(__file__))
+        groq_directory = os.path.join(current_directory, 'groq')
+
+        # Get API key from env file
+        ensure_env_file()
+        api_key = get_api_key()
+        Groq(api_key=api_key)
+
+        # Load prompt options
+        prompt_files = [
+            os.path.join(groq_directory, 'DefaultPrompts_VLM.json'),
+            os.path.join(groq_directory, 'UserPrompts_VLM.json')
+        ]
+        _CONTEXT = (api_key, load_prompt_options(prompt_files))
+    return _CONTEXT
+
+
+class GroqAPIVLM(io.ComfyNode):
     DEFAULT_PROMPT = "Use [system_message] and [user_input]"
     
     # Deprecation List - https://console.groq.com/docs/deprecations
@@ -20,25 +48,8 @@ class GroqAPIVLM:
         "meta-llama/llama-4-scout-17b-16e-instruct",
     ]
     
-    def __init__(self):
-        # Set up directories for prompt files
-        current_directory = os.path.dirname(os.path.realpath(__file__))
-        groq_directory = os.path.join(current_directory, 'groq')
-        
-        # Get API key from env file
-        ensure_env_file()
-        self.api_key = get_api_key()
-        self.client = Groq(api_key=self.api_key)
-        
-        # Load prompt options
-        prompt_files = [
-            os.path.join(groq_directory, 'DefaultPrompts_VLM.json'),
-            os.path.join(groq_directory, 'UserPrompts_VLM.json')
-        ]
-        self.prompt_options = load_prompt_options(prompt_files)
-    
     @classmethod
-    def INPUT_TYPES(cls):
+    def define_schema(cls) -> io.Schema:
         try:
             current_directory = os.path.dirname(os.path.realpath(__file__))
             groq_directory = os.path.join(current_directory, 'groq')
@@ -51,44 +62,47 @@ class GroqAPIVLM:
             print(Fore.RED + f"Failed to load prompt options: {e}" + Style.RESET_ALL)
             prompt_options = {}
     
-        return {
-            "required": {
-                "model": (cls.VLM_MODELS, {"tooltip": "Select the Vision-Language Model (VLM) to use."}),
-                "preset": ([cls.DEFAULT_PROMPT] + list(prompt_options.keys()), {"tooltip": "Select a preset prompt or use a custom prompt for the model."}),
-                "system_message": ("STRING", {"multiline": True, "default": "", "tooltip": "Optional system message to guide model behavior."}),
-                "user_input": ("STRING", {"multiline": True, "default": "", "tooltip": "User input or prompt for the model to generate a response."}),
-                "image": ("IMAGE", {"label": "Image (required for VLM models)", "tooltip": "Upload an image for processing by the VLM model."}),
-                "temperature": ("FLOAT", {"default": 0.85, "min": 0.1, "max": 2.0, "step": 0.05, "tooltip": "Controls randomness in responses.\n\nA higher temperature makes the model take more risks, leading to more creative or varied answers.\n\nA lower temperature (closer to 0.1) makes the model more focused and predictable."}),
-                "max_tokens": ("INT", {"default": 1024, "min": 1, "max": 131072, "step": 1, "tooltip": "Maximum number of tokens to generate in the output."}),
-                "top_p": ("FLOAT", {"default": 1.0, "min": 0.1, "max": 1.0, "step": 0.01, "tooltip": "Limits the pool of words the model can choose from based on their combined probability.\n\nSet it closer to 1 to allow more variety in output. Lowering this (e.g., 0.9) will restrict the output to the most likely words, making responses more focused."}),
-                "seed": ("INT", {"default": 42, "min": 0, "max": 4294967295, "tooltip": "Seed for random number generation, ensuring reproducibility."}),
-                "max_retries": ("INT", {"default": 2, "min": 1, "max": 10, "step": 1, "tooltip": "Maximum number of retries in case of failures."}),
-                "stop": ("STRING", {"default": "", "tooltip": "Stop generation when the specified sequence is encountered."}),
-                "json_mode": ("BOOLEAN", {"default": False, "tooltip": "Enable JSON mode for structured output.\n\nIMPORTANT: Requires you to use the word 'JSON' in the prompt."}),
-            }
-        }
-    
-    OUTPUT_NODE = True
-    RETURN_TYPES = ("STRING", "BOOLEAN", "STRING")
-    RETURN_NAMES = ("api_response", "success", "status_code")
-    OUTPUT_TOOLTIPS = ("The API response. This is the description of your input image generated by the model", "Whether the request was successful", "The status code of the request")
-    FUNCTION = "process_completion_request"
-    CATEGORY = "⚡ MNeMiC Nodes"
-    DESCRIPTION = "Uses Groq API for image processing."
-    
-    def process_completion_request(self, model, image, temperature, max_tokens, top_p, seed, max_retries, stop, json_mode, preset="", system_message="", user_input=""):
+        return io.Schema(
+            node_id="MNeMiC_GroqAPIVLM",
+            display_name="✨📷 Groq VLM API",
+            category="⚡ MNeMiC Nodes",
+            description="Uses Groq API for image processing.",
+            inputs=[
+                io.Combo.Input("model", options=cls.VLM_MODELS, tooltip="Select the Vision-Language Model (VLM) to use."),
+                io.Combo.Input("preset", options=[cls.DEFAULT_PROMPT] + list(prompt_options.keys()), tooltip="Select a preset prompt or use a custom prompt for the model."),
+                io.String.Input("system_message", multiline=True, default="", tooltip="Optional system message to guide model behavior."),
+                io.String.Input("user_input", multiline=True, default="", tooltip="User input or prompt for the model to generate a response."),
+                io.Image.Input("image", tooltip="Upload an image for processing by the VLM model."),
+                io.Float.Input("temperature", default=0.85, min=0.1, max=2.0, step=0.05, tooltip="Controls randomness in responses.\n\nA higher temperature makes the model take more risks, leading to more creative or varied answers.\n\nA lower temperature (closer to 0.1) makes the model more focused and predictable."),
+                io.Int.Input("max_tokens", advanced=True, default=1024, min=1, max=131072, step=1, tooltip="Maximum number of tokens to generate in the output."),
+                io.Float.Input("top_p", advanced=True, default=1.0, min=0.1, max=1.0, step=0.01, tooltip="Limits the pool of words the model can choose from based on their combined probability.\n\nSet it closer to 1 to allow more variety in output. Lowering this (e.g., 0.9) will restrict the output to the most likely words, making responses more focused."),
+                io.Int.Input("seed", advanced=True, default=42, min=0, max=4294967295, tooltip="Seed for random number generation, ensuring reproducibility."),
+                io.Int.Input("max_retries", advanced=True, default=2, min=1, max=10, step=1, tooltip="Maximum number of retries in case of failures."),
+                io.String.Input("stop", advanced=True, default="", tooltip="Stop generation when the specified sequence is encountered."),
+                io.Boolean.Input("json_mode", advanced=True, default=False, tooltip="Enable JSON mode for structured output.\n\nIMPORTANT: Requires you to use the word 'JSON' in the prompt."),
+            ],
+            outputs=[
+                io.String.Output(display_name="api_response", tooltip="The API response. This is the description of your input image generated by the model"),
+                io.Boolean.Output(display_name="success", tooltip="Whether the request was successful"),
+                io.String.Output(display_name="status_code", tooltip="The status code of the request"),
+            ],
+        )
+
+    @classmethod
+    def execute(cls, model, image, temperature, max_tokens, top_p, seed, max_retries, stop, json_mode, preset="", system_message="", user_input="") -> io.NodeOutput:
+        api_key, prompt_options_loaded = _get_context()
         # Set the seed for reproducibility
         torch.manual_seed(seed)
         np.random.seed(seed)
         random.seed(seed)
     
-        if preset == self.DEFAULT_PROMPT:
+        if preset == cls.DEFAULT_PROMPT:
             system_message = system_message
         else:
-            system_message = get_prompt_content(self.prompt_options, preset)
+            system_message = get_prompt_content(prompt_options_loaded, preset)
     
         url = 'https://api.groq.com/openai/v1/chat/completions'
-        headers = {'Authorization': f'Bearer {self.api_key}'}
+        headers = {'Authorization': f'Bearer {api_key}'}
         
         if image is not None and isinstance(image, torch.Tensor):
             # Process the image
@@ -113,7 +127,7 @@ class GroqAPIVLM:
                 messages = []
         else:
             print(Fore.RED + "Image is required for VLM models." + Style.RESET_ALL)
-            return "Image is required for VLM models.", False, "400 Bad Request"
+            return io.NodeOutput("Image is required for VLM models.", False, "400 Bad Request")
        
         data = {
             'model': model,
@@ -130,4 +144,4 @@ class GroqAPIVLM:
         #print(f"Sending request to {url} with data: {json.dumps(data, indent=4)} and headers: {headers}")
         
         assistant_message, success, status_code = make_api_request(data, headers, url, max_retries)
-        return assistant_message, success, status_code
+        return io.NodeOutput(assistant_message, success, status_code)

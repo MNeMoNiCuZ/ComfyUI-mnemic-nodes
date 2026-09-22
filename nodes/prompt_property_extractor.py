@@ -10,74 +10,66 @@ from ..utils.settings_utils import is_prompt_property_extractor_console_log_enab
 from .wildcard_processor import WildcardProcessor
 from comfy.samplers import SCHEDULER_NAMES  # Official global scheduler list – the correct one
 
+from comfy_api.latest import io
 
-class PromptPropertyExtractor:
+
+class PromptPropertyExtractor(io.ComfyNode):
     """
     A node to parse a string for sampler and model settings.
     """
     @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "input_string": ("STRING", {"multiline": True, "default": "", "tooltip": "Input string with property tags.\nSupported tags:\n- <checkpoint:name> | <model:name> | <ckpt:name>\n- <clip:name>\n- <vae:name>\n- <lora:name:weight>\n- <cfg:value>\n- <steps:value> | <step:value>\n- <sampler:name> | <sampler_name:name>\n- <denoise:value>\n- <width:value>\n- <height:value>\n- <resolution:WxH> | <res:WxH> (e.g. 1024x768)\n- <seed:value>\n- <start_step:value> | <start:value> | <start_at_step:value>\n- <end_step:value> | <end:value> | <end_at_step:value>\n- <pos:value> | <positive:value> (Positive Prompt - multiple allowed)\n- <neg:value> | <negative:value> (Negative Prompt - multiple allowed)\n\nNote: Multiple <pos> and <neg> tags are combined with ', '.\nNote: Use \\> to include a literal > in tag values (e.g. <neg:(cat:1.5)\\, ugly>)"}),
-                "load_clip_from_checkpoint": ("BOOLEAN", {"default": True, "tooltip": "Determines CLIP source priority:\n1. <clip:name> tag (Highest Priority)\n2. Checkpoint CLIP (if <checkpoint> tag exists AND this is True)\n3. Input CLIP pin (Lowest Priority)\n\nIf no <checkpoint> tag is found, this setting is ignored and the Input CLIP is used."}),
-                "load_vae_from_checkpoint": ("BOOLEAN", {"default": True, "tooltip": "Determines VAE source priority:\n1. <vae:name> tag (Highest Priority)\n2. Checkpoint VAE (if <checkpoint> tag exists AND this is True)\n3. Input VAE pin (Lowest Priority)\n\nIf no <checkpoint> tag is found, this setting is ignored and the Input VAE is used."}),
-                "cfg": ("FLOAT", {"default": 8.0, "min": 0.0, "max": 100.0, "tooltip": "Default CFG scale. Can be overridden by a <cfg:value> tag."}),
-                "steps": ("INT", {"default": 20, "min": 1, "max": 10000, "tooltip": "Default number of steps. Can be overridden by a <steps:value> tag."}),
-                "sampler_name": (comfy.samplers.KSampler.SAMPLERS, {"tooltip": "Default sampler. Can be overridden by a <sampler:name> tag."}),
-                # REMOVED TEMPORARILY: "scheduler": (SCHEDULER_NAMES, {"tooltip": "Default scheduler. Can be overridden by a <scheduler:name> tag."}),
+    def define_schema(cls) -> io.Schema:
+        return io.Schema(
+            node_id="MNeMiC_PromptPropertyExtractor",
+            display_name="⚙️ Prompt Property Extractor",
+            category="⚡ MNeMiC Nodes",
+            inputs=[
+                io.String.Input("input_string", multiline=True, default="", tooltip="Input string with property tags.\nSupported tags:\n- <checkpoint:name> | <model:name> | <ckpt:name>\n- <clip:name>\n- <vae:name>\n- <lora:name:weight>\n- <cfg:value>\n- <steps:value> | <step:value>\n- <sampler:name> | <sampler_name:name>\n- <denoise:value>\n- <width:value>\n- <height:value>\n- <resolution:WxH> | <res:WxH> (e.g. 1024x768)\n- <seed:value>\n- <start_step:value> | <start:value> | <start_at_step:value>\n- <end_step:value> | <end:value> | <end_at_step:value>\n- <pos:value> | <positive:value> (Positive Prompt - multiple allowed)\n- <neg:value> | <negative:value> (Negative Prompt - multiple allowed)\n\nNote: Multiple <pos> and <neg> tags are combined with ', '.\nNote: Use \\> to include a literal > in tag values (e.g. <neg:(cat:1.5)\\, ugly>)"),
+                io.Boolean.Input("load_clip_from_checkpoint", default=True, tooltip="Determines CLIP source priority:\n1. <clip:name> tag (Highest Priority)\n2. Checkpoint CLIP (if <checkpoint> tag exists AND this is True)\n3. Input CLIP pin (Lowest Priority)\n\nIf no <checkpoint> tag is found, this setting is ignored and the Input CLIP is used."),
+                io.Boolean.Input("load_vae_from_checkpoint", default=True, tooltip="Determines VAE source priority:\n1. <vae:name> tag (Highest Priority)\n2. Checkpoint VAE (if <checkpoint> tag exists AND this is True)\n3. Input VAE pin (Lowest Priority)\n\nIf no <checkpoint> tag is found, this setting is ignored and the Input VAE is used."),
+                io.Float.Input("cfg", default=8.0, min=0.0, max=100.0, tooltip="Default CFG scale. Can be overridden by a <cfg:value> tag."),
+                io.Int.Input("steps", default=20, min=1, max=10000, tooltip="Default number of steps. Can be overridden by a <steps:value> tag."),
+                io.Combo.Input("sampler_name", options=comfy.samplers.KSampler.SAMPLERS, tooltip="Default sampler. Can be overridden by a <sampler:name> tag."),
+                # REMOVED TEMPORARILY: "scheduler" input.
                 # Issue: ComfyUI validates scheduler types at module load time, before custom nodes like PowerShiftScheduler register their schedulers
-                "denoise": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01, "tooltip": "Default denoise value. Can be overridden by a <denoise:value> tag."}),
-                "width": ("INT", {"default": 512, "min": 64, "max": 4096, "step": 8, "tooltip": "Default image width. Can be overridden by a <width:value> tag."}),
-                "height": ("INT", {"default": 512, "min": 64, "max": 4096, "step": 8, "tooltip": "Default image height. Can be overridden by a <height:value> tag."}),
-                "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff, "tooltip": "Default seed. Can be overridden by a <seed:value> tag."}),
-                "start_step": ("INT", {"default": 0, "min": 0, "max": 10000, "tooltip": "Default start step for KSampler. Can be overridden by a <start_step:value> tag."}),
-                "end_step": ("INT", {"default": 10000, "min": 0, "max": 10000, "tooltip": "Default end step for KSampler. Can be overridden by a <end_step:value> tag."}),
-            },
-            "optional": {
-                "model": ("MODEL", {"tooltip": "Default MODEL input (Lowest Priority).\nOverridden by:\n1. <checkpoint:name> tag (Highest Priority)"}),
-                "clip": ("CLIP", {"tooltip": "Default CLIP input (Lowest Priority).\nOverridden by:\n1. <clip:name> tag (Highest Priority)\n2. <checkpoint:name> tag CLIP (if load_clip_from_checkpoint is True)"}),
-                "vae": ("VAE", {"tooltip": "Default VAE input (Lowest Priority).\nOverridden by:\n1. <vae:name> tag (Highest Priority)\n2. <checkpoint:name> tag VAE (if load_vae_from_checkpoint is True)"}),
-            }
-        }
+                io.Float.Input("denoise", default=1.0, min=0.0, max=1.0, step=0.01, tooltip="Default denoise value. Can be overridden by a <denoise:value> tag."),
+                io.Int.Input("width", default=512, min=64, max=4096, step=8, tooltip="Default image width. Can be overridden by a <width:value> tag."),
+                io.Int.Input("height", default=512, min=64, max=4096, step=8, tooltip="Default image height. Can be overridden by a <height:value> tag."),
+                io.Int.Input("seed", default=0, min=0, max=0xffffffffffffffff, tooltip="Default seed. Can be overridden by a <seed:value> tag."),
+                io.Int.Input("start_step", default=0, min=0, max=10000, tooltip="Default start step for KSampler. Can be overridden by a <start_step:value> tag."),
+                io.Int.Input("end_step", default=10000, min=0, max=10000, tooltip="Default end step for KSampler. Can be overridden by a <end_step:value> tag."),
+                io.Model.Input("model", optional=True, tooltip="Default MODEL input (Lowest Priority).\nOverridden by:\n1. <checkpoint:name> tag (Highest Priority)"),
+                io.Clip.Input("clip", optional=True, tooltip="Default CLIP input (Lowest Priority).\nOverridden by:\n1. <clip:name> tag (Highest Priority)\n2. <checkpoint:name> tag CLIP (if load_clip_from_checkpoint is True)"),
+                io.Vae.Input("vae", optional=True, tooltip="Default VAE input (Lowest Priority).\nOverridden by:\n1. <vae:name> tag (Highest Priority)\n2. <checkpoint:name> tag VAE (if load_vae_from_checkpoint is True)"),
+            ],
+            outputs=[
+                io.Model.Output(display_name="MODEL", tooltip="The final loaded model after applying checkpoint and LoRA tags."),
+                io.Clip.Output(display_name="CLIP", tooltip="The final loaded CLIP after applying checkpoint and LoRA tags."),
+                io.Vae.Output(display_name="VAE", tooltip="The final loaded VAE after applying checkpoint and VAE tags."),
+                io.Conditioning.Output(display_name="positive", tooltip="The positive conditioning (CLIP encoding of the cleaned string)."),
+                io.Conditioning.Output(display_name="negative", tooltip="The negative conditioning (CLIP encoding of the <neg:value> or <negative:value> tag)."),
+                io.Latent.Output(display_name="latent", tooltip="A latent tensor with dimensions based on the selected width and height."),
+                io.Int.Output(display_name="seed", tooltip="The final seed value. Tag: <seed:value>"),
+                io.Int.Output(display_name="steps", tooltip="The final number of steps. Tags: <steps:value>, <step:value>"),
+                io.Float.Output(display_name="cfg", tooltip="The final CFG scale value. Tag: <cfg:value>"),
+                io.Combo.Output(display_name="sampler", options=list(comfy.samplers.KSampler.SAMPLERS), tooltip="The final sampler name. Tags: <sampler:name>, <sampler_name:name>"),
+                # REMOVED: scheduler output.
+                io.Float.Output(display_name="denoise", tooltip="The final denoise value. Tag: <denoise:value>"),
+                io.Int.Output(display_name="start_step", tooltip="The final start_step for KSampler. Tags: <start_step:value>, <start:value>, <start_at_step:value>"),
+                io.Int.Output(display_name="end_step", tooltip="The final end_step for KSampler. Tags: <end_step:value>, <end:value>, <end_at_step:value>"),
+                io.String.Output(display_name="positive", tooltip="The input string with all recognized property tags removed. Wildcard content is included in this string. (Positive Prompt)"),
+                io.String.Output(display_name="negative", tooltip="The negative prompt string extracted from <neg:value> or <negative:value> tags."),
+                io.String.Output(display_name="other_tags", tooltip="A string containing any tags that were not recognized by the parser."),
+                io.String.Output(display_name="resolved_string", tooltip="The input string with wildcards resolved but ALL tags still present."),
+                io.Int.Output(display_name="width", tooltip="The final image width. Tags: <width:value>, <resolution:WxH>, <res:WxH>"),
+                io.Int.Output(display_name="height", tooltip="The final image height. Tags: <height:value>, <resolution:WxH>, <res:WxH>"),
+            ],
+        )
 
-    # REMOVED TEMPORARILY: SCHEDULER_NAMES output (was at index 6)
-    # Issue: ComfyUI type validation fails when custom nodes register schedulers after this module loads
-    # REMOVED TEMPORARILY: SCHEDULER_NAMES output (was at index 6)
-    # Issue: ComfyUI type validation fails when custom nodes register schedulers after this module loads
-    # REMOVED TEMPORARILY: SCHEDULER_NAMES output (was at index 6)
-    # Issue: ComfyUI type validation fails when custom nodes register schedulers after this module loads
-    RETURN_TYPES = ("MODEL", "CLIP", "VAE", "CONDITIONING", "CONDITIONING", "LATENT", "INT", "INT", "FLOAT", comfy.samplers.KSampler.SAMPLERS, "FLOAT", "INT", "INT", "STRING", "STRING", "STRING", "STRING", "INT", "INT")
-    RETURN_NAMES = ("MODEL", "CLIP", "VAE", "positive", "negative", "latent", "seed", "steps", "cfg", "sampler", "denoise", "start_step", "end_step", "positive", "negative", "other_tags", "resolved_string", "width", "height")
-    OUTPUT_TOOLTIPS = (
-        "The final loaded model after applying checkpoint and LoRA tags.",
-        "The final loaded CLIP after applying checkpoint and LoRA tags.",
-        "The final loaded VAE after applying checkpoint and VAE tags.",
-        "The positive conditioning (CLIP encoding of the cleaned string).",
-        "The negative conditioning (CLIP encoding of the <neg:value> or <negative:value> tag).",
-        "A latent tensor with dimensions based on the selected width and height.",
-        "The final seed value. Tag: <seed:value>",
-        "The final number of steps. Tags: <steps:value>, <step:value>",
-        "The final CFG scale value. Tag: <cfg:value>",
-        "The final sampler name. Tags: <sampler:name>, <sampler_name:name>",
-        # REMOVED: "The final scheduler name.",
-        "The final denoise value. Tag: <denoise:value>",
-        "The final start_step for KSampler. Tags: <start_step:value>, <start:value>, <start_at_step:value>",
-        "The final end_step for KSampler. Tags: <end_step:value>, <end:value>, <end_at_step:value>",
-        "The input string with all recognized property tags removed. Wildcard content is included in this string. (Positive Prompt)",
-        "The negative prompt string extracted from <neg:value> or <negative:value> tags.",
-        "A string containing any tags that were not recognized by the parser.",
-        "The input string with wildcards resolved but ALL tags still present.",
-        "The final image width. Tags: <width:value>, <resolution:WxH>, <res:WxH>",
-        "The final image height. Tags: <height:value>, <resolution:WxH>, <res:WxH>",
-    )
-    FUNCTION = "parse_settings"
-    CATEGORY = "⚡ MNeMiC Nodes"
 
-    def __init__(self):
-        pass
 
-    def parse_settings(self, input_string, load_clip_from_checkpoint, load_vae_from_checkpoint, cfg, steps, sampler_name, denoise, width, height, seed, start_step, end_step, model=None, clip=None, vae=None):
+    @classmethod
+    def execute(cls, input_string, load_clip_from_checkpoint, load_vae_from_checkpoint, cfg, steps, sampler_name, denoise, width, height, seed, start_step, end_step, model=None, clip=None, vae=None) -> io.NodeOutput:
         console_log = is_prompt_property_extractor_console_log_enabled()
 
         # Initialize with default values
@@ -389,13 +381,6 @@ class PromptPropertyExtractor:
             print(f"{'=' * 30} Prompt Property Extractor End {'=' * 30}\n")
 
         # REMOVED SCHEDULER OUTPUT: was (out_model, out_clip, out_vae, out_cfg, out_steps, out_sampler, out_scheduler, out_denoise, ...)
-        return (out_model, out_clip, out_vae, pos_conditioning, neg_conditioning, out_latent, out_seed, out_steps, out_cfg, out_sampler, out_denoise, out_start_step, out_end_step, cleaned_string, negative_string, other_tags_str, string_with_wildcards_resolved, out_width, out_height)
+        return io.NodeOutput(out_model, out_clip, out_vae, pos_conditioning, neg_conditioning, out_latent, out_seed, out_steps, out_cfg, out_sampler, out_denoise, out_start_step, out_end_step, cleaned_string, negative_string, other_tags_str, string_with_wildcards_resolved, out_width, out_height)
 
 
-NODE_CLASS_MAPPINGS = {
-    "PromptPropertyExtractor": PromptPropertyExtractor
-}
-
-NODE_DISPLAY_NAME_MAPPINGS = {
-    "PromptPropertyExtractor": "Prompt Property Extractor"
-}

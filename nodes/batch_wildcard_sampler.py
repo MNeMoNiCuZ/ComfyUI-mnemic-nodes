@@ -34,6 +34,8 @@ from .lora_tag_loader import LoraTagLoader
 from ..utils.batch_wildcard_runtime import set_batch_prompts
 from ..utils.settings_utils import is_wildcard_console_log_enabled
 
+from comfy_api.latest import io
+
 
 # Matches <lora:name:strength> tags so they can be stripped before CLIP encoding.
 _LORA_TAG_RE = re.compile(r"<lora:[^>]+>", re.IGNORECASE)
@@ -56,42 +58,30 @@ _WILDCARD_SYNTAX_HELP = (
 # Node: Batch Wildcard Upscale Sampler
 # ---------------------------------------------------------------------------
 
-class BatchWildcardSampler:
+class BatchWildcardSampler(io.ComfyNode):
     """
     Resolves a fresh set of wildcards for every image in the batch, then encodes
     and samples each one individually so a single run yields a different prompt
     per image. Wildcard resolution is delegated to the WildcardProcessor.
     """
 
-    CATEGORY = "⚡ MNeMiC Nodes"
-    FUNCTION = "generate_batch"
-    RETURN_TYPES = ("MODEL", "CLIP", "VAE", "CONDITIONING", "CONDITIONING", "LATENT", "STRING")
-    RETURN_NAMES = ("model", "clip", "vae", "positive", "negative", "latent", "prompt")
-    OUTPUT_TOOLTIPS = (
-        "The model after LoRA patches from the last batch item have been applied.",
-        "The CLIP after LoRA patches from the last batch item have been applied.",
-        "The VAE input passed through for downstream use, including hi-res workflows.",
-        "The positive conditioning encoded from the last batch item's prompt.",
-        "The negative conditioning encoded from the last batch item's prompt.",
-        "The combined batch of sampled latents (empty when sampling is skipped).",
-        "The resolved positive prompt for each image, as a list with one entry per batch item.",
-    )
-    OUTPUT_NODE = False
-
-    DESCRIPTION = ("Resolves wildcards independently for every image, but processes them sequentially "
-                   "inside the node rather than as a true sampler batch. This still gives per-image "
-                   "prompt variation with some workflow speed-ups from staying inside one node. LoRAs can "
-                   "be loaded per image via <lora:name:strength> tags in the prompt. Connect model and "
-                   "clip to sample, or leave them off to just preview the resolved prompts.")
-
     @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "text":          ("STRING", {
-                    "multiline": True,
-                    "dynamicPrompts": False,
-                    "tooltip": (
+    def define_schema(cls) -> io.Schema:
+        return io.Schema(
+            node_id="MNeMiC_BatchWildcardSampler",
+            display_name="🔀 Batch Wildcard Upscale Sampler",
+            category="⚡ MNeMiC Nodes",
+            description=("Resolves wildcards independently for every image, but processes them sequentially "
+                         "inside the node rather than as a true sampler batch. This still gives per-image "
+                         "prompt variation with some workflow speed-ups from staying inside one node. LoRAs can "
+                         "be loaded per image via <lora:name:strength> tags in the prompt. Connect model and "
+                         "clip to sample, or leave them off to just preview the resolved prompts."),
+            inputs=[
+                io.String.Input(
+                    "text",
+                    multiline=True,
+                    dynamic_prompts=False,
+                    tooltip=(
                         "Positive prompt with full wildcard and <lora:...> support.\n\n"
                         "How this node uses it:\n"
                         "- Each image resolves this prompt independently.\n"
@@ -100,57 +90,59 @@ class BatchWildcardSampler:
                         "Use the same seed to reproduce the same sequence of resolved prompts.\n\n"
                         + _WILDCARD_SYNTAX_HELP
                     ),
-                    "placeholder": "A photo of a __sample_colors__ {dog|cat|monkey} <lora:mylora:0.75>"
-                }),
-                "negative":      ("STRING", {
-                    "multiline": True,
-                    "dynamicPrompts": False,
-                    "tooltip": (
+                    placeholder="A photo of a __sample_colors__ {dog|cat|monkey} <lora:mylora:0.75>",
+                ),
+                io.String.Input(
+                    "negative",
+                    multiline=True,
+                    dynamic_prompts=False,
+                    tooltip=(
                         "Negative prompt.\n\n"
                         "Supports the exact same wildcard syntax as the positive prompt.\n\n"
                         "How this node uses it:\n"
                         "- Each image resolves its own negative prompt independently.\n"
                         "- Negative prompt wildcards follow the same per-image sequential flow as the positive prompt."
                     ),
-                    "placeholder": "negative"
-                }),
-                "seed":          ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff,
-                    "tooltip": "Base seed for both wildcard resolution and sampling noise.\n\n"
-                               "Per-image behavior:\n"
-                               "- Image 1 uses seed + 0\n"
-                               "- Image 2 uses seed + 1\n"
-                               "- Image 3 uses seed + 2\n\n"
-                               "Using the same seed and the same prompts reproduces the same sequential run.",
-                }),
-                "batch_size":    ("INT", {
-                    "default": 4, "min": 1, "max": 64, "step": 1,
-                    "tooltip": "How many images to generate.\n\n"
-                               "Important:\n"
-                               "- This is not a true sampler batch.\n"
-                               "- The node runs one image at a time internally.\n"
-                               "- For each item, it resolves wildcards, encodes prompts, samples, and optionally upscales.\n\n"
-                               "The final outputs are then combined into one batch-shaped result for downstream nodes.",
-                }),
-                "width":         ("INT", {"default": 1024, "min": 64, "max": 16384, "step": 8}),
-                "height":        ("INT", {"default": 1024, "min": 64, "max": 16384, "step": 8}),
-                "steps":         ("INT", {"default": 20, "min": 1, "max": 10000}),
-                "cfg":           ("FLOAT", {"default": 7.0, "min": 0.0, "max": 100.0, "step": 0.1, "round": 0.01}),
-                "sampler_name":  (comfy.samplers.KSampler.SAMPLERS,),
-                "scheduler":     (comfy.samplers.KSampler.SCHEDULERS,),
-                "denoise":       ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01}),
-                "upscale":       ("BOOLEAN", {
-                    "default": False,
-                    "tooltip": (
+                    placeholder="negative",
+                ),
+                io.Int.Input(
+                    "seed", default=0, min=0, max=0xffffffffffffffff,
+                    tooltip="Base seed for both wildcard resolution and sampling noise.\n\n"
+                            "Per-image behavior:\n"
+                            "- Image 1 uses seed + 0\n"
+                            "- Image 2 uses seed + 1\n"
+                            "- Image 3 uses seed + 2\n\n"
+                            "Using the same seed and the same prompts reproduces the same sequential run.",
+                ),
+                io.Int.Input(
+                    "batch_size", default=4, min=1, max=64, step=1,
+                    tooltip="How many images to generate.\n\n"
+                            "Important:\n"
+                            "- This is not a true sampler batch.\n"
+                            "- The node runs one image at a time internally.\n"
+                            "- For each item, it resolves wildcards, encodes prompts, samples, and optionally upscales.\n\n"
+                            "The final outputs are then combined into one batch-shaped result for downstream nodes.",
+                ),
+                io.Int.Input("width", default=1024, min=64, max=16384, step=8, tooltip="Width of each generated image, in pixels."),
+                io.Int.Input("height", default=1024, min=64, max=16384, step=8, tooltip="Height of each generated image, in pixels."),
+                io.Int.Input("steps", default=20, min=1, max=10000, tooltip="Sampling steps for the first pass."),
+                io.Float.Input("cfg", default=7.0, min=0.0, max=100.0, step=0.1, round=0.01, tooltip="Classifier-free guidance scale for the first pass. Higher follows the prompt more literally."),
+                io.Combo.Input("sampler_name", options=comfy.samplers.KSampler.SAMPLERS, tooltip="Sampler used for the first pass."),
+                io.Combo.Input("scheduler", options=comfy.samplers.KSampler.SCHEDULERS, tooltip="Sigma schedule used for the first pass."),
+                io.Float.Input("denoise", default=1.0, min=0.0, max=1.0, step=0.01, tooltip="Denoise strength for the first pass. 1.0 generates from pure noise."),
+                io.Boolean.Input(
+                    "upscale", default=False,
+                    tooltip=(
                         "Enable an upscale second pass: after the first sampling, each image's latent is "
                         "upscaled and sampled again at the larger resolution. The upscale settings are in the "
                         "Advanced section."
                     ),
-                }),
-                # The upscale controls live in the collapsible "Advanced" section ("advanced": True),
+                ),
+                # The upscale controls live in the collapsible "Advanced" section (advanced=True),
                 # hidden until the node's Advanced toggle is expanded.
-                "upscale_rate":  ("FLOAT", {
-                    "default": 2.0, "min": 1.0, "max": 4.0, "step": 0.05, "round": 0.01, "advanced": True,
-                    "tooltip": (
+                io.Float.Input(
+                    "upscale_rate", default=2.0, min=1.0, max=4.0, step=0.05, round=0.01, advanced=True,
+                    tooltip=(
                         "Upscale factor. The first-pass latent is upscaled by this much before the second "
                         "pass (e.g. 2.0 doubles width and height). The slider goes up to 4, but larger values can "
                         "be typed in. Only used when 'upscale' is on and this is greater than 1. "
@@ -158,33 +150,37 @@ class BatchWildcardSampler:
                         "downscaled to the exact target size implied by upscale_rate — so a 4x model with "
                         "upscale_rate=2.0 gives a clean 2x final."
                     ),
-                }),
-                "upscale_denoise": ("FLOAT", {
-                    "default": 0.2, "min": 0.0, "max": 1.0, "step": 0.01, "advanced": True,
-                    "tooltip": (
+                ),
+                io.Float.Input(
+                    "upscale_denoise", default=0.2, min=0.0, max=1.0, step=0.01, advanced=True,
+                    tooltip=(
                         "Denoise strength for the upscale second pass. Lower keeps the first-pass composition but "
                         "leaves upscale artifacts; higher adds detail but can drift from the original image."
                     ),
-                }),
-                "upscale_steps": ("INT", {
-                    "default": 20, "min": 1, "max": 10000, "advanced": True,
-                    "tooltip": "Steps for the upscale pass.",
-                }),
-                "upscale_cfg":   ("FLOAT", {
-                    "default": 4.0, "min": 0.0, "max": 100.0, "step": 0.1, "round": 0.01, "advanced": True,
-                    "tooltip": "CFG for the upscale pass. 0 = use the same cfg as the first pass.",
-                }),
-                "upscale_sampler_name": (["(same as first pass)"] + list(comfy.samplers.KSampler.SAMPLERS), {
-                    "advanced": True,
-                    "tooltip": "Sampler for the upscale pass. '(same as first pass)' reuses the first-pass sampler.",
-                }),
-                "upscale_scheduler": (["(same as first pass)"] + list(comfy.samplers.KSampler.SCHEDULERS), {
-                    "advanced": True,
-                    "tooltip": "Scheduler for the upscale pass. '(same as first pass)' reuses the first-pass scheduler.",
-                }),
-                "upscale_noise_inject_strength": ("FLOAT", {
-                    "default": 0.0, "min": 0.0, "max": 1.0, "step": 0.01, "round": 0.01, "advanced": True,
-                    "tooltip": (
+                ),
+                io.Int.Input(
+                    "upscale_steps", default=20, min=1, max=10000, advanced=True,
+                    tooltip="Steps for the upscale pass.",
+                ),
+                io.Float.Input(
+                    "upscale_cfg", default=4.0, min=0.0, max=100.0, step=0.1, round=0.01, advanced=True,
+                    tooltip="CFG for the upscale pass. 0 = use the same cfg as the first pass.",
+                ),
+                io.Combo.Input(
+                    "upscale_sampler_name",
+                    options=["(same as first pass)"] + list(comfy.samplers.KSampler.SAMPLERS),
+                    advanced=True,
+                    tooltip="Sampler for the upscale pass. '(same as first pass)' reuses the first-pass sampler.",
+                ),
+                io.Combo.Input(
+                    "upscale_scheduler",
+                    options=["(same as first pass)"] + list(comfy.samplers.KSampler.SCHEDULERS),
+                    advanced=True,
+                    tooltip="Scheduler for the upscale pass. '(same as first pass)' reuses the first-pass scheduler.",
+                ),
+                io.Float.Input(
+                    "upscale_noise_inject_strength", default=0.0, min=0.0, max=1.0, step=0.01, round=0.01, advanced=True,
+                    tooltip=(
                         "Inject additional Gaussian noise into the upscaled latent before the second-pass "
                         "sampler runs. 0.0 = no extra noise (default). The actual noise magnitude is "
                         "strength × σ(scheduler, start_step), so the curve follows the upscale scheduler: "
@@ -192,13 +188,13 @@ class BatchWildcardSampler:
                         "than a linear schedule would. This adds variation and can break up VAE-encode "
                         "artifacts before refinement."
                     ),
-                }),
+                ),
                 # NOTE: the "hires_debug" input + output were removed from the node. The code is
                 # preserved (commented out) at the very bottom of this file under
                 # "DISABLED: hi-res debug capture" in case it needs to be re-enabled.
-                "strip_prompt_weights": ("BOOLEAN", {
-                    "default": False, "advanced": True,
-                    "tooltip": (
+                io.Boolean.Input(
+                    "strip_prompt_weights", default=False, advanced=True,
+                    tooltip=(
                         "Strip per-token weight syntax from prompts before encoding. Removes patterns like "
                         "(word:1.3) — used for emphasis in older CLIP models — leaving just the text "
                         "(e.g. 'word').\n\n"
@@ -209,25 +205,30 @@ class BatchWildcardSampler:
                         "degrade prompt adherence. Enable this when your model uses an LLM-based text "
                         "encoder."
                     ),
-                }),
-                "recache_wildcards": ("BOOLEAN", {
-                    "default": False, "advanced": True,
-                    "tooltip": "Force a reload of all wildcard files from disk. Can be disabled again after you have ran it once.",
-                }),
-            },
-            "optional": {
-                "model": ("MODEL", {"tooltip": "Optional. Only needed to sample images. Leave disconnected (or leave the latent output unused) to just resolve and preview prompts."}),
-                "clip":  ("CLIP", {"tooltip": "Optional. Only needed to sample images. Leave disconnected (or leave the latent output unused) to just resolve and preview prompts."}),
-                "vae":   ("VAE", {"tooltip": "Optional for plain sampling, but REQUIRED for the upscale pass: it decodes the latent to an image, the image is Lanczos-upscaled in pixel space, then re-encoded. Without a VAE the upscale pass is skipped."}),
-                "upscale_model": ("UPSCALE_MODEL", {"tooltip": "Optional. Connect a 'Load Upscale Model' (e.g. an ESRGAN/4x model) to use AI super-resolution for the hi-res upscale instead of plain Lanczos."}),
-            },
-            "hidden": {
-                "extra_pnginfo": "EXTRA_PNGINFO",
-                "unique_id": "UNIQUE_ID",
-            },
-        }
+                ),
+                io.Boolean.Input(
+                    "recache_wildcards", default=False, advanced=True,
+                    tooltip="Force a reload of all wildcard files from disk. Can be disabled again after you have ran it once.",
+                ),
+                io.Model.Input("model", optional=True, tooltip="Optional. Only needed to sample images. Leave disconnected (or leave the latent output unused) to just resolve and preview prompts."),
+                io.Clip.Input("clip", optional=True, tooltip="Optional. Only needed to sample images. Leave disconnected (or leave the latent output unused) to just resolve and preview prompts."),
+                io.Vae.Input("vae", optional=True, tooltip="Optional for plain sampling, but REQUIRED for the upscale pass: it decodes the latent to an image, the image is Lanczos-upscaled in pixel space, then re-encoded. Without a VAE the upscale pass is skipped."),
+                io.UpscaleModel.Input("upscale_model", optional=True, tooltip="Optional. Connect a 'Load Upscale Model' (e.g. an ESRGAN/4x model) to use AI super-resolution for the hi-res upscale instead of plain Lanczos."),
+            ],
+            outputs=[
+                io.Model.Output(display_name="model", tooltip="The model after LoRA patches from the last batch item have been applied."),
+                io.Clip.Output(display_name="clip", tooltip="The CLIP after LoRA patches from the last batch item have been applied."),
+                io.Vae.Output(display_name="vae", tooltip="The VAE input passed through for downstream use, including hi-res workflows."),
+                io.Conditioning.Output(display_name="positive", tooltip="The positive conditioning encoded from the last batch item's prompt."),
+                io.Conditioning.Output(display_name="negative", tooltip="The negative conditioning encoded from the last batch item's prompt."),
+                io.Latent.Output(display_name="latent", tooltip="The combined batch of sampled latents (empty when sampling is skipped)."),
+                io.String.Output(display_name="prompt", tooltip="The resolved positive prompt for each image, as a list with one entry per batch item."),
+            ],
+            hidden=[io.Hidden.extra_pnginfo, io.Hidden.unique_id],
+        )
 
-    def generate_batch(self, text, negative, seed, batch_size, width, height,
+    @classmethod
+    def execute(cls, text, negative, seed, batch_size, width, height,
                        steps, cfg, sampler_name, scheduler, denoise,
                        upscale=False, upscale_rate=2.0, upscale_denoise=0.37,
                        upscale_steps=20, upscale_cfg=4.0,
@@ -236,8 +237,9 @@ class BatchWildcardSampler:
                        upscale_noise_inject_strength=0.0,
                        recache_wildcards=False,
                        strip_prompt_weights=False,
-                       model=None, clip=None, vae=None, upscale_model=None,
-                       extra_pnginfo=None, unique_id=None):
+                       model=None, clip=None, vae=None, upscale_model=None) -> io.NodeOutput:
+        extra_pnginfo = cls.hidden.extra_pnginfo
+        unique_id = cls.hidden.unique_id
 
         console_log = is_wildcard_console_log_enabled()
 
@@ -273,7 +275,7 @@ class BatchWildcardSampler:
         # --- Decide whether to sample ---
         # Sampling needs a model and clip, AND is skipped entirely when the latent
         # output isn't connected to anything (pure prompt-preview use).
-        latent_connected = self._latent_output_connected(extra_pnginfo, unique_id)
+        latent_connected = cls._latent_output_connected(extra_pnginfo, unique_id)
         should_sample = model is not None and clip is not None and latent_connected is not False
 
         if not should_sample:
@@ -283,7 +285,7 @@ class BatchWildcardSampler:
                 else:
                     print("  [Batch Wildcard Sampler] No model/clip connected — returning resolved prompts only.\n")
             empty_latent = torch.zeros([batch_size, 4, height // 8, width // 8])
-            return (model, clip, vae, None, None, {"samples": empty_latent}, positive_prompts)
+            return io.NodeOutput(model, clip, vae, None, None, {"samples": empty_latent}, positive_prompts)
 
         # --- Generate each image individually ---
         all_samples = []
@@ -295,28 +297,26 @@ class BatchWildcardSampler:
         # Get the latent format from the model
         latent_format = model.get_model_object("latent_format") if hasattr(model, "get_model_object") else None
 
-        # One loader instance, reused across images so its single-LoRA cache persists.
-        lora_loader = LoraTagLoader()
-
         for i in range(batch_size):
             # Apply any <lora:...> tags from this image's positive prompt to fresh
-            # clones of the model/clip. load_lora returns the model/clip with the
+            # clones of the model/clip. LoraTagLoader returns the model/clip with the
             # LoRAs applied and the prompt cleaned of its tags for CLIP encoding.
-            model_i, clip_i, clean_positive = lora_loader.load_lora(
+            # Its single-LoRA cache lives at module level, so it persists across images.
+            model_i, clip_i, clean_positive = LoraTagLoader.execute(
                 model, clip, positive_prompts[i]
-            )
+            ).result
             final_model, final_clip = model_i, clip_i
             # The negative prompt is not used to load LoRAs, but strip any tags so
             # they are never sent to CLIP as text.
             clean_negative = _LORA_TAG_RE.sub("", negative_prompts[i])
 
             if strip_prompt_weights:
-                clean_positive = self._strip_weight_syntax(clean_positive)
-                clean_negative = self._strip_weight_syntax(clean_negative)
+                clean_positive = cls._strip_weight_syntax(clean_positive)
+                clean_negative = cls._strip_weight_syntax(clean_negative)
 
             # Encode this image's positive and negative prompts through the (LoRA-applied) CLIP
-            positive = self._encode(clip_i, clean_positive)
-            negative_cond = self._encode(clip_i, clean_negative)
+            positive = cls._encode(clip_i, clean_positive)
+            negative_cond = cls._encode(clip_i, clean_negative)
             # Exposed on the outputs (from the last batch item, like model/clip).
             final_positive, final_negative = positive, negative_cond
 
@@ -368,7 +368,7 @@ class BatchWildcardSampler:
                           f"(rate={upscale_rate}, denoise={upscale_denoise}, steps={eff_steps}, cfg={eff_cfg}, "
                           f"sampler={eff_sampler}, scheduler={eff_scheduler})")
 
-                upscaled = self._run_upscale(
+                upscaled = cls._run_upscale(
                     samples, upscale_width, upscale_height, vae, upscale_model, model_i,
                 )
 
@@ -383,7 +383,7 @@ class BatchWildcardSampler:
                 # as the sampler converges. None means no extra noise.
                 noise_inject_cb = None
                 if upscale_noise_inject_strength > 0.0:
-                    noise_inject_cb = self._make_noise_inject_callback(
+                    noise_inject_cb = cls._make_noise_inject_callback(
                         upscale_noise_inject_strength,
                         upscale_denoise, eff_scheduler, eff_steps,
                         model_i, image_seed, console_log,
@@ -425,7 +425,7 @@ class BatchWildcardSampler:
             print(f"\n  [Batch Wildcard Sampler] Batch complete — {batch_size} images generated.")
             print(f"{'='*60}\n")
 
-        return (final_model, final_clip, vae, final_positive, final_negative,
+        return io.NodeOutput(final_model, final_clip, vae, final_positive, final_negative,
                 {"samples": combined}, positive_prompts)
 
     @staticmethod
@@ -467,7 +467,8 @@ class BatchWildcardSampler:
 
         return callback
 
-    def _run_upscale(self, samples, upscale_width, upscale_height, vae, upscale_model, model_i):
+    @classmethod
+    def _run_upscale(cls, samples, upscale_width, upscale_height, vae, upscale_model, model_i):
         """
         Enlarge the first-pass latent for the upscale second pass, entirely in
         PIXEL space: decode the latent to an image, Lanczos-resize it (exactly like
@@ -495,7 +496,7 @@ class BatchWildcardSampler:
 
         # 3) Upscale in pixel space (Lanczos), or with an upscale model if connected.
         if upscale_model is not None:
-            image = self._upscale_with_model(upscale_model, image)
+            image = cls._upscale_with_model(upscale_model, image)
         image = image.movedim(-1, 1)  # NHWC -> NCHW
         image = comfy.utils.common_upscale(image, upscale_width, upscale_height, "lanczos", "disabled")
         image = image.movedim(1, -1).clamp(0.0, 1.0)  # NCHW -> NHWC
@@ -596,13 +597,7 @@ class BatchWildcardSampler:
         return [[cond_tensor, output]]
 
 
-NODE_CLASS_MAPPINGS = {
-    "🔀 Batch Wildcard Upscale Sampler": BatchWildcardSampler,
-}
 
-NODE_DISPLAY_NAME_MAPPINGS = {
-    "🔀 Batch Wildcard Upscale Sampler": "🔀 Batch Wildcard Upscale Sampler",
-}
 
 
 # ===========================================================================

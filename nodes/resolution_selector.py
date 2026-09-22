@@ -5,21 +5,10 @@ import torch
 import comfy.model_management
 from pathlib import Path
 
-class ResolutionSelector:
-    OUTPUT_NODE = True
-    RETURN_TYPES = ("INT", "INT", "LATENT")
-    RETURN_NAMES = ("width", "height", "latent")
-    OUTPUT_IS_LIST = (False, False, False)
-    OUTPUT_TOOLTIPS = (
-        "The final scaled width in pixels.",
-        "The final scaled height in pixels.",
-        "The final scaled latent."
-    )
-    FUNCTION = "process_resolution"
-    CATEGORY = "⚡ MNeMiC Nodes"
-    DESCRIPTION = "Flexible resolution selector with presets, image input, min/max lengths, snapping, swapping and resolution multiplication.\n\nPriority order for resolution selection:\n1. Input Image\n2. User Preset\n3. Preset\n4. Custom Values (when preset is set to 'Custom')"
-    DOCUMENTATION = "This node provides resolution selection with the following priority order:\n1. Image Input (highest priority)\n2. User Preset\n3. Preset\n4. Custom Values (when preset is set to 'Custom')"
+from comfy_api.latest import io
 
+
+class ResolutionSelector(io.ComfyNode):
     # Default user presets that will be created if the file doesn't exist
     DEFAULT_USER_PRESETS = {
         "Favorites": [
@@ -79,19 +68,26 @@ class ResolutionSelector:
         """Load user presets from config file"""
         presets_path = Path(__file__).parent / "resolution_selector" / "user_resolution.json"
         
-        if not presets_path.exists():
-            # Create user presets file with default entries if it doesn't exist
-            return cls.create_default_user_presets()
-        
+        # Never raise from here: this runs while the schema is built at load
+        # time, and a failure would take down the whole extension.
         try:
+            if not presets_path.exists():
+                # Create user presets file with default entries if it doesn't exist
+                return cls.create_default_user_presets()
+
             with open(presets_path, 'r') as f:
                 return json.load(f)
         except Exception as e:
             print(f"Error loading user presets: {e}")
+
+        try:
             return cls.create_default_user_presets()
+        except Exception as e:
+            print(f"Error creating default user presets: {e}")
+            return cls.DEFAULT_USER_PRESETS
 
     @classmethod
-    def INPUT_TYPES(cls):
+    def define_schema(cls) -> io.Schema:
         # Load presets from config
         presets = cls.load_presets()
         
@@ -110,79 +106,113 @@ class ResolutionSelector:
             for preset in category_presets:
                 user_preset_choices.append(f"{category}: {preset['name']}")
 
-        return {
-            "required": {
-                "preset": (preset_choices, {
-                    "default": "Custom",
-                    "tooltip": "Select a model-specific resolution preset or use custom dimensions"
-                }),
-                "preset_user": (user_preset_choices, {
-                    "default": "None",
-                    "tooltip": "User-defined preset selection (overrides main preset when selected)"
-                }),
-                "custom_width": ("INT", {
-                    "default": 512,
-                    "min": 64,
-                    "max": 16384,
-                    "step": 8,
-                    "tooltip": "Custom width (Only used with Custom preset)"
-                }),
-                "custom_height": ("INT", {
-                    "default": 512,
-                    "min": 64,
-                    "max": 16384,
-                    "step": 8,
-                    "tooltip": "Custom height (Only used with Custom preset)"
-                }),
-                "multiply": ("FLOAT", {
-                    "default": 1.0,
-                    "min": -16384,
-                    "step": 0.01,
-                    "tooltip": "Multiplier for the final resolution. Negative values will flip the dimensions."
-                }),
-                "swap_width_and_height": ("BOOLEAN", {
-                    "default": False,
-                    "tooltip": "Swap width and height dimensions"
-                }),
-            },
-            "optional": {
-                "image (optional)": ("IMAGE", {
-                    "tooltip": "Priority order for resolution selection:\n1. Input Image\n2. User Preset\n3. Preset\n4. Custom Values (when preset is set to 'Custom')"
-                }),
-                "image_min_length": ("INT", {
-                    "default": 0,
-                    "min": 0, 
-                    "max": 16384,
-                    "step": 1,
-                    "tooltip": "When image is provided, ensures the shortest side is at least this length (0 = ignore)"
-                }),
-                "image_max_length": ("INT", {
-                    "default": 0,
-                    "min": 0, 
-                    "max": 16384,
-                    "step": 1,
-                    "tooltip": "When image is provided, ensures the longest side is at most this length (0 = ignore)"
-                }),
-                "snap_to_nearest": ("BOOLEAN", {
-                    "default": False,
-                    "tooltip": "When enabled, dimensions will be adjusted to the nearest multiple of snap_resolution"
-                }),
-                "snap_resolution": ("INT", {
-                    "default": 0,
-                    "min": 0,
-                    "max": 16384,
-                    "step": 1,
-                    "tooltip": "Snap dimensions to multiples of this value (0 = no snapping)"
-                }),
-                "batch_size": ("INT", {
-                    "default": 1,
-                    "min": 1,
-                    "max": 64,
-                    "step": 1,
-                    "tooltip": "Number of latent images to generate in batch"
-                })
-            }
-        }
+        return io.Schema(
+            node_id="MNeMiC_ResolutionSelector",
+            display_name="📐 Resolution Image Size Selector",
+            category="⚡ MNeMiC Nodes",
+            description="Flexible resolution selector with presets, image input, min/max lengths, snapping, swapping and resolution multiplication.\n\nPriority order for resolution selection:\n1. Input Image\n2. User Preset\n3. Preset\n4. Custom Values (when preset is set to 'Custom')",
+            inputs=[
+                io.Combo.Input(
+                    "preset",
+                    options=preset_choices,
+                    default="Custom",
+                    tooltip="Select a model-specific resolution preset or use custom dimensions",
+                ),
+                io.Combo.Input(
+                    "preset_user",
+                    options=user_preset_choices,
+                    default="None",
+                    tooltip="User-defined preset selection (overrides main preset when selected)",
+                ),
+                io.Int.Input(
+                    "custom_width",
+                    default=512,
+                    min=64,
+                    max=16384,
+                    step=8,
+                    tooltip="Custom width (Only used with Custom preset)",
+                ),
+                io.Int.Input(
+                    "custom_height",
+                    default=512,
+                    min=64,
+                    max=16384,
+                    step=8,
+                    tooltip="Custom height (Only used with Custom preset)",
+                ),
+                io.Float.Input(
+                    "multiply",
+                    advanced=True,
+                    default=1.0,
+                    min=-16384,
+                    step=0.01,
+                    tooltip="Multiplier for the final resolution. Negative values will flip the dimensions.",
+                ),
+                io.Boolean.Input(
+                    "swap_width_and_height",
+                    advanced=True,
+                    default=False,
+                    tooltip="Swap width and height dimensions",
+                ),
+                io.Image.Input(
+                    "image (optional)",
+                    optional=True,
+                    tooltip="Priority order for resolution selection:\n1. Input Image\n2. User Preset\n3. Preset\n4. Custom Values (when preset is set to 'Custom')",
+                ),
+                io.Int.Input(
+                    "image_min_length",
+                    advanced=True,
+                    optional=True,
+                    default=0,
+                    min=0,
+                    max=16384,
+                    step=1,
+                    tooltip="When image is provided, ensures the shortest side is at least this length (0 = ignore)",
+                ),
+                io.Int.Input(
+                    "image_max_length",
+                    advanced=True,
+                    optional=True,
+                    default=0,
+                    min=0,
+                    max=16384,
+                    step=1,
+                    tooltip="When image is provided, ensures the longest side is at most this length (0 = ignore)",
+                ),
+                io.Boolean.Input(
+                    "snap_to_nearest",
+                    advanced=True,
+                    optional=True,
+                    default=False,
+                    tooltip="When enabled, dimensions will be adjusted to the nearest multiple of snap_resolution",
+                ),
+                io.Int.Input(
+                    "snap_resolution",
+                    advanced=True,
+                    optional=True,
+                    default=0,
+                    min=0,
+                    max=16384,
+                    step=1,
+                    tooltip="Snap dimensions to multiples of this value (0 = no snapping)",
+                ),
+                io.Int.Input(
+                    "batch_size",
+                    advanced=True,
+                    optional=True,
+                    default=1,
+                    min=1,
+                    max=64,
+                    step=1,
+                    tooltip="Number of latent images to generate in batch",
+                ),
+            ],
+            outputs=[
+                io.Int.Output(display_name="width", tooltip="The final scaled width in pixels."),
+                io.Int.Output(display_name="height", tooltip="The final scaled height in pixels."),
+                io.Latent.Output(display_name="latent", tooltip="The final scaled latent."),
+            ],
+        )
 
     @classmethod
     def validate_dimensions(cls, width, height, snap_to_nearest=False, snap_resolution=8):
@@ -296,8 +326,9 @@ class ResolutionSelector:
             
         return width, height
 
-    def process_resolution(self, preset, preset_user, multiply, swap_width_and_height, custom_width, custom_height,
-                         **kwargs):
+    @classmethod
+    def execute(cls, preset, preset_user, multiply, swap_width_and_height, custom_width, custom_height,
+                **kwargs) -> io.NodeOutput:
         """Process resolution settings and return final dimensions"""
         try:
             # Extract optional parameters with defaults
@@ -314,7 +345,7 @@ class ResolutionSelector:
             
             # 1. Check if we have an image input (highest priority)
             if image is not None:
-                width, height = self.__class__.extract_image_dimensions(
+                width, height = cls.extract_image_dimensions(
                     image, 
                     image_min_length,
                     image_max_length
@@ -322,7 +353,7 @@ class ResolutionSelector:
                 
             # If image processing failed or no image, fall back to presets or custom values
             if width is None or height is None:
-                width, height = self._get_dimensions_from_presets(preset, preset_user, custom_width, custom_height)
+                width, height = cls._get_dimensions_from_presets(preset, preset_user, custom_width, custom_height)
             
             # Apply dimension swap if requested
             if swap_width_and_height:
@@ -335,7 +366,7 @@ class ResolutionSelector:
             height = int(round(height * multiply))
 
             # Validate final dimensions and apply snapping if needed
-            width, height = self.validate_dimensions(width, height, snap_to_nearest, snap_resolution)
+            width, height = cls.validate_dimensions(width, height, snap_to_nearest, snap_resolution)
             
             # Get absolute width and height values for the latent
             abs_width = abs(width)
@@ -346,7 +377,7 @@ class ResolutionSelector:
             latent_tensor = torch.zeros([batch_size, 4, abs_height // 8, abs_width // 8], device=device)
             latent = {"samples": latent_tensor}
             
-            return (width, height, latent)
+            return io.NodeOutput(width, height, latent)
         
         except Exception as e:
             print(f"Error processing resolution: {e}")
@@ -355,26 +386,22 @@ class ResolutionSelector:
             # Include latent in safe fallback
             device = comfy.model_management.intermediate_device()
             latent = {"samples": torch.zeros([1, 4, 64, 64], device=device)}
-            return (512, 512, latent)  # Safe fallback
+            return io.NodeOutput(512, 512, latent)  # Safe fallback
             
-    def _get_dimensions_from_presets(self, preset, preset_user, custom_width, custom_height):
+    @classmethod
+    def _get_dimensions_from_presets(cls, preset, preset_user, custom_width, custom_height):
         """Helper method to get dimensions from presets based on priority"""
         if preset_user != "None":
             # 2. Try to get user preset
-            preset_info = self.__class__.get_preset_info(preset_user, from_user_presets=True)
+            preset_info = cls.get_preset_info(preset_user, from_user_presets=True)
             if preset_info:
                 return preset_info["width"], preset_info["height"]
         
         # 3. Try to get standard preset
         if preset != "Custom":
-            preset_info = self.__class__.get_preset_info(preset)
+            preset_info = cls.get_preset_info(preset)
             if preset_info:
                 return preset_info["width"], preset_info["height"]
         
         # 4. Fall back to custom values
         return custom_width, custom_height
-
-# Export the node
-NODE_CLASS_MAPPINGS = {
-    "ResolutionSelector": ResolutionSelector
-}

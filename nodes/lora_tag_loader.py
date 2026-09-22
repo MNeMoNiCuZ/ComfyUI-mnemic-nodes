@@ -1,6 +1,8 @@
-from pathlib import Path
 import folder_paths
 import re
+
+from comfy_api.latest import io
+
 from ..utils.file_utils import find_best_match
 from ..utils.settings_utils import is_lora_console_log_enabled, is_lora_fuzzy_search_enabled, get_lora_max_logged_candidates
 
@@ -45,7 +47,15 @@ def z_image_to_diffusers(mmdit_config, output_prefix=""):
         key_map[k[1]] = "{}{}".format(output_prefix, k[0])
     return key_map
 
-class LoraTagLoader:
+# Cache of the most recently loaded LoRA, kept at module level because V3 nodes
+# execute as classmethods on a per-run class clone and cannot hold instance state.
+_LOADED_LORA = None
+
+# Regular expression pattern to match tags enclosed in angle brackets
+TAG_PATTERN = r"\<[0-9a-zA-Z:\_\-\.\s/()\\]+\>"
+
+
+class LoraTagLoader(io.ComfyNode):
     """
     LoraTagLoader is responsible for loading Lora tags from the provided text.
     It uses a regex pattern to identify specific tags within the text.
@@ -53,41 +63,41 @@ class LoraTagLoader:
     This version also includes a new matching system to find the "best" matching LoRA file based on scoring.
     """
 
-    def __init__(self):
-        # Initialize the loader with no Lora model loaded
-        self.loaded_lora = None
-
-        # Regular expression pattern to match tags enclosed in angle brackets
-        self.tag_pattern = r"\<[0-9a-zA-Z:\_\-\.\s/()\\]+\>"
+    @classmethod
+    def define_schema(cls) -> io.Schema:
+        return io.Schema(
+            node_id="MNeMiC_LoraTagLoader",
+            display_name="🏷️ LoRA Loader Prompt Tags",
+            category="⚡ MNeMiC Nodes",
+            description="Loads LoRA tags from the provided input string (usually the prompt) and applies them to the model without needing one or multiple LoRA Loader nodes",
+            inputs=[
+                io.Model.Input("MODEL", tooltip="The model (checkpoint) to apply the LoRA to"),
+                io.Clip.Input("CLIP", tooltip="The CLIP model being used"),
+                io.String.Input(
+                    "STRING",
+                    multiline=True,
+                    force_input=True,
+                    tooltip="Input text containing LoRA tags to be processed. Tags should be enclosed in angle brackets, e.g., <lora:loraName:1>",
+                ),
+            ],
+            outputs=[
+                io.Model.Output(display_name="MODEL", tooltip="The model output after the LoRA was loaded"),
+                io.Clip.Output(display_name="CLIP", tooltip="The CLIP output after the LoRA was loaded"),
+                io.String.Output(display_name="STRING", tooltip="The input text cleaned up with the LoRA tags removed"),
+            ],
+        )
 
     @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "MODEL": ("MODEL", {"tooltip": "The model (checkpoint) to apply the LoRA to"}),
-                "CLIP": ("CLIP", {"tooltip": "The CLIP model being used"}),
-                "STRING": ("STRING", {"multiline": True, "forceInput": True, "tooltip": "Input text containing LoRA tags to be processed. Tags should be enclosed in angle brackets, e.g., <lora:loraName:1>"}),
-            }
-        }
+    def execute(cls, MODEL, CLIP, STRING) -> io.NodeOutput:
+        global _LOADED_LORA
 
-    # Defines the types of values this class will return
-    RETURN_TYPES = ("MODEL", "CLIP", "STRING")
-    RETURN_NAMES = ("MODEL", "CLIP", "STRING")  # Human-readable names for the return values
-    OUTPUT_TOOLTIPS = ("The model output after the LoRA was loaded", "The CLIP output after the LoRA was loaded", "The input text cleaned up with the LoRA tags removed")
-    FUNCTION = "load_lora"  # Name of the method that processes the inputs
-
-    CATEGORY = "⚡ MNeMiC Nodes"  # Category for organizing the node in a UI or library
-    DESCRIPTION = "Loads LoRA tags from the provided input string (usually the prompt) and applies them to the model without needing one or multiple LoRA Loader nodes"
-
-
-    def load_lora(self, MODEL, CLIP, STRING):
         console_log = is_lora_console_log_enabled()
         if console_log:
             print(f"\nLoraTagLoader processing text: {STRING}")
 
-        founds = re.findall(self.tag_pattern, STRING)
+        founds = re.findall(TAG_PATTERN, STRING)
         if len(founds) < 1:
-            return (MODEL, CLIP, STRING)
+            return io.NodeOutput(MODEL, CLIP, STRING)
 
         model_lora = MODEL
         clip_lora = CLIP
@@ -145,18 +155,18 @@ class LoraTagLoader:
             lora = None
             
             # Check if we already have this LoRA loaded
-            if self.loaded_lora is not None:
-                if self.loaded_lora[0] == lora_path:
-                    lora = self.loaded_lora[1]
+            if _LOADED_LORA is not None:
+                if _LOADED_LORA[0] == lora_path:
+                    lora = _LOADED_LORA[1]
                 else:
-                    temp = self.loaded_lora
-                    self.loaded_lora = None
+                    temp = _LOADED_LORA
+                    _LOADED_LORA = None
                     del temp
 
             # Load the LoRA if needed
             if lora is None:
                 lora = comfy.utils.load_torch_file(lora_path, safe_load=True)
-                self.loaded_lora = (lora_path, lora)
+                _LOADED_LORA = (lora_path, lora)
 
             # Apply the LoRA
             is_zit = False
@@ -199,14 +209,5 @@ class LoraTagLoader:
                 model_lora, clip_lora = comfy.sd.load_lora_for_models(model_lora, clip_lora, lora, wModel, wClip)
 
         # Remove the LoRA tags from the text
-        plain_prompt = re.sub(self.tag_pattern, "", STRING)
-        return (model_lora, clip_lora, plain_prompt)
-
-NODE_CLASS_MAPPINGS = {
-    "LoraTagLoader": LoraTagLoader,
-}
-
-NODE_DISPLAY_NAME_MAPPINGS = {
-    # Loaders
-    "LoraTagLoader": "Load LoRA Tag",
-}
+        plain_prompt = re.sub(TAG_PATTERN, "", STRING)
+        return io.NodeOutput(model_lora, clip_lora, plain_prompt)

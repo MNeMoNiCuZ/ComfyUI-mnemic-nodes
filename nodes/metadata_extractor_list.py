@@ -6,35 +6,71 @@ from PIL import Image
 from typing import List
 import itertools
 
+from comfy_api.latest import io
+
 from ..utils.metadata_utils import extract_metadata_from_file, resize_and_crop_image
 
-class MetadataExtractorList:
-    def __init__(self):
-        pass
+
+class MetadataExtractorList(io.ComfyNode):
+    @classmethod
+    def define_schema(cls) -> io.Schema:
+        return io.Schema(
+            node_id="MNeMiC_MetadataExtractorList",
+            display_name="🖼️📊 Metadata Extractor (List)",
+            category="⚡ MNeMiC Nodes",
+            description="Extracts metadata from a list of images or a folder of images.",
+            inputs=[
+                io.Int.Input(
+                    "seed",
+                    default=0,
+                    min=0,
+                    max=0xffffffffffffffff,
+                    control_after_generate=io.ControlAfterGenerate.increment,
+                    tooltip="Index of the first file to load from a folder, starting at 0. Increments every run by default to step through the folder.",
+                ),
+                io.String.Input(
+                    "input_path",
+                    optional=True,
+                    multiline=False,
+                    default="",
+                    tooltip="Path to a folder of images or a single image file. Used if image_input is not connected.",
+                ),
+                io.Image.Input(
+                    "image_input",
+                    optional=True,
+                    tooltip="A list/batch of images. This has priority over input_path.",
+                ),
+                io.String.Input(
+                    "filter_params",
+                    advanced=True,
+                    optional=True,
+                    multiline=False,
+                    default="",
+                    tooltip="Comma-separated list of keys to extract (e.g., steps, sampler, seed).",
+                ),
+                io.Int.Input(
+                    "max_file_count",
+                    advanced=True,
+                    optional=True,
+                    default=0,
+                    min=0,
+                    max=10000,
+                    step=1,
+                    tooltip="Max number of items to return. 0 for all.",
+                ),
+            ],
+            outputs=[
+                io.Image.Output(display_name="image", tooltip="The image the metadata was read from. A 64x64 black image if nothing could be loaded."),
+                io.String.Output(display_name="positive_prompt", tooltip="Positive prompt found in the image metadata. Empty if there is none."),
+                io.String.Output(display_name="negative_prompt", tooltip="Negative prompt found in the image metadata. Empty if there is none."),
+                io.String.Output(display_name="parsed_params_json", tooltip="All recognised generation settings (steps, sampler, cfg, seed, ...) as indented JSON."),
+                io.String.Output(display_name="filtered_params_grouped", tooltip="Just the keys named in filter_params, one value per line, one entry per image."),
+                io.String.Output(display_name="raw_metadata_json", tooltip="The unparsed metadata block from the file, as indented JSON."),
+            ],
+        )
 
     @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff, "tooltip": "Determines the starting point in the list. Set to 'increment' to cycle through."}),
-            },
-            "optional": {
-                "input_path": ("STRING", {"multiline": False, "default": "", "tooltip": "Path to a folder of images or a single image file. Used if image_input is not connected."}),
-                "image_input": ("IMAGE", {"tooltip": "A list/batch of images. This has priority over input_path."}),
-                "filter_params": ("STRING", {"multiline": False, "default": "", "tooltip": "Comma-separated list of keys to extract (e.g., steps, sampler, seed)."}),
-                "max_file_count": ("INT", {"default": 0, "min": 0, "max": 10000, "step": 1, "tooltip": "Max number of items to return. 0 for all."}),
-            }
-        }
-
-    RETURN_TYPES = ("IMAGE", "STRING", "STRING", "STRING", "STRING", "STRING",)
-    RETURN_NAMES = ("image", "positive_prompt", "negative_prompt", "parsed_params_json", "filtered_params_grouped", "raw_metadata_json",)
-    
-    FUNCTION = "extract_metadata"
-    CATEGORY = "⚡ MNeMiC Nodes"
-    NODE_NAME = "Metadata Extractor (List)"
-    DESCRIPTION = "Extracts metadata from a list of images or a folder of images."
-
-    def extract_metadata(self, seed: int, input_path: str = None, image_input=None, filter_params: str = "", max_file_count: int = 0):
+    def execute(cls, seed: int, input_path: str = None, image_input=None, filter_params: str = "", max_file_count: int = 0) -> io.NodeOutput:
         final_images, final_metadata = [], []
 
         if image_input is not None:
@@ -53,7 +89,7 @@ class MetadataExtractorList:
             if not os.path.isabs(input_path):
                 from folder_paths import get_input_directory
                 input_dir = get_input_directory()
-                if not input_dir or not os.path.isdir(input_dir): return (torch.zeros((0, 64, 64, 3)), [], [], [], [], [])
+                if not input_dir or not os.path.isdir(input_dir): return io.NodeOutput(torch.zeros((0, 64, 64, 3)), [], [], [], [], [])
                 input_path = os.path.join(input_dir, input_path)
 
             supported_exts = ['.png', '.jpg', '.jpeg', '.tiff', '.tif']
@@ -64,7 +100,7 @@ class MetadataExtractorList:
             elif os.path.isfile(input_path) and os.path.splitext(input_path)[1].lower() in supported_exts:
                 files_found = [input_path]
 
-            if not files_found: return (torch.zeros((0, 64, 64, 3)), [], [], [], [], [])
+            if not files_found: return io.NodeOutput(torch.zeros((0, 64, 64, 3)), [], [], [], [], [])
 
             total_files = len(files_found)
             start_index = seed % total_files
@@ -86,7 +122,7 @@ class MetadataExtractorList:
                     print(f"Skipping file {file_path}: {e}")
 
         if not final_images:
-            return (torch.zeros((0, 64, 64, 3)), [], [], [], [], [])
+            return io.NodeOutput(torch.zeros((0, 64, 64, 3)), [], [], [], [], [])
 
         first_image_height, first_image_width = final_images[0].shape[0], final_images[0].shape[1]
 
@@ -107,4 +143,4 @@ class MetadataExtractorList:
         filtered_params_list_grouped = ["\n".join(get_filtered_values(m.get('parsed_params', {}))) for m in final_metadata]
         raw_meta_list_json = [json.dumps(m.get('metadata', {}), indent=4, default=str) for m in final_metadata]
 
-        return (image_list, pos_prompt_list, neg_prompt_list, parsed_params_list_json, filtered_params_list_grouped, raw_meta_list_json)
+        return io.NodeOutput(image_list, pos_prompt_list, neg_prompt_list, parsed_params_list_json, filtered_params_list_grouped, raw_meta_list_json)

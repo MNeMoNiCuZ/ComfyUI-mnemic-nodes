@@ -114,7 +114,7 @@ app.registerExtension({
 
   async beforeRegisterNodeDef(nodeType, nodeData) {
     const nodeName = nodeData?.name || "";
-    if (nodeName !== "Ideogram4PromptBuilder" && !nodeName.includes("Ideogram 4 Prompt Builder")) return;
+    if (nodeName !== "MNeMiC_Ideogram4PromptBuilder" && nodeName !== "Ideogram4PromptBuilder" && !nodeName.includes("Ideogram 4 Prompt Builder")) return;
     injectStyle();
 
     chainCallback(nodeType.prototype, "onNodeCreated", function () {

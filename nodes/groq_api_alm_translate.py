@@ -9,7 +9,35 @@ from ..utils.api_utils import load_prompt_options, get_prompt_content
 from ..utils.env_manager import ensure_env_file, get_api_key
 from ..utils.settings_utils import is_groq_translate_console_log_enabled, get_groq_translate_request_timeout
 
-class GroqAPIALMTranslate:
+from comfy_api.latest import io
+
+# Lazily-initialised API key and prompt options, shared by every instance of the
+# node. V3 nodes execute as classmethods, so this replaces the old __init__.
+_CONTEXT = None
+
+
+def _get_context():
+    """Return (api_key, prompt_options), initialising them on first use."""
+    global _CONTEXT
+    if _CONTEXT is None:
+        current_directory = os.path.dirname(os.path.realpath(__file__))
+        groq_directory = os.path.join(current_directory, 'groq')
+
+        # Get API key from env file
+        ensure_env_file()
+        api_key = get_api_key()
+        Groq(api_key=api_key)
+
+        # Load prompt options
+        prompt_files = [
+            os.path.join(groq_directory, 'DefaultPrompts_ALM_Translate.json'),
+            os.path.join(groq_directory, 'UserPrompts_ALM_Translate.json')
+        ]
+        _CONTEXT = (api_key, load_prompt_options(prompt_files))
+    return _CONTEXT
+
+
+class GroqAPIALMTranslate(io.ComfyNode):
     DEFAULT_PROMPT = "Translate the audio file using the style and guidance of [user_input]"
 
     # Only whisper-large-v3 supports translation
@@ -19,27 +47,8 @@ class GroqAPIALMTranslate:
 
     SUPPORTED_AUDIO_FORMATS = ['mp3', 'mp4', 'mpeg', 'mpga', 'm4a', 'wav', 'webm']
 
-    CLASS_TYPE = "text"  # Added CLASS_TYPE property
-
-    def __init__(self):
-        # Set up directories for prompt files
-        current_directory = os.path.dirname(os.path.realpath(__file__))
-        groq_directory = os.path.join(current_directory, 'groq')
-        
-        # Get API key from env file
-        ensure_env_file()
-        self.api_key = get_api_key()
-        self.client = Groq(api_key=self.api_key)
-        
-        # Load prompt options
-        prompt_files = [
-            os.path.join(groq_directory, 'DefaultPrompts_ALM_Translate.json'),
-            os.path.join(groq_directory, 'UserPrompts_ALM_Translate.json')
-        ]
-        self.prompt_options = load_prompt_options(prompt_files)
-
     @classmethod
-    def INPUT_TYPES(cls):
+    def define_schema(cls) -> io.Schema:
         try:
             current_directory = os.path.dirname(os.path.realpath(__file__))
             groq_directory = os.path.join(current_directory, 'groq')
@@ -52,37 +61,40 @@ class GroqAPIALMTranslate:
             print(Fore.RED + f"Failed to load prompt options: {e}" + Style.RESET_ALL)
             prompt_options = {}
 
-        return {
-            "required": {
-                "model": (cls.TRANSLATION_MODELS, {"tooltip": "Select the translation model to use."}),
-                "file_path": ("STRING", {"label": "Audio file path", "multiline": False, "default": "", "tooltip": "Path to the audio file for translation."}),
-                "preset": ([cls.DEFAULT_PROMPT] + list(prompt_options.keys()), {"tooltip": "Select a preset or custom prompt for guiding the translation."}),
-                "user_input": ("STRING", {"label": "User Input (for prompt)", "multiline": True, "default": "", "tooltip": "Optional user input to guide the translation process."}),
-                "response_format": (["json", "verbose_json", "text", "text_with_timestamps", "text_with_linebreaks"], {"tooltip": "Choose the format in which the translation output will be returned."}),
-                "temperature": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.1, "tooltip": "Controls randomness in responses.\n\nA higher temperature makes the model take more risks, leading to more creative or varied answers.\n\nA lower temperature (closer to 0.1) makes the model more focused and predictable."}),
-                "max_retries": ("INT", {"default": 2, "min": 1, "max": 10, "step": 1, "tooltip": "Maximum number of retries in case of failures."}),
-            }
-        }
+        return io.Schema(
+            node_id="MNeMiC_GroqAPIALMTranslate",
+            display_name="✨🌐 Groq ALM API - Translate [EN only]",
+            category="⚡ MNeMiC Nodes",
+            description="Uses Groq API to translate audio.",
+            inputs=[
+                io.Combo.Input("model", options=cls.TRANSLATION_MODELS, tooltip="Select the translation model to use."),
+                io.String.Input("file_path", multiline=False, default="", tooltip="Path to the audio file for translation."),
+                io.Combo.Input("preset", options=[cls.DEFAULT_PROMPT] + list(prompt_options.keys()), tooltip="Select a preset or custom prompt for guiding the translation."),
+                io.String.Input("user_input", multiline=True, default="", tooltip="Optional user input to guide the translation process."),
+                io.Combo.Input("response_format", advanced=True, options=["json", "verbose_json", "text", "text_with_timestamps", "text_with_linebreaks"], tooltip="Choose the format in which the translation output will be returned."),
+                io.Float.Input("temperature", advanced=True, default=0.0, min=0.0, max=1.0, step=0.1, tooltip="Controls randomness in responses.\n\nA higher temperature makes the model take more risks, leading to more creative or varied answers.\n\nA lower temperature (closer to 0.1) makes the model more focused and predictable."),
+                io.Int.Input("max_retries", advanced=True, default=2, min=1, max=10, step=1, tooltip="Maximum number of retries in case of failures."),
+            ],
+            outputs=[
+                io.String.Output(display_name="translation_result", tooltip="The API response. This is the translation generated by the model"),
+                io.Boolean.Output(display_name="success", tooltip="Whether the request was successful"),
+                io.String.Output(display_name="status_code", tooltip="The status code of the request"),
+            ],
+        )
 
-    RETURN_TYPES = ("STRING", "BOOLEAN", "STRING")
-    RETURN_NAMES = ("translation_result", "success", "status_code")
-    OUTPUT_TOOLTIPS = ("The API response. This is the translation generated by the model", "Whether the request was successful", "The status code of the request")
-    FUNCTION = "process_translation_request"
-    CATEGORY = "⚡ MNeMiC Nodes"
-    DESCRIPTION = "Uses Groq API to translate audio."
-    OUTPUT_NODE = True
-
-    def process_translation_request(self, model, file_path, preset, user_input, response_format, temperature, max_retries):
+    @classmethod
+    def execute(cls, model, file_path, preset, user_input, response_format, temperature, max_retries) -> io.NodeOutput:
+        api_key, prompt_options_loaded = _get_context()
         # Validate file path
         if not os.path.isfile(file_path):
             print(Fore.RED + f"Error: File not found at path {file_path}" + Style.RESET_ALL)
-            return "File not found.", False, "400 Bad Request"
+            return io.NodeOutput("File not found.", False, "400 Bad Request")
 
         # Validate file extension
         file_extension = file_path.split('.')[-1].lower()
-        if file_extension not in self.SUPPORTED_AUDIO_FORMATS:
-            print(Fore.RED + f"Error: Unsupported audio format '{file_extension}'. Supported formats are: {', '.join(self.SUPPORTED_AUDIO_FORMATS)}" + Style.RESET_ALL)
-            return f"Unsupported audio format '{file_extension}'.", False, "400 Bad Request"
+        if file_extension not in cls.SUPPORTED_AUDIO_FORMATS:
+            print(Fore.RED + f"Error: Unsupported audio format '{file_extension}'. Supported formats are: {', '.join(cls.SUPPORTED_AUDIO_FORMATS)}" + Style.RESET_ALL)
+            return io.NodeOutput(f"Unsupported audio format '{file_extension}'.", False, "400 Bad Request")
 
         # Load the audio file
         try:
@@ -90,13 +102,13 @@ class GroqAPIALMTranslate:
                 audio_data = audio_file.read()
         except Exception as e:
             print(Fore.RED + f"Error reading audio file: {str(e)}" + Style.RESET_ALL)
-            return "Error reading audio file.", False, "400 Bad Request"
+            return io.NodeOutput("Error reading audio file.", False, "400 Bad Request")
 
         # Prepare the prompt
-        if preset == self.DEFAULT_PROMPT:
-            prompt = self.DEFAULT_PROMPT.replace('[user_input]', user_input.strip()) if user_input else None
+        if preset == cls.DEFAULT_PROMPT:
+            prompt = cls.DEFAULT_PROMPT.replace('[user_input]', user_input.strip()) if user_input else None
         else:
-            prompt_template = get_prompt_content(self.prompt_options, preset)
+            prompt_template = get_prompt_content(prompt_options_loaded, preset)
             prompt = prompt_template.replace('[user_input]', user_input.strip())
 
         # Limit the prompt to 224 tokens
@@ -109,10 +121,10 @@ class GroqAPIALMTranslate:
         elif response_format in ['text_with_timestamps', 'text_with_linebreaks']:
             api_response_format = 'verbose_json'
         else:
-            return "Unknown response format.", False, "400 Bad Request"
+            return io.NodeOutput("Unknown response format.", False, "400 Bad Request")
 
         url = 'https://api.groq.com/openai/v1/audio/translations'
-        headers = {'Authorization': f'Bearer {self.api_key}'}
+        headers = {'Authorization': f'Bearer {api_key}'}
         files = {'file': (os.path.basename(file_path), audio_data)}
         data = {
             'model': model,
@@ -137,19 +149,19 @@ class GroqAPIALMTranslate:
                     if api_response_format == "text":
                         if response_format == "text":
                             # Return plain text as is
-                            return response.text, True, "200 OK"
+                            return io.NodeOutput(response.text, True, "200 OK")
                     elif api_response_format in ["json", "verbose_json"]:
                         try:
                             response_json = json.loads(response.text)
                         except Exception as e:
                             print(Fore.RED + f"Error parsing JSON response: {str(e)}" + Style.RESET_ALL)
-                            return "Error parsing JSON response.", False, "200 OK but failed to parse JSON"
+                            return io.NodeOutput("Error parsing JSON response.", False, "200 OK but failed to parse JSON")
                         if response_format == "json":
                             # Return JSON as formatted string
-                            return json.dumps(response_json, indent=4), True, "200 OK"
+                            return io.NodeOutput(json.dumps(response_json, indent=4), True, "200 OK")
                         elif response_format == "verbose_json":
                             # Return verbose JSON as formatted string
-                            return json.dumps(response_json, indent=4), True, "200 OK"
+                            return io.NodeOutput(json.dumps(response_json, indent=4), True, "200 OK")
                         elif response_format == "text_with_timestamps":
                             # Process segments to produce line-based timestamps
                             segments = response_json.get('segments', [])
@@ -163,7 +175,7 @@ class GroqAPIALMTranslate:
                                 timestamp = f"[{minutes:02d}:{seconds:02d}.{milliseconds:03d}]"
                                 text = segment.get('text', '').strip()
                                 translation_text += f"{timestamp}{text}\n"
-                            return translation_text.strip(), True, "200 OK"
+                            return io.NodeOutput(translation_text.strip(), True, "200 OK")
                         elif response_format == "text_with_linebreaks":
                             # Extract text from each segment and concatenate with line breaks
                             segments = response_json.get('segments', [])
@@ -171,13 +183,13 @@ class GroqAPIALMTranslate:
                             for segment in segments:
                                 text = segment.get('text', '').strip()
                                 translation_text += f"{text}\n"
-                            return translation_text.strip(), True, "200 OK"
+                            return io.NodeOutput(translation_text.strip(), True, "200 OK")
                     else:
-                        return "Unknown api_response_format.", False, "400 Bad Request"
+                        return io.NodeOutput("Unknown api_response_format.", False, "400 Bad Request")
                 else:
                     print(Fore.RED + f"Error: {response.status_code} {response.reason}" + Style.RESET_ALL)
-                    return response.text, False, f"{response.status_code} {response.reason}"
+                    return io.NodeOutput(response.text, False, f"{response.status_code} {response.reason}")
             except Exception as e:
                 print(Fore.RED + f"Request failed: {str(e)}" + Style.RESET_ALL)
                 time.sleep(2)
-        return "Failed after all retries.", False, "Failed after all retries"
+        return io.NodeOutput("Failed after all retries.", False, "Failed after all retries")

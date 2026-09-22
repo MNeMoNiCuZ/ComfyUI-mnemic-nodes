@@ -16,6 +16,8 @@ import folder_paths
 import numpy as np
 from PIL import Image
 
+from comfy_api.latest import io
+
 from ..utils.image_save_with_metadata_civitai import (
     civitai_lora_key_name,
     get_civitai_sampler_name,
@@ -52,6 +54,20 @@ def _get_wildcard_processor() -> WildcardProcessor:
         if _WILDCARD_PROCESSOR is None:
             _WILDCARD_PROCESSOR = WildcardProcessor()
     return _WILDCARD_PROCESSOR
+
+
+def _is_node(class_type, *names) -> bool:
+    """True when `class_type` refers to one of the named MNeMiC nodes.
+
+    Node ids changed from emoji display strings to `MNeMiC_*`, and workflows on
+    disk can still contain either. Pass both spellings of a name, e.g.
+    `_is_node(ct, "loratagloader", "lora loader prompt tags")`.
+    """
+    ct = str(class_type or "").lower()
+    for name in names:
+        if name.lower() in ct:
+            return True
+    return False
 
 
 def _is_direct_value(v) -> bool:
@@ -125,7 +141,7 @@ def _find_lora_info(prompt: dict) -> list:
                         seen_names.add(name)
 
         # Custom MNeMiC node: LoRA Loader Prompt Tags / LoraTagLoader
-        if "lora loader prompt tags" in ct.lower() or ct == "LoraTagLoader":
+        if _is_node(ct, "loratagloader", "lora loader prompt tags"):
             raw = inputs.get("STRING", "")
             if isinstance(raw, list):
                 raw = _resolve_link_text(raw, prompt)
@@ -200,7 +216,7 @@ def _resolve_link_text(link, prompt: dict, depth=0, visited=None) -> str:
                 if r:
                     return r
 
-    if class_type == "StringConcat" or "string concat" in class_lower:
+    if _is_node(class_type, "stringconcat", "string concat"):
         parts = []
         keys = sorted([k for k in inputs.keys() if k.startswith("string_")], key=lambda x: int(x.split("_")[1]))
         for k in keys:
@@ -214,7 +230,7 @@ def _resolve_link_text(link, prompt: dict, depth=0, visited=None) -> str:
         delimiter = str(inputs.get("delimiter", _node_widget(node, 0, "")) or "")
         return delimiter.join(parts)
 
-    if class_type == "WildcardProcessor" or "wildcard processor" in class_lower:
+    if _is_node(class_type, "wildcardprocessor", "wildcard processor"):
         wildcard_string = str(inputs.get("wildcard_string", _node_widget(node, 0, "")) or "")
         seed_input = inputs.get("seed", _node_widget(node, 1, 0))
         if isinstance(seed_input, list):
@@ -237,7 +253,7 @@ def _resolve_link_text(link, prompt: dict, depth=0, visited=None) -> str:
         except Exception:
             return wildcard_string
 
-    if class_type == "LoraTagLoader" or "lora loader prompt tags" in class_lower:
+    if _is_node(class_type, "loratagloader", "lora loader prompt tags"):
         source = inputs.get("STRING", "")
         if isinstance(source, list):
             source = _resolve_link_text(source, prompt, depth + 1, visited)
@@ -247,7 +263,7 @@ def _resolve_link_text(link, prompt: dict, depth=0, visited=None) -> str:
         cleaned = re.sub(r"<[0-9a-zA-Z:\_\-\.\s/()\\]+>", "", source)
         return re.sub(r"\s+", " ", cleaned).strip()
 
-    if class_type == "PromptPropertyExtractor":
+    if _is_node(class_type, "promptpropertyextractor", "prompt property extractor"):
         input_string = inputs.get("input_string", "")
         if not isinstance(input_string, str):
             input_string = ""
@@ -319,10 +335,10 @@ def _resolve_text_from_link(link, prompt: dict, depth=0, visited=None) -> str:
     class_type = node.get("class_type", "")
     inputs = node.get("inputs", {})
 
-    if class_type == "LoraTagLoader" or "lora loader prompt tags" in class_type.lower():
+    if _is_node(class_type, "loratagloader", "lora loader prompt tags"):
         return _resolve_link_text(link, prompt, depth, visited)
 
-    if class_type == "PromptPropertyExtractor":
+    if _is_node(class_type, "promptpropertyextractor", "prompt property extractor"):
         input_string = inputs.get("input_string", "")
         if output_idx == 4:
             return _parse_neg_from_prompt_property_input(input_string)
@@ -361,7 +377,7 @@ def _find_conditioning_text(start_link, prompt: dict, expected: str) -> str:
         class_type = node.get("class_type", "")
         if class_type in CLIP_ENCODER_TYPES:
             return _extract_clip_text_from_node(node, prompt)
-        if class_type == "PromptPropertyExtractor":
+        if _is_node(class_type, "promptpropertyextractor", "prompt property extractor"):
             input_string = node.get("inputs", {}).get("input_string", "")
             if expected == "negative":
                 return _parse_neg_from_prompt_property_input(input_string)
@@ -392,7 +408,7 @@ def _strip_lora_tags(text: str) -> str:
 def _find_positive_from_lora_tag_loader(prompt: dict) -> str:
     for _, node in prompt.items():
         ct = str(node.get("class_type", "")).lower()
-        if "lora loader prompt tags" in ct or ct == "loratagloader":
+        if _is_node(ct, "loratagloader", "lora loader prompt tags"):
             src = node.get("inputs", {}).get("STRING", "")
             if isinstance(src, list):
                 src = _resolve_link_text(src, prompt)
@@ -599,93 +615,91 @@ def _build_a111_params(positive: str, negative: str, ctx: dict) -> str:
     )
 
 
-class ImageSaveWithMetadata:
-    CATEGORY = "⚡ MNeMiC Nodes"
-    FUNCTION = "save_images"
-    OUTPUT_NODE = True
-    RETURN_TYPES = ()
-    DESCRIPTION = (
-        "Save images with Civitai-compatible metadata. Auto-extracts model, "
-        "sampler, seed, prompts, etc. from the workflow. Only 'images' needs connecting."
-    )
+class ImageSaveWithMetadata(io.ComfyNode):
+    @classmethod
+    def define_schema(cls) -> io.Schema:
+        return io.Schema(
+            node_id="MNeMiC_ImageSaveWithMetadata",
+            display_name="💾 Save Image With Metadata",
+            category="⚡ MNeMiC Nodes",
+            description=(
+                "Save images with Civitai-compatible metadata. Auto-extracts model, "
+                "sampler, seed, prompts, etc. from the workflow. Only 'images' needs connecting."
+            ),
+            inputs=[
+                io.Image.Input("images", tooltip="The images to save. A batch is saved as separate numbered files."),
+                io.String.Input(
+                    "filename_prefix",
+                    default="%date:yyyy-MM-dd - hh.mm.ss%",
+                    tooltip="Filename prefix template.\n\n"
+                               "%Y: Year (e.g., 2025)\n"
+                               "%m: Month (01-12)\n"
+                               "%d: Day of month (01-31)\n"
+                               "%H: Hour (24-hour clock) (00-23)\n"
+                               "%M: Minute (00-59)\n"
+                               "%S: Second (00-59)\n"
+                               "%f: Microsecond (000000-999999)\n"
+                               "%x: Date representation\n"
+                               "%X: Time representation\n"
+                               "%c: Date and time representation\n"
+                               "%p: AM/PM\n"
+                               "%A: Weekday full name (e.g., Thursday)\n"
+                               "%a: Weekday abbreviated name (e.g., Thu)\n"
+                               "%B: Month full name (e.g., August)\n"
+                               "%b: Month abbreviated name (e.g., Aug)\n"
+                               "%j: Day of year (001-366)\n"
+                               "%W: Week number of year (Monday as first day) (00-53)\n"
+                               "%w: Day index of week (Monday is 0) (0-6)\n"
+                               "%U: Week number of year (Sunday as first day) (00-53)\n"
+                               "%u: Day index of week (Sunday is 0) (0-6)\n"
+                               "%%: A literal '%' character\n\n"
+                            "%date:yyyy-MM-dd - hh.mm.ss%: custom date token style\n"
+                            "%seed: resolved generation seed\n"
+                            "%model: resolved model basename",
+                ),
+                io.String.Input(
+                    "folder",
+                    default="%date:yyyy-MM-dd%",
+                    tooltip="Subfolder under ComfyUI output directory.\n\n"
+                               "%Y: Year (e.g., 2025)\n"
+                               "%m: Month (01-12)\n"
+                               "%d: Day of month (01-31)\n"
+                               "%H: Hour (24-hour clock) (00-23)\n"
+                               "%M: Minute (00-59)\n"
+                               "%S: Second (00-59)\n"
+                               "%f: Microsecond (000000-999999)\n"
+                               "%x: Date representation\n"
+                               "%X: Time representation\n"
+                               "%c: Date and time representation\n"
+                               "%p: AM/PM\n"
+                               "%A: Weekday full name (e.g., Thursday)\n"
+                               "%a: Weekday abbreviated name (e.g., Thu)\n"
+                               "%B: Month full name (e.g., August)\n"
+                               "%b: Month abbreviated name (e.g., Aug)\n"
+                               "%j: Day of year (001-366)\n"
+                               "%W: Week number of year (Monday as first day) (00-53)\n"
+                               "%w: Day index of week (Monday is 0) (0-6)\n"
+                               "%U: Week number of year (Sunday as first day) (00-53)\n"
+                               "%u: Day index of week (Sunday is 0) (0-6)\n"
+                               "%%: A literal '%' character\n\n"
+                            "%date:yyyy-MM-dd - hh.mm.ss%: custom date token style\n"
+                            "%seed: resolved generation seed\n"
+                            "%model: resolved model basename",
+                ),
+                io.Combo.Input("file_format", options=["png", "jpeg", "webp"], tooltip="File type to write. PNG is lossless; jpeg and webp use the quality setting."),
+                io.Int.Input("quality", default=100, min=1, max=100, advanced=True, tooltip="Compression quality for jpeg and webp, 1-100. Ignored for PNG."),
+                io.Boolean.Input("embed_workflow", default=True, advanced=True, tooltip="Include workflow in the image."),
+                io.Boolean.Input("strip_lora_prompt", default=False, advanced=True, tooltip="Strip LoRAs from prompt."),
+                io.String.Input("positive_override", optional=True, default="", multiline=True, force_input=True, tooltip="Override the auto-detected positive prompt. Accepts a single string (applied to every image) or a list of prompts (one per image, looping if the count differs from the number of images)."),
+            ],
+            outputs=[],
+            hidden=[io.Hidden.prompt, io.Hidden.extra_pnginfo],
+            is_output_node=True,
+        )
 
     @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "images": ("IMAGE",),
-                "filename_prefix": ("STRING", {
-                    "default": "%date:yyyy-MM-dd - hh.mm.ss%",
-                    "tooltip": "Filename prefix template.\n\n"
-                               "%Y: Year (e.g., 2025)\n"
-                               "%m: Month (01-12)\n"
-                               "%d: Day of month (01-31)\n"
-                               "%H: Hour (24-hour clock) (00-23)\n"
-                               "%M: Minute (00-59)\n"
-                               "%S: Second (00-59)\n"
-                               "%f: Microsecond (000000-999999)\n"
-                               "%x: Date representation\n"
-                               "%X: Time representation\n"
-                               "%c: Date and time representation\n"
-                               "%p: AM/PM\n"
-                               "%A: Weekday full name (e.g., Thursday)\n"
-                               "%a: Weekday abbreviated name (e.g., Thu)\n"
-                               "%B: Month full name (e.g., August)\n"
-                               "%b: Month abbreviated name (e.g., Aug)\n"
-                               "%j: Day of year (001-366)\n"
-                               "%W: Week number of year (Monday as first day) (00-53)\n"
-                               "%w: Day index of week (Monday is 0) (0-6)\n"
-                               "%U: Week number of year (Sunday as first day) (00-53)\n"
-                               "%u: Day index of week (Sunday is 0) (0-6)\n"
-                               "%%: A literal '%' character\n\n"
-                               "%date:yyyy-MM-dd - hh.mm.ss%: custom date token style\n"
-                               "%seed: resolved generation seed\n"
-                               "%model: resolved model basename"
-                }),
-                "folder": ("STRING", {
-                    "default": "%date:yyyy-MM-dd%",
-                    "tooltip": "Subfolder under ComfyUI output directory.\n\n"
-                               "%Y: Year (e.g., 2025)\n"
-                               "%m: Month (01-12)\n"
-                               "%d: Day of month (01-31)\n"
-                               "%H: Hour (24-hour clock) (00-23)\n"
-                               "%M: Minute (00-59)\n"
-                               "%S: Second (00-59)\n"
-                               "%f: Microsecond (000000-999999)\n"
-                               "%x: Date representation\n"
-                               "%X: Time representation\n"
-                               "%c: Date and time representation\n"
-                               "%p: AM/PM\n"
-                               "%A: Weekday full name (e.g., Thursday)\n"
-                               "%a: Weekday abbreviated name (e.g., Thu)\n"
-                               "%B: Month full name (e.g., August)\n"
-                               "%b: Month abbreviated name (e.g., Aug)\n"
-                               "%j: Day of year (001-366)\n"
-                               "%W: Week number of year (Monday as first day) (00-53)\n"
-                               "%w: Day index of week (Monday is 0) (0-6)\n"
-                               "%U: Week number of year (Sunday as first day) (00-53)\n"
-                               "%u: Day index of week (Sunday is 0) (0-6)\n"
-                               "%%: A literal '%' character\n\n"
-                               "%date:yyyy-MM-dd - hh.mm.ss%: custom date token style\n"
-                               "%seed: resolved generation seed\n"
-                               "%model: resolved model basename"
-                }),
-                "file_format": (["png", "jpeg", "webp"],),
-                "quality": ("INT", {"default": 100, "min": 1, "max": 100}),
-                "embed_workflow": ("BOOLEAN", {"default": True, "tooltip": "Include workflow in the image."}),
-                "strip_lora_prompt": ("BOOLEAN", {"default": False, "tooltip": "Strip LoRAs from prompt."}),
-            },
-            "optional": {
-                "positive_override": ("STRING", {"default": "", "multiline": True, "forceInput": True, "tooltip": "Override the auto-detected positive prompt. Accepts a single string (applied to every image) or a list of prompts (one per image, looping if the count differs from the number of images)."}),
-            },
-            "hidden": {
-                "prompt": "PROMPT",
-                "extra_pnginfo": "EXTRA_PNGINFO",
-            },
-        }
-
-    def save_images(
-        self,
+    def execute(
+        cls,
         images,
         filename_prefix="%date:yyyy-MM-dd - hh.mm.ss%",
         folder="%date:yyyy-MM-dd%",
@@ -694,9 +708,9 @@ class ImageSaveWithMetadata:
         embed_workflow=True,
         strip_lora_prompt=False,
         positive_override="",
-        prompt=None,
-        extra_pnginfo=None,
-    ):
+    ) -> io.NodeOutput:
+        prompt = cls.hidden.prompt
+        extra_pnginfo = cls.hidden.extra_pnginfo
         # positive_override may be a single string or a list of per-image prompts
         # (e.g. wired from the Batch Wildcard Sampler's resolved_prompts list output).
         override_list = None
@@ -723,7 +737,7 @@ class ImageSaveWithMetadata:
         batch_pos, batch_neg, batch_seed, batch_active = [], [], None, False
         try:
             has_batch_node = any(
-                "batch wildcard" in str(n.get("class_type", "")).lower()
+                _is_node(n.get("class_type", ""), "batchwildcardsampler", "batch wildcard")
                 for n in (prompt or {}).values()
             )
             if has_batch_node:
@@ -830,9 +844,6 @@ class ImageSaveWithMetadata:
             subfolder = os.path.normpath(resolved_folder) if resolved_folder else ""
             results.append({"filename": final_filename, "subfolder": subfolder if subfolder != "." else "", "type": "output"})
 
-        return {"ui": {"images": results}}
+        return io.NodeOutput(ui={"images": results})
 
 
-NODE_DISPLAY_NAME_MAPPINGS = {
-    "ImageSaveWithMetadata": "💾 Save Image With Metadata",
-}

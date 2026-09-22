@@ -13,18 +13,19 @@ from ..utils.settings_utils import (
 )
 from colorama import Fore, Style
 
-class WildcardProcessor:
+from comfy_api.latest import io, ui
+
+# See wildcard_processor.py: a single instance is reused so the file caches
+# survive between executions, which V3 class-clone execution otherwise loses.
+_INSTANCE = None
+
+
+class WildcardProcessor(io.ComfyNode):
     """
     A custom node for ComfyUI that processes text containing wildcards, with support for
     file-based wildcards, inline choices, weights, multiple selections, variables, and nesting.
     This is a complete rewrite of the original node to fix issues and add features.
     """
-    OUTPUT_NODE = True
-    FUNCTION = "process_wildcards"
-    CATEGORY = "⚡ MNeMiC Nodes"
-
-    DESCRIPTION = ("A text processor that replaces wildcards with dynamic content from files or inline lists."
-                         )
 
     def __init__(self):
         # Caches to store wildcard file content and located file paths
@@ -37,13 +38,18 @@ class WildcardProcessor:
         self.variables = {}
 
     @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "wildcard_string": ("STRING", {
-                    "multiline": True,
-                    "dynamicPrompts": False,
-                    "tooltip": (
+    def define_schema(cls) -> io.Schema:
+        return io.Schema(
+            node_id="MNeMiC_WildcardProcessorAdvanced",
+            display_name="📝 Wildcard Processor Advanced",
+            category="⚡ MNeMiC Nodes",
+            description="A text processor that replaces wildcards with dynamic content from files or inline lists.",
+            inputs=[
+                io.String.Input(
+                    "wildcard_string",
+                    multiline=True,
+                    dynamic_prompts=False,
+                    tooltip=(
                         "The text prompt to process. Supports multiple features:\n\n"
                         "File Wildcards:\nUse __filename__ to insert a random line from filename.txt in one of the supported wildcard directories. Lines starting with # are treated as comments and are ignored.\n\n"
                         "Inline Choices:\nUse {a|b|c} to randomly choose between a, b, or c.\nExample Input: A photo of a {red|green|blue} car.\nExample Output: A photo of a green car.\n\n"
@@ -53,30 +59,45 @@ class WildcardProcessor:
                         "Custom Separator:\nUse {1-3$$, $$red|green|blue|yellow|purple} to join the selected items with a custom separator (here, \", \") instead of the default.\n\n"
                         "Variables:\nDefine a variable to reuse a value. Can be defined directly, or using a wildcard\nExample Input: ${animal=!__animals__} The ${animal} is friends with the other ${animal}.\nExample Output: The cat is friends with the other cat."
                     ),
-                    "placeholder": "A photo of a __sample_colors__ {dog|cat|monkey}."
-                }),
-                "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff, "tooltip": "The seed for the random number generator. Using the same seed with the same prompt will produce the same output."}),
-                "multiple_separator": ("STRING", {"default": " ", "multiline": False, "tooltip": "The separator used when selecting multiple items from a single wildcard.\n\nExample:\n- Prompt: {2$$red|green|blue}\n- Separator: \", \"\n- Output example: \"red, green\""}),
-                "recache_wildcards": ("BOOLEAN", {"default": False, "tooltip": "Force a reload of all wildcard files from disk. Can be disabled again after you have ran it once."}),
-                # "tag_extraction_tags": ("STRING", {
-                #     "default": "",
-                #     "multiline": False,
-                #     "tooltip": "Define pairs of characters to extract tags from the prompt. Example: [],**,<<>>. The extracted content is processed for wildcards and removed from the main prompt. \n\nReserved characters: ( ) { } |.",
-                #     "placeholder": "Example: [],**,<>"
-                # }),
-            }
-        }
+                    placeholder="A photo of a __sample_colors__ {dog|cat|monkey}.",
+                ),
+                io.Int.Input(
+                    "seed",
+                    default=0,
+                    min=0,
+                    max=0xffffffffffffffff,
+                    tooltip="The seed for the random number generator. Using the same seed with the same prompt will produce the same output.",
+                ),
+                io.String.Input(
+                    "multiple_separator",
+                    default=" ",
+                    multiline=False,
+                    tooltip="The separator used when selecting multiple items from a single wildcard.\n\nExample:\n- Prompt: {2$$red|green|blue}\n- Separator: \", \"\n- Output example: \"red, green\"",
+                ),
+                io.Boolean.Input(
+                    "recache_wildcards",
+                    default=False,
+                    tooltip="Force a reload of all wildcard files from disk. Can be disabled again after you have ran it once.",
+                ),
+            ],
+            outputs=[
+                io.String.Output(display_name="processed_text", tooltip="The final text after all wildcards and tags have been processed."),
+                io.Int.Output(display_name="seed", tooltip="The seed value used for this generation."),
+                io.String.Output(display_name="extracted_tags_string", tooltip="A single string containing all extracted and processed tag content, joined by '|'."),
+                io.String.Output(display_name="extracted_tags_list", tooltip="A list of strings, where each item is one piece of extracted and processed tag content."),
+                io.String.Output(display_name="raw_tags_string", tooltip="A single string containing all raw, unprocessed tags, including their delimiters, concatenated together."),
+                io.String.Output(display_name="raw_tags_list", tooltip="A list of strings, where each item is one raw, unprocessed tag, including its delimiters."),
+            ],
+            is_output_node=True,
+        )
 
-    RETURN_TYPES = ("STRING", "INT", "STRING", "STRING", "STRING", "STRING",)
-    RETURN_NAMES = ("processed_text", "seed", "extracted_tags_string", "extracted_tags_list", "raw_tags_string", "raw_tags_list",)
-    OUTPUT_TOOLTIPS = (
-        "The final text after all wildcards and tags have been processed.",
-        "The seed value used for this generation.",
-        "A single string containing all extracted and processed tag content, joined by '|'.",
-        "A list of strings, where each item is one piece of extracted and processed tag content.",
-        "A single string containing all raw, unprocessed tags, including their delimiters, concatenated together.",
-        "A list of strings, where each item is one raw, unprocessed tag, including its delimiters."
-    )
+    @classmethod
+    def execute(cls, **kwargs) -> io.NodeOutput:
+        global _INSTANCE
+        if _INSTANCE is None:
+            _INSTANCE = WildcardProcessor()
+        results = _INSTANCE.process_wildcards(**kwargs)
+        return io.NodeOutput(*results, ui=ui.PreviewText(results[0]))
 
     def wildcard_log(self, message, level=0):
         """Logs a message to the console if logging is enabled, with color and indentation."""
@@ -565,11 +586,3 @@ class WildcardProcessor:
             print(f"{Fore.GREEN}{'-----' * 8}📝 Wildcard Processor End{'-----' * 8}{Style.RESET_ALL}")
             
         return (processed_text, seed, extracted_tags_string, extracted_tags_list, raw_tags_string, raw_tags_list)
-
-NODE_CLASS_MAPPINGS = {
-    "WildcardProcessor": WildcardProcessor,
-}
-
-NODE_DISPLAY_NAME_MAPPINGS = {
-    "WildcardProcessor": "Wildcard Processor",
-}

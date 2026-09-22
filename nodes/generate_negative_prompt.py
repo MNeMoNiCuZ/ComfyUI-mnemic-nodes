@@ -3,33 +3,77 @@ import re
 import torch
 from transformers import GPT2LMHeadModel, GPT2Tokenizer, GPT2Config
 
-class GenerateNegativePrompt:
-    def __init__(self):
-        pass
+from comfy_api.latest import io
+
+
+class GenerateNegativePrompt(io.ComfyNode):
+    @classmethod
+    def define_schema(cls) -> io.Schema:
+        return io.Schema(
+            node_id="MNeMiC_GenerateNegativePrompt",
+            display_name="⛔ Generate Negative Prompt",
+            category="⚡ MNeMiC Nodes",
+            description="EXPERIMENTAL: Generates a negative prompt matching the input.\n\nThe model is quite weak and random though, so it doesn't work well. It mostly just generates random negative prompts trained on CivitAI negative prompts.\n\nNSFW words may appear.",
+            inputs=[
+                io.String.Input(
+                    "input_prompt",
+                    force_input=True,
+                    tooltip="The positive prompt you want to generate a negative prompt for.",
+                ),
+                io.Int.Input(
+                    "max_length",
+                    default=100,
+                    min=1,
+                    max=1024,
+                    step=1,
+                    tooltip="Maximum token length of the generated output.",
+                ),
+                io.Int.Input(
+                    "num_beams",
+                    default=1,
+                    min=1,
+                    max=10,
+                    step=1,
+                    tooltip="Number of beams for beam search. Higher values improve accuracy.",
+                ),
+                io.Float.Input(
+                    "temperature",
+                    default=1.0,
+                    min=0.1,
+                    max=2.0,
+                    step=0.1,
+                    tooltip="Sampling temperature. Lower values make the output more deterministic.",
+                ),
+                io.Int.Input(
+                    "top_k",
+                    default=50,
+                    min=0,
+                    max=100,
+                    step=1,
+                    tooltip="Limits how many of the most likely words are considered for each choice.\n\nFor example, top_k=50 means the model picks from the top 50 most likely words.\n\nA lower value narrows the choices, making the output more predictable, while a higher value adds diversity.",
+                ),
+                io.Float.Input(
+                    "top_p",
+                    default=0.92,
+                    min=0.0,
+                    max=1.0,
+                    step=0.01,
+                    tooltip="Limits the pool of words the model can choose from based on their combined probability.\n\nSet it closer to 1 to allow more variety in output. Lowering this (e.g., 0.9) will restrict the output to the most likely words, making responses more focused.",
+                ),
+                io.String.Input(
+                    "blocked_words",
+                    default="Blocked words, one per line, remove unwanted embeddings or words",
+                    multiline=True,
+                    tooltip="Words to exclude from the output.",
+                ),
+            ],
+            outputs=[
+                io.String.Output(display_name="negative_prompt", tooltip="The generated negative prompt"),
+            ],
+        )
 
     @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "input_prompt": ("STRING", {"forceInput": True, "tooltip": "The positive prompt you want to generate a negative prompt for."}),
-                "max_length": ("INT", {"default": 100, "min": 1, "max": 1024, "step": 1, "tooltip": "Maximum token length of the generated output."}),
-                "num_beams": ("INT", {"default": 1, "min": 1, "max": 10, "step": 1, "tooltip": "Number of beams for beam search. Higher values improve accuracy."}),
-                "temperature": ("FLOAT", {"default": 1.0, "min": 0.1, "max": 2.0, "step": 0.1, "tooltip": "Sampling temperature. Lower values make the output more deterministic."}),
-                "top_k": ("INT", {"default": 50, "min": 0, "max": 100, "step": 1, "tooltip": "Limits how many of the most likely words are considered for each choice.\n\nFor example, top_k=50 means the model picks from the top 50 most likely words.\n\nA lower value narrows the choices, making the output more predictable, while a higher value adds diversity."}),
-                "top_p": ("FLOAT", {"default": 0.92, "min": 0.0, "max": 1.0, "step": 0.01, "tooltip": "Limits the pool of words the model can choose from based on their combined probability.\n\nSet it closer to 1 to allow more variety in output. Lowering this (e.g., 0.9) will restrict the output to the most likely words, making responses more focused."}),
-                "blocked_words": ("STRING", {"default": "Blocked words, one per line, remove unwanted embeddings or words", "multiline": True, "tooltip": "Words to exclude from the output."}),
-            }
-        }
-
-    OUTPUT_NODE = True
-    RETURN_TYPES = ("STRING",)
-    RETURN_NAMES = ("negative_prompt",)
-    OUTPUT_TOOLTIPS = ("The generated negative prompt",)
-    FUNCTION = "generate_negative_prompt"
-    CATEGORY = "⚡ MNeMiC Nodes"
-    DESCRIPTION = "EXPERIMENTAL: Generates a negative prompt matching the input.\n\nThe model is quite weak and random though, so it doesn't work well. It mostly just generates random negative prompts trained on CivitAI negative prompts.\n\nNSFW words may appear."
-
-    def generate_negative_prompt(self, input_prompt, max_length, num_beams, temperature, top_k, top_p, blocked_words):
+    def execute(cls, input_prompt, max_length, num_beams, temperature, top_k, top_p, blocked_words) -> io.NodeOutput:
         current_directory = os.path.dirname(os.path.realpath(__file__))
         model_directory = 'negativeprompt'
         model_path = os.path.join(current_directory, model_directory)
@@ -70,4 +114,4 @@ class GenerateNegativePrompt:
                 if word.strip():
                     generated_text = generated_text.replace(word, "")
 
-        return generated_text,
+        return io.NodeOutput(generated_text)

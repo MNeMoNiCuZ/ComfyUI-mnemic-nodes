@@ -13,37 +13,39 @@ from ..utils.api_utils import load_prompt_options, get_prompt_content
 from ..utils.env_manager import ensure_env_file, get_api_key
 from ..utils.settings_utils import is_groq_completion_console_log_enabled, get_groq_completion_request_timeout
 
-class GroqAPICompletion:
-    DEFAULT_PROMPT = "Use [system_message] and [user_input]"
-    
-    def __init__(self):
-        # Set up directories for prompt files
-        current_directory = os.path.dirname(os.path.realpath(__file__))
-        groq_directory = os.path.join(current_directory, 'groq')
-        
-        # Get API key from env file
+from comfy_api.latest import io
+
+# Lazily-initialised API key, shared by every instance of the node. V3 nodes
+# execute as classmethods, so this replaces the old __init__.
+_API_KEY = None
+
+
+def _get_api_key():
+    global _API_KEY
+    if _API_KEY is None:
         ensure_env_file()
-        self.api_key = get_api_key()
-        self.client = Groq(api_key=self.api_key)
-        
-        # Load prompt options
-        prompt_files = [
-            os.path.join(groq_directory, 'DefaultPrompts.json'),
-            os.path.join(groq_directory, 'UserPrompts.json')
-        ]
-        self.prompt_options = load_prompt_options(prompt_files)
+        _API_KEY = get_api_key()
+        Groq(api_key=_API_KEY)
+    return _API_KEY
+
+
+class GroqAPICompletion(io.ComfyNode):
+    DEFAULT_PROMPT = "Use [system_message] and [user_input]"
 
     @classmethod
-    def INPUT_TYPES(cls):
+    def define_schema(cls) -> io.Schema:
         try:
             prompt_options = cls.load_prompt_options()
         except Exception as e:
             print(f"Failed to load prompt options: {e}")
             prompt_options = {}
 
-        return {
-            "required": {
-                "model": ([
+        return io.Schema(
+            node_id="MNeMiC_GroqAPICompletion",
+            display_name="✨💬 Groq Completion API",
+            category="⚡ MNeMiC Nodes",
+            inputs=[
+                io.Combo.Input("model", options=[
                     "llama-3.1-8b-instant",
                     "llama-3.1-70b-versatile",
                     "llama3-8b-8192",
@@ -56,40 +58,38 @@ class GroqAPICompletion:
                     "gemma2-9b-it",
                     "whisper-large-v3",
                     "distil-whisper-large-v3-en",
-                    "llava-v1.5-7b-4096-preview"
-                ],),
-                "preset": ([cls.DEFAULT_PROMPT] + list(prompt_options.keys()),),
-                "system_message": ("STRING", {"multiline": True, "default": ""}),
-                "user_input": ("STRING", {"multiline": True, "default": ""}),
-                "temperature": ("FLOAT", {"default": 0.85, "min": 0.1, "max": 2.0, "step": 0.05}),
-                "max_tokens": ("INT", {"default": 1024, "min": 1, "max": 131072, "step": 1}),
-                "top_p": ("FLOAT", {"default": 1.0, "min": 0.1, "max": 1.0, "step": 0.01}),
-                "seed": ("INT", {"default": 42, "min": 0, "max": 4294967295}),
-                "max_retries": ("INT", {"default": 2, "min": 1, "max": 10, "step": 1}),
-                "stop": ("STRING", {"default": ""}),
-                "json_mode": ("BOOLEAN", {"default": False}),
-            },
-            "optional": {
-                "image": ("IMAGE", {"label": "Image (optional - for llava only)", "optional": True}),
-            }
-        }
+                    "llava-v1.5-7b-4096-preview",
+                ], tooltip="Model to send the request to."),
+                io.Combo.Input("preset", options=[cls.DEFAULT_PROMPT] + list(prompt_options.keys()), tooltip="Preset system prompt, or the default to use the system_message field below."),
+                io.String.Input("system_message", multiline=True, default="", tooltip="Instructions that set the model's role and behaviour. Used only when preset is the default."),
+                io.String.Input("user_input", multiline=True, default="", tooltip="The request sent to the model."),
+                io.Float.Input("temperature", default=0.85, min=0.1, max=2.0, step=0.05, tooltip="Randomness of the reply. Low values are focused and repeatable, high values are more creative."),
+                io.Int.Input("max_tokens", default=1024, min=1, max=131072, step=1, tooltip="Maximum length of the reply, in tokens."),
+                io.Float.Input("top_p", default=1.0, min=0.1, max=1.0, step=0.01, tooltip="Nucleus sampling cutoff. 1.0 considers every candidate word; lower values keep only the most likely ones."),
+                io.Int.Input("seed", default=42, min=0, max=4294967295, tooltip="Seed sent to the API for repeatable replies."),
+                io.Int.Input("max_retries", default=2, min=1, max=10, step=1, tooltip="How many times to retry a failed request before giving up."),
+                io.String.Input("stop", default="", tooltip="Stop generating when this sequence appears. Leave empty for no stop sequence."),
+                io.Boolean.Input("json_mode", default=False, tooltip="Force the reply to be valid JSON. The word JSON must also appear in the prompt."),
+                io.Image.Input("image", optional=True, tooltip="Image to describe. Only used by the llava model."),
+            ],
+            outputs=[
+                io.String.Output(display_name="api_response", tooltip="The text generated by the model."),
+                io.Boolean.Output(display_name="success", tooltip="True when the request completed, False on any error."),
+                io.String.Output(display_name="status_code", tooltip="HTTP status of the request, e.g. \"200 OK\"."),
+            ],
+        )
 
-    OUTPUT_NODE = True
-    RETURN_TYPES = ("STRING", "BOOLEAN", "STRING")
-    RETURN_NAMES = ("api_response", "success", "status_code")
-    FUNCTION = "process_completion_request"
-    CATEGORY = "⚡ MNeMiC Nodes"
-
-    def process_completion_request(self, model, preset, system_message, user_input, temperature, max_tokens, top_p, seed, max_retries, stop, json_mode, image=None):
+    @classmethod
+    def execute(cls, model, preset, system_message, user_input, temperature, max_tokens, top_p, seed, max_retries, stop, json_mode, image=None) -> io.NodeOutput:
         # Set the seed for reproducibility
         torch.manual_seed(seed)
         np.random.seed(seed)
         random.seed(seed)
 
-        system_message = system_message if preset == self.DEFAULT_PROMPT else self.get_prompt_content(preset)
+        system_message = system_message if preset == cls.DEFAULT_PROMPT else cls.get_prompt_content(preset)
 
         url = 'https://api.groq.com/openai/v1/chat/completions'
-        headers = {'Authorization': f'Bearer {self.api_key}'}
+        headers = {'Authorization': f'Bearer {_get_api_key()}'}
         
         messages = [
             {"role": "system", "content": system_message},
@@ -100,8 +100,8 @@ class GroqAPICompletion:
         if model == "llava-v1.5-7b-4096-preview":
             if image is not None and isinstance(image, torch.Tensor):
                 # Process the image only if it is provided
-                image_pil = self.tensor_to_pil(image)
-                base64_image = self.encode_image(image_pil)
+                image_pil = cls.tensor_to_pil(image)
+                base64_image = cls.encode_image(image_pil)
 
                 if base64_image:
                     combined_message = f"{system_message}\n{user_input}"
@@ -147,18 +147,18 @@ class GroqAPICompletion:
                         assistant_message = response_json['choices'][0]['message']['content']
                         if console_log:
                             print(f"Extracted message: {assistant_message}")
-                        return assistant_message, True, "200 OK"
+                        return io.NodeOutput(assistant_message, True, "200 OK")
                     else:
-                        return "No valid response content found.", False, "200 OK but no content"
+                        return io.NodeOutput("No valid response content found.", False, "200 OK but no content")
                 except Exception as e:
                     print(f"Error parsing response: {str(e)}")
-                    return "Error parsing JSON response.", False, "200 OK but failed to parse JSON"
+                    return io.NodeOutput("Error parsing JSON response.", False, "200 OK but failed to parse JSON")
             else:
-                return "ERROR", False, f"{response.status_code} {response.reason}"
+                return io.NodeOutput("ERROR", False, f"{response.status_code} {response.reason}")
 
             time.sleep(2)
         
-        return "Failed after all retries.", False, "Failed after all retries"
+        return io.NodeOutput("Failed after all retries.", False, "Failed after all retries")
 
     @classmethod
     def load_prompt_options(cls):
@@ -176,11 +176,13 @@ class GroqAPICompletion:
                 print(f"Failed to load prompts from {json_path}: {str(e)}")
         return prompt_options
 
-    def get_prompt_content(self, prompt_name):
-        return self.prompt_options.get(prompt_name, "No content found for selected prompt")
+    @classmethod
+    def get_prompt_content(cls, prompt_name):
+        return cls.load_prompt_options().get(prompt_name, "No content found for selected prompt")
 
     # Function to encode image in base64
-    def encode_image(self, image_path):
+    @classmethod
+    def encode_image(cls, image_path):
         try:
             with open(image_path, "rb") as image_file:
                 return base64.b64encode(image_file.read()).decode('utf-8')
@@ -188,7 +190,8 @@ class GroqAPICompletion:
             print(f"Error encoding image: {e}")
             return None
 
-    def tensor_to_pil(self, image_tensor):
+    @classmethod
+    def tensor_to_pil(cls, image_tensor):
         # Remove batch dimension if it exists (tensor shape [1, H, W, C])
         if image_tensor.ndim == 4 and image_tensor.shape[0] == 1:
             image_tensor = image_tensor.squeeze(0)  # Remove the batch dimension
@@ -202,7 +205,8 @@ class GroqAPICompletion:
             raise TypeError(f"Unsupported image tensor shape: {image_tensor.shape}")
 
     # Save the image locally for debugging
-    def save_image(self, image_pil, filename="vlm_image_temp.png"):
+    @classmethod
+    def save_image(cls, image_pil, filename="vlm_image_temp.png"):
         try:
             current_directory = os.path.dirname(os.path.realpath(__file__))
             groq_directory = os.path.join(current_directory, 'groq')

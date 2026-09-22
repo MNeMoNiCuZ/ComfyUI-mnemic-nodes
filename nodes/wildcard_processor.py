@@ -13,18 +13,20 @@ from ..utils.settings_utils import (
 )
 from colorama import Fore, Style
 
-class WildcardProcessor:
+from comfy_api.latest import io, ui
+
+# The processor keeps file caches on the instance. V3 nodes execute as
+# classmethods on a per-run class clone, so a single instance is reused here to
+# preserve the caching behaviour the V1 node got from ComfyUI's node instances.
+_INSTANCE = None
+
+
+class WildcardProcessor(io.ComfyNode):
     """
     A custom node for ComfyUI that processes text containing wildcards, with support for
     file-based wildcards, inline choices, weights, multiple selections, variables, and nesting.
     This is a complete rewrite of the original node to fix issues and add features.
     """
-    OUTPUT_NODE = True
-    FUNCTION = "process_wildcards"
-    CATEGORY = "⚡ MNeMiC Nodes"
-
-    DESCRIPTION = ("A text processor that replaces wildcards with dynamic content from files or inline lists."
-                         )
 
     def __init__(self):
         # Caches to store wildcard file content and located file paths
@@ -37,13 +39,18 @@ class WildcardProcessor:
         self.variables = {}
 
     @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "wildcard_string": ("STRING", {
-                    "multiline": True,
-                    "dynamicPrompts": False,
-                    "tooltip": (
+    def define_schema(cls) -> io.Schema:
+        return io.Schema(
+            node_id="MNeMiC_WildcardProcessor",
+            display_name="📝 Wildcard Processor",
+            category="⚡ MNeMiC Nodes",
+            description="A text processor that replaces wildcards with dynamic content from files or inline lists.",
+            inputs=[
+                io.String.Input(
+                    "wildcard_string",
+                    multiline=True,
+                    dynamic_prompts=False,
+                    tooltip=(
                         "The text prompt to process. Supports multiple features:\n\n"
                         "File Wildcards:\nUse __filename__ to insert a random line from filename.txt in one of the supported wildcard directories. Lines starting with # are treated as comments and are ignored.\n\n"
                         "Inline Choices:\nUse {a|b|c} to randomly choose between a, b, or c.\nExample Input: A photo of a {red|green|blue} car.\nExample Output: A photo of a green car.\n\n"
@@ -53,24 +60,37 @@ class WildcardProcessor:
                         "Custom Separator:\nUse {1-3$$, $$red|green|blue|yellow|purple} to join the selected items with a custom separator (here, \", \") instead of the default.\n\n"
                         "Variables:\nDefine a variable to reuse a value. Can be defined directly, or using a wildcard\nExample Input: ${animal=!__animals__} The ${animal} is friends with the other ${animal}.\nExample Output: The cat is friends with the other cat."
                     ),
-                    "placeholder": "A photo of a __sample_colors__ {dog|cat|monkey}."
-                }),
-                "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff, "tooltip": "The seed for the random number generator. Using the same seed with the same prompt will produce the same output."}),
-                "recache_wildcards": ("BOOLEAN", {"default": False, "tooltip": "Force a reload of all wildcard files from disk. Can be disabled again after you have ran it once."}),
-                # "tag_extraction_tags": ("STRING", {
-                #     "default": "",
-                #     "multiline": False,
-                #     "tooltip": "Define pairs of characters to extract tags from the prompt. Example: [],**,<<>>. The extracted content is processed for wildcards and removed from the main prompt. \n\nReserved characters: ( ) { } |.",
-                #     "placeholder": "Example: [],**,<>"
-                # }),
-            }
-        }
+                    placeholder="A photo of a __sample_colors__ {dog|cat|monkey}.",
+                ),
+                io.Int.Input(
+                    "seed",
+                    default=0,
+                    min=0,
+                    max=0xffffffffffffffff,
+                    tooltip="The seed for the random number generator. Using the same seed with the same prompt will produce the same output.",
+                ),
+                io.Boolean.Input(
+                    "recache_wildcards",
+                    default=False,
+                    tooltip="Force a reload of all wildcard files from disk. Can be disabled again after you have ran it once.",
+                ),
+            ],
+            outputs=[
+                io.String.Output(
+                    display_name="processed_text",
+                    tooltip="The final text after all wildcards and tags have been processed.",
+                ),
+            ],
+            is_output_node=True,
+        )
 
-    RETURN_TYPES = ("STRING",)
-    RETURN_NAMES = ("processed_text",)
-    OUTPUT_TOOLTIPS = (
-        "The final text after all wildcards and tags have been processed.",
-    )
+    @classmethod
+    def execute(cls, **kwargs) -> io.NodeOutput:
+        global _INSTANCE
+        if _INSTANCE is None:
+            _INSTANCE = WildcardProcessor()
+        processed_text = _INSTANCE.process_wildcards(**kwargs)[0]
+        return io.NodeOutput(processed_text, ui=ui.PreviewText(processed_text))
 
     def wildcard_log(self, message, level=0):
         """Logs a message to the console if logging is enabled, with color and indentation."""
@@ -550,11 +570,3 @@ class WildcardProcessor:
             print(f"{Fore.GREEN}{'-----' * 8}📝 Wildcard Processor End{'-----' * 8}{Style.RESET_ALL}")
             
         return (processed_text,)
-
-NODE_CLASS_MAPPINGS = {
-    "WildcardProcessor": WildcardProcessor,
-}
-
-NODE_DISPLAY_NAME_MAPPINGS = {
-    "WildcardProcessor": "Wildcard Processor",
-}

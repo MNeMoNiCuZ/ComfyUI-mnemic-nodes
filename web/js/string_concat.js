@@ -5,7 +5,8 @@ const MIN_STRING_INPUTS = 2;
 app.registerExtension({
     name: "mnemic.StringConcat",
     async beforeRegisterNodeDef(nodeType, nodeData, app) {
-        const isStringConcat = nodeData.name === "StringConcat" ||
+        const isStringConcat = nodeData.name === "MNeMiC_StringConcat" ||
+            nodeData.name === "StringConcat" ||
             nodeData.name === "🔗 String Concat / Append" ||
             nodeData.name.includes("String Concat");
 

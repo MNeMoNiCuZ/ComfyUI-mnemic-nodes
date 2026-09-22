@@ -1,36 +1,31 @@
-class LiteralBool:
+from comfy_api.latest import io
+
+
+class LiteralBool(io.ComfyNode):
     """
     A simple literal boolean input node.
     Provides a toggle for True/False values.
     """
 
-    def __init__(self):
-        pass
+    @classmethod
+    def define_schema(cls) -> io.Schema:
+        return io.Schema(
+            node_id="MNeMiC_LiteralBool",
+            display_name="✏️ Literal Bool",
+            category="⚡ MNeMiC Nodes",
+            description="A simple boolean literal input. Toggle between True and False.",
+            inputs=[
+                io.Boolean.Input(
+                    "value",
+                    default=False,
+                    tooltip="Boolean value (True or False).",
+                ),
+            ],
+            outputs=[
+                io.Boolean.Output(display_name="value", tooltip="The toggle value, passed straight through."),
+            ],
+        )
 
     @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "value": ("BOOLEAN", {
-                    "default": False,
-                    "tooltip": "Boolean value (True or False)."
-                }),
-            }
-        }
-
-    RETURN_TYPES = ("BOOLEAN",)
-    RETURN_NAMES = ("value",)
-    FUNCTION = "get_value"
-    CATEGORY = "⚡ MNeMiC Nodes"
-    DESCRIPTION = "A simple boolean literal input. Toggle between True and False."
-
-    def get_value(self, value):
-        return (value,)
-
-NODE_CLASS_MAPPINGS = {
-    "LiteralBool": LiteralBool,
-}
-
-NODE_DISPLAY_NAME_MAPPINGS = {
-    "LiteralBool": "Literal Bool",
-}
+    def execute(cls, value) -> io.NodeOutput:
+        return io.NodeOutput(value)

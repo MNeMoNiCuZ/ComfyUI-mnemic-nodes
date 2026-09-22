@@ -2,88 +2,61 @@ import tiktoken
 import hashlib
 import re
 
-class TiktokenTokenizer:
-    OUTPUT_NODE = True
-    RETURN_TYPES = (
-        "INT", "INT", "INT",       # token_count, character_count, word_count
-        "LIST", "LIST",            # split_string, split_string_list
-        "LIST", "LIST",            # split_token_ids, split_token_ids_list
-        "STRING",                  # text_hash
-        "LIST", "LIST",            # special_tokens_used, special_tokens_used_list
-        "LIST", "LIST", "LIST"     # token_chunk_by_size, token_chunk_by_size_to_word, token_chunk_by_size_to_section
-    )
-    RETURN_NAMES = (
-        "token_count", "character_count", "word_count",
-        "split_string", "split_string_list",
-        "split_token_ids", "split_token_ids_list",
-        "text_hash", "special_tokens_used",
-        "special_tokens_used_list",
-        "token_chunk_by_size",
-        "token_chunk_by_size_to_word",
-        "token_chunk_by_size_to_section"
-    )
-    OUTPUT_IS_LIST = (
-        False, False, False,
-        False, True,
-        False, True,
-        False,
-        False, True,
-        True, True, True
-    )
-    OUTPUT_TOOLTIPS = (
-        "Total number of tokens in the input text",
-        "Total number of characters in the input text",
-        "Total number of words in the input text",
-        "Tokenized list of strings",
-        "Tokenized list of strings (output as list)",
-        "List of token IDs",
-        "List of token IDs (output as list)",
-        "Hash of the input text",
-        "List of special tokens used",
-        "Special tokens used (output as list)",
-        "Chunks of input text based on token length limit",
-        "Chunks adjusted to the nearest complete word (no tokens lost)",
-        "Chunks adjusted to the nearest section (newline, period, or comma)"
-    )
-    FUNCTION = "tokenize_text"
-    CATEGORY = "⚡ MNeMiC Nodes"
-    DESCRIPTION = "Tokenizes input text and returns various tokenization details, including token count, special tokens used, and more."
-    DOCUMENTATION = "This node uses tiktoken to tokenize input text."
+from comfy_api.latest import io, ui
 
+LIST = io.Custom("LIST")
+
+
+class TiktokenTokenizer(io.ComfyNode):
     @classmethod
-    def INPUT_TYPES(cls):
+    def define_schema(cls) -> io.Schema:
         valid_encodings = ["gpt-4", "gpt-4o", "cl100k_base", "o200k_base"]
 
-        return {
-            "required": {
-                "input_string": ("STRING", {"multiline": True, "tooltip": "Enter the text to be tokenized."}),
-                # Use the 'label' field to show custom display names while keeping actual encoding values
-                "encoding_type": (
-                    valid_encodings,
-                    {
-                        "default": "cl100k_base",
-                        "tooltip": "Select the encoding model you want to use for tokenization.",
-                        "label": {
-                            "gpt-4": "gpt3.5 + gpt4",
-                            "gpt-4o": "gpt-4o + gpt-4o mini",
-                            "cl100k_base": "cl100k_base",
-                            "o200k_base": "o200k_base"
-                        }
-                    }
+        return io.Schema(
+            node_id="MNeMiC_TiktokenTokenizer",
+            display_name="🔠 Tiktoken Tokenizer Info",
+            category="⚡ MNeMiC Nodes",
+            description="Tokenizes input text and returns various tokenization details, including token count, special tokens used, and more.",
+            inputs=[
+                io.String.Input(
+                    "input_string",
+                    multiline=True,
+                    tooltip="Enter the text to be tokenized.",
                 ),
-            },
-            "optional": {
-                "token_chunk_size": ("INT", {
-                    "label": "Token Chunk Size (optional)",
-                    "optional": True,
-                    "tooltip": "Optional token length limit for chunking the input text.",
-                    "min": 1,
-                    "default": 75
-                }),
-            }
-        }
+                io.Combo.Input(
+                    "encoding_type",
+                    options=valid_encodings,
+                    default="cl100k_base",
+                    tooltip="Select the encoding model you want to use for tokenization.",
+                ),
+                io.Int.Input(
+                    "token_chunk_size",
+                    optional=True,
+                    min=1,
+                    default=75,
+                    tooltip="Optional token length limit for chunking the input text.",
+                ),
+            ],
+            outputs=[
+                io.Int.Output(display_name="token_count", tooltip="Total number of tokens in the input text"),
+                io.Int.Output(display_name="character_count", tooltip="Total number of characters in the input text"),
+                io.Int.Output(display_name="word_count", tooltip="Total number of words in the input text"),
+                LIST.Output(display_name="split_string", tooltip="Tokenized list of strings"),
+                LIST.Output(display_name="split_string_list", tooltip="Tokenized list of strings (output as list)", is_output_list=True),
+                LIST.Output(display_name="split_token_ids", tooltip="List of token IDs"),
+                LIST.Output(display_name="split_token_ids_list", tooltip="List of token IDs (output as list)", is_output_list=True),
+                io.String.Output(display_name="text_hash", tooltip="Hash of the input text"),
+                LIST.Output(display_name="special_tokens_used", tooltip="List of special tokens used"),
+                LIST.Output(display_name="special_tokens_used_list", tooltip="Special tokens used (output as list)", is_output_list=True),
+                LIST.Output(display_name="token_chunk_by_size", tooltip="Chunks of input text based on token length limit", is_output_list=True),
+                LIST.Output(display_name="token_chunk_by_size_to_word", tooltip="Chunks adjusted to the nearest complete word (no tokens lost)", is_output_list=True),
+                LIST.Output(display_name="token_chunk_by_size_to_section", tooltip="Chunks adjusted to the nearest section (newline, period, or comma)", is_output_list=True),
+            ],
+            is_output_node=True,
+        )
 
-    def tokenize_text(self, input_string, encoding_type, token_chunk_size=None):
+    @classmethod
+    def execute(cls, input_string, encoding_type, token_chunk_size=None) -> io.NodeOutput:
         try:
             # Use encoding_for_model for OpenAI models like gpt-4, gpt-3.5-turbo, and gpt-4o
             if encoding_type in ["gpt-4", "gpt-4o"]:
@@ -247,7 +220,7 @@ class TiktokenTokenizer:
                 token_chunk_by_size_to_section = []
 
             # Return all outputs
-            return (
+            return io.NodeOutput(
                 token_count,                   # Total number of tokens
                 character_count,               # Total number of characters
                 word_count,                    # Total number of words
@@ -260,14 +233,12 @@ class TiktokenTokenizer:
                 special_tokens_used,           # Special tokens used (output as list)
                 token_chunk_by_size,           # Chunks based on token length limit
                 token_chunk_by_size_to_word,   # Chunks adjusted to nearest word
-                token_chunk_by_size_to_section # Chunks adjusted to nearest section
+                token_chunk_by_size_to_section, # Chunks adjusted to nearest section
+                ui=ui.PreviewText(
+                    f"{token_count} tokens · {word_count} words · {character_count} characters"
+                ),
             )
 
         except Exception as e:
             print(f"Error tokenizing text: {str(e)}")
-            return None, None, None, None, None, None, None, None, None, None, None, None, None
-
-# Export the node to ComfyUI
-NODE_CLASS_MAPPINGS = {
-    "TiktokenTokenizer": TiktokenTokenizer
-}
+            return io.NodeOutput(*((None,) * 13))

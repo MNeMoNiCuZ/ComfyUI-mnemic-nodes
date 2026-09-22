@@ -23,6 +23,8 @@ import random
 # byte-identical caption formatting and previews.
 from .ideogram4_prompt_builder import _render_preview, _norm_bbox, _palette, _dumps
 
+from comfy_api.latest import io
+
 # Real dictionary word source. Imported lazily-safe: if it's missing we raise a
 # clear, actionable error at run time rather than breaking the whole node pack.
 try:
@@ -208,7 +210,7 @@ def _article(word):
     return "an" if word[:1].lower() in "aeiou" else "a"
 
 
-class Ideogram4RandomPrompter:
+class Ideogram4RandomPrompter(io.ComfyNode):
     """
     Experimental random caption generator for Ideogram 4.
 
@@ -222,235 +224,236 @@ class Ideogram4RandomPrompter:
     """
 
     @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff,
-                                 "tooltip": "Random seed for the whole generation.\n\n"
-                                            "The same seed + the same settings always produce the exact same caption, "
-                                            "preview and bounding boxes. Change the seed to roll a brand-new random "
-                                            "composition without touching any other setting.\n\n"
-                                            "Example: seed 0 and seed 1 give two completely different layouts; seed 0 "
-                                            "run twice gives identical output."}),
-                "width": ("INT", {"default": 1024, "min": 64, "max": 16384, "step": 16,
-                                  "tooltip": "Canvas width in pixels.\n\n"
-                                             "Sets the output aspect ratio and the pixel grid the bounding boxes are "
-                                             "measured against. Ideogram 4 prefers multiples of 16.\n\n"
-                                             "Example: width 1344 with height 768 gives a wide 16:9-ish landscape; "
-                                             "1024 x 1024 is a square."}),
-                "height": ("INT", {"default": 1024, "min": 64, "max": 16384, "step": 16,
-                                   "tooltip": "Canvas height in pixels.\n\n"
-                                              "Sets the output aspect ratio and the pixel grid the bounding boxes are "
-                                              "measured against. Ideogram 4 prefers multiples of 16.\n\n"
-                                              "Example: height 1344 with width 768 gives a tall portrait."}),
-                "region_count_min": ("INT", {"default": 10, "min": 1, "max": 64,
-                                             "tooltip": "Minimum number of element regions to generate.\n\n"
-                                                        "The actual region count is a random integer between min and max "
-                                                        "(inclusive). This is the EXACT number of elements that end up in "
-                                                        "the caption and the preview (freeform / box-less regions are now "
-                                                        "drawn dashed in the preview, so the visible count always matches).\n\n"
-                                                        "Example: min 10, max 25 -> somewhere from 10 to 25 regions. "
-                                                        "Set min = max for a fixed count (e.g. 12 and 12 = always 12)."}),
-                "region_count_max": ("INT", {"default": 20, "min": 1, "max": 64,
-                                             "tooltip": "Maximum number of element regions to generate.\n\n"
-                                                        "The actual region count is a random integer between min and max "
-                                                        "(inclusive).\n\n"
-                                                        "Example: min 1, max 5 -> a sparse scene of 1 to 5 elements; "
-                                                        "min 30, max 40 -> a dense, busy collage."}),
-                "background_weight": ("FLOAT", {"default": 0.4, "min": 0.0, "max": 1.0, "step": 0.01,
-                                                "tooltip": "Relative likelihood that any given region is a BACKGROUND-tier "
-                                                           "block.\n\n"
-                                                           "Background blocks are huge: each one covers at least 70% of the "
-                                                           "canvas AREA (often the whole frame), acting as a base layer "
-                                                           "behind everything else.\n\n"
-                                                           "All four tier weights (background / large / medium / small) are "
-                                                           "summed and each region picks a tier proportionally. Set all four "
-                                                           "to 0 to fall back to equal weighting.\n\n"
-                                                           "Example: weights 0.3 / 0 / 0 / 0.7 -> roughly 30% giant "
-                                                           "backgrounds, 70% tiny details, nothing in between."}),
-                "large_weight": ("FLOAT", {"default": 0.6, "min": 0.0, "max": 1.0, "step": 0.01,
-                                           "tooltip": "Relative likelihood that a region is a LARGE-detail element "
-                                                      "(~34-62% of the canvas per axis).\n\n"
-                                                      "Weighted against the other three tiers. Set to 0 to forbid large "
-                                                      "elements entirely.\n\n"
-                                                      "Example: large 1.0 with everything else 0 -> every element is big."}),
-                "medium_weight": ("FLOAT", {"default": 0.4, "min": 0.0, "max": 1.0, "step": 0.01,
-                                            "tooltip": "Relative likelihood that a region is a MEDIUM-detail element "
-                                                       "(~17-40% of the canvas per axis).\n\n"
-                                                       "Weighted against the other three tiers. Set to 0 to forbid medium "
-                                                       "elements.\n\n"
-                                                       "Example: medium 1.0, all others 0 -> a uniform field of mid-size "
-                                                       "shapes."}),
-                "small_weight": ("FLOAT", {"default": 0.2, "min": 0.0, "max": 1.0, "step": 0.01,
-                                           "tooltip": "Relative likelihood that a region is a SMALL-detail element "
-                                                      "(~5-17% of the canvas per axis).\n\n"
-                                                      "Weighted against the other three tiers. Set to 0 to forbid small "
-                                                      "elements.\n\n"
-                                                      "Example: small 1.0, all others 0 -> only tiny scattered details "
-                                                      "(a confetti / texture look)."}),
-                "word_length_bias": ("INT", {"default": 0, "min": 0, "max": 18,
-                                             "tooltip": "Preferred dictionary word length, in characters.\n\n"
-                                                        "0 = no preference (a natural mix of short and long words). Any "
-                                                        "value above 0 biases every picked word toward that length.\n\n"
-                                                        "Example: 4 favours short punchy words (e.g. 'wide', 'calm'); "
-                                                        "11 favours long ornate words (e.g. 'melancholic')."}),
-                "word_length_randomness": ("INT", {"default": 2, "min": 0, "max": 18,
-                                                   "tooltip": "Spread (in characters) around 'word_length_bias'.\n\n"
-                                                              "Words are drawn from the window [bias - this, bias + this]. "
-                                                              "Larger = looser mix; 0 = words of exactly the bias length. "
-                                                              "Ignored when word_length_bias is 0.\n\n"
-                                                              "Example: bias 8, randomness 2 -> words 6-10 characters long."}),
-                "scene_framing": ("BOOLEAN", {"default": True, "label_on": "scene", "label_off": "pure",
-                                              "tooltip": "OFF (pure): each region's description is a bare list of "
-                                                         "dictionary words, e.g. 'vivid tower, hollow stone.' Maximum "
-                                                         "randomness, but Ideogram tends to render this as a COLLAGE / "
-                                                         "asset sheet of separate items.\n\n"
-                                                         "ON (scene): the same dictionary words are woven together with "
-                                                         "articles and spatial connector words (beside / near / behind / "
-                                                         "against ...) into one continuous sentence, e.g. 'a vivid tower "
-                                                         "beside a hollow stone against an amber cloud.' This tells "
-                                                         "Ideogram it is ONE coherent scene, so 'photograph' actually "
-                                                         "looks like a photograph instead of a grid. The connector / "
-                                                         "article words are structural and do NOT count toward "
-                                                         "region_word_min/max.\n\n"
-                                                         "Tip: for a real photo use scene ON + medium 'photograph' + a "
-                                                         "low region count + large boxes (high background/large weight)."}),
-                "region_word_min": ("INT", {"default": 5, "min": 1, "max": 200,
-                                            "tooltip": "Minimum number of randomized CONTENT words (adjectives + nouns "
-                                                       "from the dictionary) in each region's description.\n\n"
-                                                       "The exact count per region is a random integer between "
-                                                       "region_word_min and region_word_max (inclusive). Binder words "
-                                                       "(articles / connectors added by scene_framing) are NOT counted.\n\n"
-                                                       "Set min = max for an exact count: e.g. min 20, max 20 -> every "
-                                                       "region has exactly 20 content words."}),
-                "region_word_max": ("INT", {"default": 15, "min": 1, "max": 200,
-                                            "tooltip": "Maximum number of randomized CONTENT words in each region's "
-                                                       "description.\n\n"
-                                                       "The exact count per region is a random integer between "
-                                                       "region_word_min and region_word_max (inclusive). Binder words "
-                                                       "are NOT counted.\n\n"
-                                                       "Example: min 5, max 20 -> each region gets 5-20 content words; "
-                                                       "min 20, max 20 -> exactly 20 every time."}),
-                "freeform_chance": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.01,
-                                              "tooltip": "Per-region chance that a region drops its hard bounding box and "
-                                                         "becomes a FREEFORM element.\n\n"
-                                                         "Ideogram has no edge-blur control. An element WITHOUT a bbox is "
-                                                         "blended softly into the scene instead of being pinned to a hard "
-                                                         "rectangle, so higher values give a less 'cut-out collage' look. "
-                                                         "Freeform regions are still counted and are drawn dashed in the "
-                                                         "preview, but they are excluded from the bbox output (they have no "
-                                                         "fixed location).\n\n"
-                                                         "Example: 0.0 -> every element keeps a hard box; 1.0 -> nothing is "
-                                                         "boxed (fully painterly, empty bbox output)."}),
-                "text_region_min": ("INT", {"default": 0, "min": 0, "max": 64,
-                                            "tooltip": "Minimum number of regions rendered as in-image TEXT (a real "
-                                                       "dictionary word drawn into the picture) instead of an object.\n\n"
-                                                       "The text count is a random integer between text_region_min and "
-                                                       "text_region_max (inclusive), then clamped so it never exceeds the "
-                                                       "total region count. This is an EXACT count, not a probability.\n\n"
-                                                       "Example: min 1, max 2 -> always 1 or 2 text words in the image, "
-                                                       "no matter how many total regions there are."}),
-                "text_region_max": ("INT", {"default": 2, "min": 0, "max": 64,
-                                            "tooltip": "Maximum number of regions rendered as in-image TEXT.\n\n"
-                                                       "The text count is a random integer between text_region_min and "
-                                                       "text_region_max (inclusive), clamped to the total region count.\n\n"
-                                                       "Example: min 0, max 0 -> never any text; min 3, max 3 -> always "
-                                                       "exactly 3 text words."}),
-                "element_palette_chance": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.01,
-                                                     "tooltip": "Per-region chance that a region carries its OWN small "
-                                                                "colour palette (a subset of the image-level palette) "
-                                                                "instead of inheriting the global one.\n\n"
-                                                                "Has no effect when color_palette is 'none'.\n\n"
-                                                                "Example: 0.0 -> all elements share the image palette; "
-                                                                "1.0 -> every element gets its own colour sub-set."}),
-                "medium": (["random"] + MEDIUM_OPTIONS, {"default": "photograph",
-                                                         "tooltip": "Image medium (an Ideogram 4 schema value).\n\n"
-                                                                    "'photograph' emits a 'photo' style key (focal length / "
-                                                                    "aperture); every other medium emits an 'art_style' "
-                                                                    "key instead. 'random' picks one per run.\n\n"
-                                                                    "Example: 'photograph' -> camera-style caption; "
-                                                                    "'painting' -> art-style caption."}),
-                "color_palette": (["random", "none"] + COLOR_PALETTE_OPTIONS,
-                                  {"default": "none",
-                                   "tooltip": "Colour palette family used to build the image palette (mirrors the "
-                                              "Colorful Starting Image node).\n\n"
-                                              "- none: emit NO colour palette at all (Ideogram chooses colours freely)\n"
-                                              "- random_color: any RGB\n"
-                                              "- muted / grayscale / binary / neon / pastel: themed colours\n"
-                                              "- colorized: grayscale tinted with one shared hue\n"
-                                              "- random: pick one of the families above per run\n\n"
-                                              "Example: 'none' -> no color_palette keys anywhere; 'neon' -> vivid "
-                                              "saturated swatches."}),
-                "color_harmony": (["random"] + COLOR_HARMONY_OPTIONS,
-                                  {"default": "none",
-                                   "tooltip": "Colour-harmony rule applied to the generated palette.\n\n"
-                                              "- none: unrelated colours\n"
-                                              "- complementary: two opposite hues\n"
-                                              "- analogous: neighbouring hues\n"
-                                              "- triadic: three evenly spaced hues\n"
-                                              "- tetradic: four evenly spaced hues\n"
-                                              "- random: pick one per run\n\n"
-                                              "Ignored when color_palette is 'none'.\n\n"
-                                              "Example: 'complementary' -> a punchy two-colour contrast scheme."}),
-                "positioning_bias": (["random"] + POSITIONING_BIAS_OPTIONS,
-                                     {"tooltip": "Where regions tend to cluster on the canvas (mirrors the Colorful "
-                                                 "Starting Image node).\n\n"
-                                                 "scattered = anywhere; center_weighted / edge_weighted; grid_aligned; "
-                                                 "random_weighted; or a compass direction (north / south / east / west "
-                                                 "and the diagonals). Ignored when 'arrangement' is anything other than "
-                                                 "'none'.\n\n"
-                                                 "Example: 'south' -> elements gather along the bottom; 'center_weighted' "
-                                                 "-> a tight central cluster."}),
-                "arrangement": (["random"] + ARRANGEMENT_OPTIONS,
-                                {"default": "none",
-                                 "tooltip": "Structured placement pattern for region centres.\n\n"
-                                            "- none: use positioning_bias instead (default)\n"
-                                            "- spiral: centres wind outward in a spiral\n"
-                                            "- burst: centres explode out from the middle\n"
-                                            "- grid: centres snap to a tidy grid\n"
-                                            "- random: pick one per run\n\n"
-                                            "Overrides positioning_bias whenever it is not 'none'.\n\n"
-                                            "Example: 'grid' -> an orderly tiled layout; 'burst' -> an energetic "
-                                            "radial spray."}),
-            },
-            "optional": {
-                "description_length": ("INT", {"default": 35, "min": 1, "max": 200,
-                                               "tooltip": "Target length (in words) for the AUTO-GENERATED high_level_description.\n\n"
-                                                          "The generator keeps adding dictionary word-groups until it reaches "
-                                                          "about this many words, so larger = a longer, richer overview line. "
-                                                          "Ignored when description_override is set.\n\n"
-                                                          "Example: 6 -> a short caption; 30 -> a long, dense descriptive run."}),
-                "description_override": ("STRING", {"multiline": True, "default": "",
-                                                    "tooltip": "FULL REPLACEMENT for the high_level_description.\n\n"
-                                                               "When this is non-empty, the high_level_description is set to "
-                                                               "EXACTLY this string and nothing is generated for it (description_prefix "
-                                                               "and description_length are ignored). Leave blank to auto-generate.\n\n"
-                                                               "Example: 'A wide cinematic establishing shot of a coastal town "
-                                                               "at dawn' -> that exact line is used verbatim."}),
-                "description_prefix": ("STRING", {"multiline": True, "default": "A close-up photography of",
-                                                  "tooltip": "PREFIX prepended to the auto-generated high_level_description.\n\n"
-                                                             "Ignored when description_override is set. The final value is "
-                                                             "'<prefix> <generated words>'.\n\n"
-                                                             "Example: prefix 'A vintage 35mm photograph of' -> "
-                                                             "'A vintage 35mm photograph of amber hollow river, brisk stone, ...'"}),
-                "description_background_prefix": ("STRING", {"multiline": True, "default": "an environment photography background of",
-                                                             "tooltip": "PREFIX prepended to the auto-generated background description.\n\n"
-                                                                        "The final value is '<prefix> <generated words>'. Leave blank "
-                                                                        "to let the background be fully random.\n\n"
-                                                                        "Example: 'a serene mountain landscape with' -> "
-                                                                        "'a serene mountain landscape with vivid hollow stone ...'"}),
-            },
-        }
-
-    RETURN_TYPES = ("STRING", "IMAGE", "BOUNDING_BOX", "INT", "INT")
-    RETURN_NAMES = ("prompt", "preview", "bboxes", "width", "height")
-    FUNCTION = "generate"
-    CATEGORY = "⚡ MNeMiC Nodes"
-    DESCRIPTION = ("Experimental random prompt generator for Ideogram 4's structured JSON caption format. "
-                   "Every word is pulled live from the wonderwords dictionary (nothing hardcoded). "
-                   "Scatters weighted background/large/medium/small regions and randomises style, lighting, "
-                   "medium, colour palette and arrangement. Outputs prompt / preview / bboxes / width / height. "
-                   "Requires the 'wonderwords' package.")
+    def define_schema(cls) -> io.Schema:
+        return io.Schema(
+            node_id="MNeMiC_Ideogram4RandomPrompter",
+            display_name="🎲 Ideogram 4 Random Prompter",
+            category="⚡ MNeMiC Nodes",
+            description=("Experimental random prompt generator for Ideogram 4's structured JSON caption format. "
+                         "Every word is pulled live from the wonderwords dictionary (nothing hardcoded). "
+                         "Scatters weighted background/large/medium/small regions and randomises style, lighting, "
+                         "medium, colour palette and arrangement. Outputs prompt / preview / bboxes / width / height. "
+                         "Requires the 'wonderwords' package."),
+            inputs=[
+                io.Int.Input("seed", default=0, min=0, max=0xffffffffffffffff,
+                             tooltip="Random seed for the whole generation.\n\n"
+                                     "The same seed + the same settings always produce the exact same caption, "
+                                     "preview and bounding boxes. Change the seed to roll a brand-new random "
+                                     "composition without touching any other setting.\n\n"
+                                     "Example: seed 0 and seed 1 give two completely different layouts; seed 0 "
+                                     "run twice gives identical output."),
+                io.Int.Input("width", default=1024, min=64, max=16384, step=16,
+                             tooltip="Canvas width in pixels.\n\n"
+                                     "Sets the output aspect ratio and the pixel grid the bounding boxes are "
+                                     "measured against. Ideogram 4 prefers multiples of 16.\n\n"
+                                     "Example: width 1344 with height 768 gives a wide 16:9-ish landscape; "
+                                     "1024 x 1024 is a square."),
+                io.Int.Input("height", default=1024, min=64, max=16384, step=16,
+                             tooltip="Canvas height in pixels.\n\n"
+                                     "Sets the output aspect ratio and the pixel grid the bounding boxes are "
+                                     "measured against. Ideogram 4 prefers multiples of 16.\n\n"
+                                     "Example: height 1344 with width 768 gives a tall portrait."),
+                io.Int.Input("region_count_min", default=10, min=1, max=64,
+                             tooltip="Minimum number of element regions to generate.\n\n"
+                                     "The actual region count is a random integer between min and max "
+                                     "(inclusive). This is the EXACT number of elements that end up in "
+                                     "the caption and the preview (freeform / box-less regions are now "
+                                     "drawn dashed in the preview, so the visible count always matches).\n\n"
+                                     "Example: min 10, max 25 -> somewhere from 10 to 25 regions. "
+                                     "Set min = max for a fixed count (e.g. 12 and 12 = always 12)."),
+                io.Int.Input("region_count_max", default=20, min=1, max=64,
+                             tooltip="Maximum number of element regions to generate.\n\n"
+                                     "The actual region count is a random integer between min and max "
+                                     "(inclusive).\n\n"
+                                     "Example: min 1, max 5 -> a sparse scene of 1 to 5 elements; "
+                                     "min 30, max 40 -> a dense, busy collage."),
+                io.Float.Input("background_weight", default=0.4, min=0.0, max=1.0, step=0.01,
+                               tooltip="Relative likelihood that any given region is a BACKGROUND-tier "
+                                       "block.\n\n"
+                                       "Background blocks are huge: each one covers at least 70% of the "
+                                       "canvas AREA (often the whole frame), acting as a base layer "
+                                       "behind everything else.\n\n"
+                                       "All four tier weights (background / large / medium / small) are "
+                                       "summed and each region picks a tier proportionally. Set all four "
+                                       "to 0 to fall back to equal weighting.\n\n"
+                                       "Example: weights 0.3 / 0 / 0 / 0.7 -> roughly 30% giant "
+                                       "backgrounds, 70% tiny details, nothing in between."),
+                io.Float.Input("large_weight", default=0.6, min=0.0, max=1.0, step=0.01,
+                               tooltip="Relative likelihood that a region is a LARGE-detail element "
+                                       "(~34-62% of the canvas per axis).\n\n"
+                                       "Weighted against the other three tiers. Set to 0 to forbid large "
+                                       "elements entirely.\n\n"
+                                       "Example: large 1.0 with everything else 0 -> every element is big."),
+                io.Float.Input("medium_weight", default=0.4, min=0.0, max=1.0, step=0.01,
+                               tooltip="Relative likelihood that a region is a MEDIUM-detail element "
+                                       "(~17-40% of the canvas per axis).\n\n"
+                                       "Weighted against the other three tiers. Set to 0 to forbid medium "
+                                       "elements.\n\n"
+                                       "Example: medium 1.0, all others 0 -> a uniform field of mid-size "
+                                       "shapes."),
+                io.Float.Input("small_weight", default=0.2, min=0.0, max=1.0, step=0.01,
+                               tooltip="Relative likelihood that a region is a SMALL-detail element "
+                                       "(~5-17% of the canvas per axis).\n\n"
+                                       "Weighted against the other three tiers. Set to 0 to forbid small "
+                                       "elements.\n\n"
+                                       "Example: small 1.0, all others 0 -> only tiny scattered details "
+                                       "(a confetti / texture look)."),
+                io.Int.Input("word_length_bias", default=0, min=0, max=18,
+                             tooltip="Preferred dictionary word length, in characters.\n\n"
+                                     "0 = no preference (a natural mix of short and long words). Any "
+                                     "value above 0 biases every picked word toward that length.\n\n"
+                                     "Example: 4 favours short punchy words (e.g. 'wide', 'calm'); "
+                                     "11 favours long ornate words (e.g. 'melancholic')."),
+                io.Int.Input("word_length_randomness", default=2, min=0, max=18,
+                             tooltip="Spread (in characters) around 'word_length_bias'.\n\n"
+                                     "Words are drawn from the window [bias - this, bias + this]. "
+                                     "Larger = looser mix; 0 = words of exactly the bias length. "
+                                     "Ignored when word_length_bias is 0.\n\n"
+                                     "Example: bias 8, randomness 2 -> words 6-10 characters long."),
+                io.Boolean.Input("scene_framing", default=True, label_on="scene", label_off="pure",
+                                 tooltip="OFF (pure): each region's description is a bare list of "
+                                         "dictionary words, e.g. 'vivid tower, hollow stone.' Maximum "
+                                         "randomness, but Ideogram tends to render this as a COLLAGE / "
+                                         "asset sheet of separate items.\n\n"
+                                         "ON (scene): the same dictionary words are woven together with "
+                                         "articles and spatial connector words (beside / near / behind / "
+                                         "against ...) into one continuous sentence, e.g. 'a vivid tower "
+                                         "beside a hollow stone against an amber cloud.' This tells "
+                                         "Ideogram it is ONE coherent scene, so 'photograph' actually "
+                                         "looks like a photograph instead of a grid. The connector / "
+                                         "article words are structural and do NOT count toward "
+                                         "region_word_min/max.\n\n"
+                                         "Tip: for a real photo use scene ON + medium 'photograph' + a "
+                                         "low region count + large boxes (high background/large weight)."),
+                io.Int.Input("region_word_min", default=5, min=1, max=200,
+                             tooltip="Minimum number of randomized CONTENT words (adjectives + nouns "
+                                     "from the dictionary) in each region's description.\n\n"
+                                     "The exact count per region is a random integer between "
+                                     "region_word_min and region_word_max (inclusive). Binder words "
+                                     "(articles / connectors added by scene_framing) are NOT counted.\n\n"
+                                     "Set min = max for an exact count: e.g. min 20, max 20 -> every "
+                                     "region has exactly 20 content words."),
+                io.Int.Input("region_word_max", default=15, min=1, max=200,
+                             tooltip="Maximum number of randomized CONTENT words in each region's "
+                                     "description.\n\n"
+                                     "The exact count per region is a random integer between "
+                                     "region_word_min and region_word_max (inclusive). Binder words "
+                                     "are NOT counted.\n\n"
+                                     "Example: min 5, max 20 -> each region gets 5-20 content words; "
+                                     "min 20, max 20 -> exactly 20 every time."),
+                io.Float.Input("freeform_chance", default=0.0, min=0.0, max=1.0, step=0.01,
+                               tooltip="Per-region chance that a region drops its hard bounding box and "
+                                       "becomes a FREEFORM element.\n\n"
+                                       "Ideogram has no edge-blur control. An element WITHOUT a bbox is "
+                                       "blended softly into the scene instead of being pinned to a hard "
+                                       "rectangle, so higher values give a less 'cut-out collage' look. "
+                                       "Freeform regions are still counted and are drawn dashed in the "
+                                       "preview, but they are excluded from the bbox output (they have no "
+                                       "fixed location).\n\n"
+                                       "Example: 0.0 -> every element keeps a hard box; 1.0 -> nothing is "
+                                       "boxed (fully painterly, empty bbox output)."),
+                io.Int.Input("text_region_min", default=0, min=0, max=64,
+                             tooltip="Minimum number of regions rendered as in-image TEXT (a real "
+                                     "dictionary word drawn into the picture) instead of an object.\n\n"
+                                     "The text count is a random integer between text_region_min and "
+                                     "text_region_max (inclusive), then clamped so it never exceeds the "
+                                     "total region count. This is an EXACT count, not a probability.\n\n"
+                                     "Example: min 1, max 2 -> always 1 or 2 text words in the image, "
+                                     "no matter how many total regions there are."),
+                io.Int.Input("text_region_max", default=2, min=0, max=64,
+                             tooltip="Maximum number of regions rendered as in-image TEXT.\n\n"
+                                     "The text count is a random integer between text_region_min and "
+                                     "text_region_max (inclusive), clamped to the total region count.\n\n"
+                                     "Example: min 0, max 0 -> never any text; min 3, max 3 -> always "
+                                     "exactly 3 text words."),
+                io.Float.Input("element_palette_chance", default=0.0, min=0.0, max=1.0, step=0.01,
+                               tooltip="Per-region chance that a region carries its OWN small "
+                                       "colour palette (a subset of the image-level palette) "
+                                       "instead of inheriting the global one.\n\n"
+                                       "Has no effect when color_palette is 'none'.\n\n"
+                                       "Example: 0.0 -> all elements share the image palette; "
+                                       "1.0 -> every element gets its own colour sub-set."),
+                io.Combo.Input("medium", options=["random"] + MEDIUM_OPTIONS, default="photograph",
+                               tooltip="Image medium (an Ideogram 4 schema value).\n\n"
+                                       "'photograph' emits a 'photo' style key (focal length / "
+                                       "aperture); every other medium emits an 'art_style' "
+                                       "key instead. 'random' picks one per run.\n\n"
+                                       "Example: 'photograph' -> camera-style caption; "
+                                       "'painting' -> art-style caption."),
+                io.Combo.Input("color_palette", options=["random", "none"] + COLOR_PALETTE_OPTIONS, default="none",
+                               tooltip="Colour palette family used to build the image palette (mirrors the "
+                                       "Colorful Starting Image node).\n\n"
+                                       "- none: emit NO colour palette at all (Ideogram chooses colours freely)\n"
+                                       "- random_color: any RGB\n"
+                                       "- muted / grayscale / binary / neon / pastel: themed colours\n"
+                                       "- colorized: grayscale tinted with one shared hue\n"
+                                       "- random: pick one of the families above per run\n\n"
+                                       "Example: 'none' -> no color_palette keys anywhere; 'neon' -> vivid "
+                                       "saturated swatches."),
+                io.Combo.Input("color_harmony", options=["random"] + COLOR_HARMONY_OPTIONS, default="none",
+                               tooltip="Colour-harmony rule applied to the generated palette.\n\n"
+                                       "- none: unrelated colours\n"
+                                       "- complementary: two opposite hues\n"
+                                       "- analogous: neighbouring hues\n"
+                                       "- triadic: three evenly spaced hues\n"
+                                       "- tetradic: four evenly spaced hues\n"
+                                       "- random: pick one per run\n\n"
+                                       "Ignored when color_palette is 'none'.\n\n"
+                                       "Example: 'complementary' -> a punchy two-colour contrast scheme."),
+                io.Combo.Input("positioning_bias", options=["random"] + POSITIONING_BIAS_OPTIONS,
+                               tooltip="Where regions tend to cluster on the canvas (mirrors the Colorful "
+                                       "Starting Image node).\n\n"
+                                       "scattered = anywhere; center_weighted / edge_weighted; grid_aligned; "
+                                       "random_weighted; or a compass direction (north / south / east / west "
+                                       "and the diagonals). Ignored when 'arrangement' is anything other than "
+                                       "'none'.\n\n"
+                                       "Example: 'south' -> elements gather along the bottom; 'center_weighted' "
+                                       "-> a tight central cluster."),
+                io.Combo.Input("arrangement", options=["random"] + ARRANGEMENT_OPTIONS, default="none",
+                               tooltip="Structured placement pattern for region centres.\n\n"
+                                       "- none: use positioning_bias instead (default)\n"
+                                       "- spiral: centres wind outward in a spiral\n"
+                                       "- burst: centres explode out from the middle\n"
+                                       "- grid: centres snap to a tidy grid\n"
+                                       "- random: pick one per run\n\n"
+                                       "Overrides positioning_bias whenever it is not 'none'.\n\n"
+                                       "Example: 'grid' -> an orderly tiled layout; 'burst' -> an energetic "
+                                       "radial spray."),
+                io.Int.Input("description_length", optional=True, default=35, min=1, max=200,
+                             tooltip="Target length (in words) for the AUTO-GENERATED high_level_description.\n\n"
+                                     "The generator keeps adding dictionary word-groups until it reaches "
+                                     "about this many words, so larger = a longer, richer overview line. "
+                                     "Ignored when description_override is set.\n\n"
+                                     "Example: 6 -> a short caption; 30 -> a long, dense descriptive run."),
+                io.String.Input("description_override", optional=True, multiline=True, default="",
+                                tooltip="FULL REPLACEMENT for the high_level_description.\n\n"
+                                        "When this is non-empty, the high_level_description is set to "
+                                        "EXACTLY this string and nothing is generated for it (description_prefix "
+                                        "and description_length are ignored). Leave blank to auto-generate.\n\n"
+                                        "Example: 'A wide cinematic establishing shot of a coastal town "
+                                        "at dawn' -> that exact line is used verbatim."),
+                io.String.Input("description_prefix", optional=True, multiline=True, default="A close-up photography of",
+                                tooltip="PREFIX prepended to the auto-generated high_level_description.\n\n"
+                                        "Ignored when description_override is set. The final value is "
+                                        "'<prefix> <generated words>'.\n\n"
+                                        "Example: prefix 'A vintage 35mm photograph of' -> "
+                                        "'A vintage 35mm photograph of amber hollow river, brisk stone, ...'"),
+                io.String.Input("description_background_prefix", optional=True, multiline=True,
+                                default="an environment photography background of",
+                                tooltip="PREFIX prepended to the auto-generated background description.\n\n"
+                                        "The final value is '<prefix> <generated words>'. Leave blank "
+                                        "to let the background be fully random.\n\n"
+                                        "Example: 'a serene mountain landscape with' -> "
+                                        "'a serene mountain landscape with vivid hollow stone ...'"),
+            ],
+            outputs=[
+                io.String.Output(display_name="prompt", tooltip="The assembled Ideogram 4 caption, as JSON text."),
+                io.Image.Output(display_name="preview", tooltip="Rendered preview of the regions, their text and their palettes."),
+                io.BoundingBox.Output(display_name="bboxes", tooltip="Region boxes in pixels as {x, y, width, height}, nested one list per frame. Freeform regions are excluded because they have no fixed position."),
+                io.Int.Output(display_name="width", tooltip="Canvas width in pixels, passed through from the input."),
+                io.Int.Output(display_name="height", tooltip="Canvas height in pixels, passed through from the input."),
+            ],
+        )
 
     # ---- dictionary-driven text fragments ----
     # CONTRACT: every CONTENT word comes from the wonderwords dictionary and is
@@ -460,7 +463,8 @@ class Ideogram4RandomPrompter:
     # and - exclusively when scene_framing is ON - structural binder words
     # (articles a/an + spatial connectors) which are NOT counted as content.
 
-    def _phrases(self, rng, n):
+    @classmethod
+    def _phrases(cls, rng, n):
         # Split an EXACT content-word budget n into noun-phrases. Each phrase is
         # (k-1) adjectives + 1 noun and consumes exactly k content words, so the
         # phrases together always total exactly n content words.
@@ -471,12 +475,13 @@ class Ideogram4RandomPrompter:
             remaining -= k
         return phrases
 
-    def _desc(self, rng, n, scene):
+    @classmethod
+    def _desc(cls, rng, n, scene):
         # Render exactly n dictionary content words as a description.
         #   scene=False -> bare comma-separated words (pure mode, no binders).
         #   scene=True  -> phrases joined with article + spatial connectors so it
         #                  reads as one continuous scene (binders are NOT counted).
-        phrases = self._phrases(rng, n)
+        phrases = cls._phrases(rng, n)
         if not scene:
             return ", ".join(" ".join(adjs + [noun]) for adjs, noun in phrases) + "."
         chunks = []
@@ -485,36 +490,44 @@ class Ideogram4RandomPrompter:
             chunks.append(np if idx == 0 else "%s %s" % (rng.choice(SCENE_CONNECTORS), np))
         return " ".join(chunks) + "."
 
-    def _high_level(self, rng, n, scene):
-        return self._desc(rng, n, scene)
+    @classmethod
+    def _high_level(cls, rng, n, scene):
+        return cls._desc(rng, n, scene)
 
-    def _element_desc(self, rng, n, scene):
-        return self._desc(rng, n, scene)
+    @classmethod
+    def _element_desc(cls, rng, n, scene):
+        return cls._desc(rng, n, scene)
 
-    def _background_desc(self, rng, n, scene):
-        return self._desc(rng, n, scene)
+    @classmethod
+    def _background_desc(cls, rng, n, scene):
+        return cls._desc(rng, n, scene)
 
-    def _aesthetics(self):
+    @classmethod
+    def _aesthetics(cls):
         return "%s, %s, %s" % (_adj(), _adj(), _adj())
 
-    def _lighting(self):
+    @classmethod
+    def _lighting(cls):
         return "%s, %s %s" % (_adj(), _adj(), _noun())
 
-    def _photo(self, rng):
+    @classmethod
+    def _photo(cls, rng):
         # Numeric camera parameters only (focal length / aperture); no English words.
         return "%dmm, f/%.1f" % (rng.randint(14, 200), rng.uniform(1.4, 16.0))
 
-    def _art_style(self):
+    @classmethod
+    def _art_style(cls):
         return "%s %s, %s" % (_adj(), _noun(), _adj())
 
-    def generate(self, seed, width, height, region_count_min, region_count_max,
+    @classmethod
+    def execute(cls, seed, width, height, region_count_min, region_count_max,
                  background_weight, large_weight, medium_weight, small_weight,
                  word_length_bias, word_length_randomness,
                  scene_framing, region_word_min, region_word_max,
                  freeform_chance, text_region_min, text_region_max, element_palette_chance,
                  medium, color_palette, color_harmony, positioning_bias, arrangement,
                  description_length=35, description_override="", description_prefix="A close-up photography of",
-                 description_background_prefix="an environment photography background of"):
+                description_background_prefix="an environment photography background of") -> io.NodeOutput:
         if _RW is None:
             raise RuntimeError(
                 "Ideogram 4 Random Prompter requires the 'wonderwords' package. "
@@ -596,10 +609,10 @@ class Ideogram4RandomPrompter:
             if i in text_idx:
                 box["type"] = "text"
                 box["text"] = _noun().upper()
-                box["desc"] = self._element_desc(rng, n_words, scene_framing)
+                box["desc"] = cls._element_desc(rng, n_words, scene_framing)
             else:
                 box["type"] = "obj"
-                box["desc"] = self._element_desc(rng, n_words, scene_framing)
+                box["desc"] = cls._element_desc(rng, n_words, scene_framing)
             if image_palette and rng.random() < element_palette_chance:
                 k = rng.randint(1, min(5, len(image_palette)))
                 box["palette"] = rng.sample(image_palette, k)
@@ -610,26 +623,26 @@ class Ideogram4RandomPrompter:
             boxes.append(box)
 
         # Assemble the caption (key order matters for the Ideogram verifier).
-        generated_bg = self._background_desc(rng, rng.randint(rwlo, rwhi), scene_framing)
+        generated_bg = cls._background_desc(rng, rng.randint(rwlo, rwhi), scene_framing)
         background = ("%s %s" % (description_background_prefix.strip(), generated_bg)).strip() \
             if description_background_prefix.strip() else generated_bg
         # high_level_description: full override > prefix + generated > generated.
         if description_override.strip():
             high_level_description = description_override.strip()
         else:
-            generated = self._high_level(rng, description_length, scene_framing)
+            generated = cls._high_level(rng, description_length, scene_framing)
             high_level_description = ("%s %s" % (description_prefix.strip(), generated)).strip() \
                 if description_prefix.strip() else generated
 
         caption = {"high_level_description": high_level_description}
 
-        sd = {"aesthetics": self._aesthetics(), "lighting": self._lighting()}
+        sd = {"aesthetics": cls._aesthetics(), "lighting": cls._lighting()}
         if medium == "photograph":
-            sd["photo"] = self._photo(rng)
+            sd["photo"] = cls._photo(rng)
             sd["medium"] = medium
         else:
             sd["medium"] = medium
-            sd["art_style"] = self._art_style()
+            sd["art_style"] = cls._art_style()
         if image_palette:
             sd["color_palette"] = image_palette
         caption["style_description"] = sd
@@ -655,7 +668,7 @@ class Ideogram4RandomPrompter:
 
         # draw_freeform=True so box-less regions still show (dashed) and the visible
         # count matches the generated region count.
-        preview = _render_preview(boxes, width, height, None, 25, draw_freeform=True)
+        preview = _render_preview(boxes, width, height, None, draw_freeform=True)
 
         # Pixel-space bboxes ({x, y, width, height}) for SAM3 / BoundingBox consumers,
         # nested per-frame (list[list[dict]]) like the Prompt Builder emits. Freeform
@@ -665,13 +678,6 @@ class Ideogram4RandomPrompter:
                       for b in boxes if not b.get("nobbox")]
         bboxes_out = [bbox_dicts] if bbox_dicts else []
 
-        return (_dumps(caption), preview, bboxes_out, width, height)
+        return io.NodeOutput(_dumps(caption), preview, bboxes_out, width, height)
 
 
-NODE_CLASS_MAPPINGS = {
-    "Ideogram4RandomPrompter": Ideogram4RandomPrompter,
-}
-
-NODE_DISPLAY_NAME_MAPPINGS = {
-    "Ideogram4RandomPrompter": "🎲 Ideogram 4 Random Prompter",
-}

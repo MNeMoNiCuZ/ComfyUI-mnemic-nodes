@@ -4,6 +4,8 @@ from typing import List
 from ..utils.replace_tokens import replace_tokens
 from folder_paths import get_output_directory
 
+from comfy_api.latest import io
+
 def sanitize_filename(string):
     """
     Sanitize a string to be safe for use as a filename on Windows/Linux.
@@ -21,33 +23,63 @@ def sanitize_filename(string):
     
     return sanitized
 
-class SaveTextFile:
-    def __init__(self):
-        pass
+class SaveTextFile(io.ComfyNode):
+    # Filename layout: {prefix}{separator}{counter_str}{separator}{suffix}{extension}
+    @classmethod
+    def define_schema(cls) -> io.Schema:
+        return io.Schema(
+            node_id="MNeMiC_SaveTextFile",
+            display_name="💾 Save Text File With Path",
+            category="⚡ MNeMiC Nodes",
+            description="Saves text to a file with specified parameters.",
+            inputs=[
+                io.String.Input("file_text", force_input=True, tooltip="The text to save."),
+                io.String.Input(
+                    "path",
+                    default='[time(%Y-%m-%d)]/',
+                    multiline=False,
+                    tooltip="The folder path to save the file to.\n\nThe following creates a date folder:\n[time(%Y-%m-%d)]",
+                ),
+                io.String.Input(
+                    "prefix",
+                    default="[time(%Y-%m-%d - %H.%M.%S)]",
+                    placeholder="[time(%Y-%m-%d - %H.%M.%S)] - ",
+                    tooltip="The prefix to add to the file name.\n\nThe following creates a file with a date and timestamp:\n[time(%Y-%m-%d - %H.%M.%S)]",
+                ),
+                io.String.Input(
+                    "counter_separator",
+                    default="_",
+                    tooltip="The separator to use between the file name and the counter.",
+                ),
+                io.Int.Input(
+                    "counter_length",
+                    default=3,
+                    min=0,
+                    max=24,
+                    step=1,
+                    tooltip="The number of digits to use in the counter.",
+                ),
+                io.String.Input(
+                    "suffix",
+                    default="",
+                    tooltip="The suffix to add to the file name after the counter.",
+                ),
+                io.String.Input(
+                    "output_extension",
+                    default="txt",
+                    tooltip="The extension to use for the output file.",
+                ),
+            ],
+            outputs=[
+                io.String.Output(display_name="output_full_path", tooltip="The full path to the saved file"),
+                io.String.Output(display_name="output_name", tooltip="The name of the saved file"),
+                io.String.Output(display_name="output_path", tooltip="The formatted path to the saved file (excluding filename)"),
+            ],
+            is_output_node=True,
+        )
 
     @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "file_text": ("STRING", {"forceInput": True, "tooltip": "The text to save."}),
-                "path": ("STRING", {"default": '[time(%Y-%m-%d)]/', "multiline": False, "tooltip": "The folder path to save the file to.\n\nThe following creates a date folder:\n[time(%Y-%m-%d)]"}),
-                "prefix": ("STRING", {"default": "[time(%Y-%m-%d - %H.%M.%S)]", "tooltip": "The prefix to add to the file name.\n\nThe following creates a file with a date and timestamp:\n[time(%Y-%m-%d - %H.%M.%S)]"}),
-                "counter_separator": ("STRING", {"default": "_", "tooltip": "The separator to use between the file name and the counter."}),
-                "counter_length": ("INT", {"default": 3, "min": 0, "max": 24, "step": 1, "tooltip": "The number of digits to use in the counter."}),
-                "suffix": ("STRING", {"default": "", "tooltip": "The suffix to add to the file name after the counter."}),
-                "output_extension": ("STRING", {"default": "txt", "tooltip": "The extension to use for the output file."}),
-            }
-        } #{prefix}{separator}{counter_str}{separator}{suffix}{extension}
-
-    OUTPUT_NODE = True
-    RETURN_TYPES = ("STRING", "STRING", "STRING",)
-    RETURN_NAMES = ("output_full_path", "output_name", "output_path",)
-    OUTPUT_TOOLTIPS = ("The full path to the saved file", "The name of the saved file", "The formatted path to the saved file (excluding filename)",)
-    FUNCTION = "save_text_file"
-    CATEGORY = "⚡ MNeMiC Nodes"
-    DESCRIPTION = "Saves text to a file with specified parameters."
-
-    def save_text_file(self, file_text, path, prefix='[time(%Y-%m-%d %H.%M.%S)]', counter_separator='_', counter_length=3, suffix='', output_extension='txt'):
+    def execute(cls, file_text, path, prefix='[time(%Y-%m-%d %H.%M.%S)]', counter_separator='_', counter_length=3, suffix='', output_extension='txt') -> io.NodeOutput:
         path = replace_tokens(path)
         prefix = replace_tokens(prefix)
         suffix = replace_tokens(suffix)
@@ -105,17 +137,18 @@ class SaveTextFile:
         number_padding = int(counter_length)
         file_extension = f'.{output_extension}'
 
-        filename, counter = self.generate_filename(full_path, prefix, suffix, separator, number_padding, file_extension)
+        filename, counter = cls.generate_filename(full_path, prefix, suffix, separator, number_padding, file_extension)
         file_path = os.path.join(full_path, filename)
 
         # Remove extension from output_name
         output_name = os.path.splitext(filename)[0]
 
-        self.writeTextFile(file_path, file_text)
+        cls.writeTextFile(file_path, file_text)
 
-        return file_path, output_name, full_path
+        return io.NodeOutput(file_path, output_name, full_path)
 
-    def generate_filename(self, path, prefix, suffix, separator, number_padding, extension):
+    @classmethod
+    def generate_filename(cls, path, prefix, suffix, separator, number_padding, extension):
         """Generate a unique filename based on the provided parameters."""
         pattern_parts = [re.escape(prefix)]
         if number_padding > 0:
@@ -154,7 +187,8 @@ class SaveTextFile:
 
         return filename, counter
 
-    def writeTextFile(self, file, content):
+    @classmethod
+    def writeTextFile(cls, file, content):
         """Write the content to the specified file."""
         try:
             with open(file, 'w', encoding='utf-8', newline='\n') as f:

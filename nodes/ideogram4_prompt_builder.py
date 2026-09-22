@@ -16,6 +16,8 @@ import numpy as np
 import torch
 from PIL import Image, ImageDraw, ImageFont
 
+from comfy_api.latest import io
+
 
 _FONT_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "fonts", "FreeMono.ttf")
 
@@ -208,7 +210,7 @@ def _parse_json_list(s):
     return []
 
 
-class Ideogram4PromptBuilder:
+class Ideogram4PromptBuilder(io.ComfyNode):
     """
     Visual prompt builder for Ideogram 4's structured JSON caption format.
 
@@ -219,50 +221,54 @@ class Ideogram4PromptBuilder:
     """
 
     @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "width": ("INT", {"default": 1024, "min": 64, "max": 16384, "step": 16,
-                                  "tooltip": "Canvas aspect width (also the pixel grid the bbox is measured in). Ideogram 4 needs multiples of 16."}),
-                "height": ("INT", {"default": 1024, "min": 64, "max": 16384, "step": 16,
-                                   "tooltip": "Canvas aspect height (also the pixel grid the bbox is measured in). Ideogram 4 needs multiples of 16."}),
-            },
-            "optional": {
-                "high_level_description": ("STRING", {"multiline": True, "default": "",
-                                                      "tooltip": "Optional one-line overview of the whole image (blank = omitted)."}),
-                "background": ("STRING", {"multiline": True, "default": "",
-                                          "tooltip": "Required scene background description."}),
-                "style": (["none", "photo", "art_style"], {"default": "none",
-                                                           "tooltip": "Style block: none omits it, photo/art_style pick which style key is emitted."}),
-                "photo": ("STRING", {"default": "", "tooltip": "Photo style descriptor (used when style = photo)."}),
-                "art_style": ("STRING", {"default": "", "tooltip": "Art style descriptor (used when style = art_style)."}),
-                "aesthetics": ("STRING", {"default": "", "tooltip": "Style descriptor (blank = omitted)."}),
-                "lighting": ("STRING", {"default": "", "tooltip": "Style descriptor (blank = omitted)."}),
-                "medium": ("STRING", {"default": "", "tooltip": "Style descriptor (blank = omitted)."}),
-                "image": ("IMAGE", {"tooltip": "Optional reference image shown as the editor background (and behind the preview)."}),
-                "import_json": ("STRING", {"default": "", "forceInput": True,
-                                           "tooltip": "Optional: a full caption JSON. When connected, it loads into the "
-                                                      "editor on run; the output always reflects the editor, never the raw input."}),
-                "style_palette_data": ("STRING", {"default": "",
-                                                  "tooltip": "Serialized style color palette from the editor (managed by the node UI)."}),
-                "elements_data": ("STRING", {"default": "",
-                                             "tooltip": "Serialized regions from the editor (managed by the node UI)."}),
-            },
-        }
+    def define_schema(cls) -> io.Schema:
+        return io.Schema(
+            node_id="MNeMiC_Ideogram4PromptBuilder",
+            display_name="🧩 Ideogram 4 Prompt Builder w. String Inputs",
+            category="⚡ MNeMiC Nodes",
+            description=("Visual prompt builder for Ideogram 4's structured JSON caption format. "
+                         "Drag on the canvas or press '+ Region' to add regions; each region gets a matching "
+                         "region_N string input pin that overrides its description when connected. "
+                         "bbox is normalized to a 0-1000 grid as [ymin, xmin, ymax, xmax]; width/height set the canvas aspect ratio."),
+            inputs=[
+                io.Int.Input("width", default=1024, min=64, max=16384, step=16,
+                             tooltip="Canvas aspect width (also the pixel grid the bbox is measured in). Ideogram 4 needs multiples of 16."),
+                io.Int.Input("height", default=1024, min=64, max=16384, step=16,
+                             tooltip="Canvas aspect height (also the pixel grid the bbox is measured in). Ideogram 4 needs multiples of 16."),
+                io.String.Input("high_level_description", optional=True, multiline=True, default="",
+                                tooltip="Optional one-line overview of the whole image (blank = omitted)."),
+                io.String.Input("background", optional=True, multiline=True, default="",
+                                tooltip="Required scene background description."),
+                io.Combo.Input("style", optional=True, options=["none", "photo", "art_style"], default="none",
+                               tooltip="Style block: none omits it, photo/art_style pick which style key is emitted."),
+                io.String.Input("photo", optional=True, default="", tooltip="Photo style descriptor (used when style = photo)."),
+                io.String.Input("art_style", optional=True, default="", tooltip="Art style descriptor (used when style = art_style)."),
+                io.String.Input("aesthetics", optional=True, default="", tooltip="Style descriptor (blank = omitted)."),
+                io.String.Input("lighting", optional=True, default="", tooltip="Style descriptor (blank = omitted)."),
+                io.String.Input("medium", optional=True, default="", tooltip="Style descriptor (blank = omitted)."),
+                io.Image.Input("image", optional=True, tooltip="Optional reference image shown as the editor background (and behind the preview)."),
+                io.String.Input("import_json", optional=True, default="", force_input=True,
+                                tooltip="Optional: a full caption JSON. When connected, it loads into the "
+                                        "editor on run; the output always reflects the editor, never the raw input."),
+                io.String.Input("style_palette_data", optional=True, default="",
+                                tooltip="Serialized style color palette from the editor (managed by the node UI)."),
+                io.String.Input("elements_data", optional=True, default="",
+                                tooltip="Serialized regions from the editor (managed by the node UI)."),
+            ],
+            outputs=[
+                io.String.Output(display_name="prompt", tooltip="The assembled Ideogram 4 caption, as JSON text."),
+                io.Image.Output(display_name="preview", tooltip="Rendered preview of the regions, their text and their palettes."),
+                io.BoundingBox.Output(display_name="bboxes", tooltip="Region boxes in pixels as {x, y, width, height}, nested one list per frame. Freeform regions are excluded because they have no fixed position."),
+                io.Int.Output(display_name="width", tooltip="Canvas width in pixels, passed through from the input."),
+                io.Int.Output(display_name="height", tooltip="Canvas height in pixels, passed through from the input."),
+            ],
+        )
 
-    RETURN_TYPES = ("STRING", "IMAGE", "BOUNDING_BOX", "INT", "INT")
-    RETURN_NAMES = ("prompt", "preview", "bboxes", "width", "height")
-    FUNCTION = "build_prompt"
-    CATEGORY = "⚡ MNeMiC Nodes"
-    DESCRIPTION = ("Visual prompt builder for Ideogram 4's structured JSON caption format. "
-                   "Drag on the canvas or press '+ Region' to add regions; each region gets a matching "
-                   "region_N string input pin that overrides its description when connected. "
-                   "bbox is normalized to a 0-1000 grid as [ymin, xmin, ymax, xmax]; width/height set the canvas aspect ratio.")
-
-    def build_prompt(self, width, height, high_level_description="", background="", style="none",
-                     photo="", art_style="", aesthetics="", lighting="", medium="",
-                     image=None, import_json="", style_palette_data="", elements_data="",
-                     **kwargs):
+    @classmethod
+    def execute(cls, width, height, high_level_description="", background="", style="none",
+                photo="", art_style="", aesthetics="", lighting="", medium="",
+                image=None, import_json="", style_palette_data="", elements_data="",
+                **kwargs) -> io.NodeOutput:
         boxes = _parse_json_list(elements_data)
 
         # Dynamic region_N input pins (added by the node UI, one per region):
@@ -349,13 +355,6 @@ class Ideogram4PromptBuilder:
                     ui["caption"] = [_dumps(cap)]
             except json.JSONDecodeError:
                 pass
-        return {"ui": ui, "result": (_dumps(caption), preview, bboxes_out, width, height)}
+        return io.NodeOutput(_dumps(caption), preview, bboxes_out, width, height, ui=ui)
 
 
-NODE_CLASS_MAPPINGS = {
-    "Ideogram4PromptBuilder": Ideogram4PromptBuilder,
-}
-
-NODE_DISPLAY_NAME_MAPPINGS = {
-    "Ideogram4PromptBuilder": "Ideogram 4 Prompt Builder",
-}

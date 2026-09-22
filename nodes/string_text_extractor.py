@@ -1,43 +1,55 @@
 import re
 
-class StringTextExtractor:
+from comfy_api.latest import io
+
+
+class StringTextExtractor(io.ComfyNode):
     """
     A node to extract the first occurrence of text between specified delimiters.
     """
-    OUTPUT_NODE = True
-    FUNCTION = "extract_text"
-    CATEGORY = "⚡ MNeMiC Nodes"
-    DESCRIPTION = "Extracts the first occurrence of text between a pair of characters (delimiters)."
 
     @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "input_string": ("STRING", {
-                    "multiline": True,
-                    "tooltip": "The input text to search within.",
-                    "placeholder": "Some text [with captured content] and more text."
-                }),
-                "delimiters": ("STRING", {
-                    "multiline": False,
-                    "tooltip": "The pair of characters to use as delimiters.\nExample: [], **, <>",
-                    "placeholder": "e.g., []"
-                }),
-            }
-        }
+    def define_schema(cls) -> io.Schema:
+        return io.Schema(
+            node_id="MNeMiC_StringTextExtractor",
+            display_name="✂️ String Text Extractor",
+            category="⚡ MNeMiC Nodes",
+            description="Extracts the text between two delimiter characters, e.g. 'red fox' from 'a [red fox] in the snow' with delimiters []. Also outputs the leftover text and a list of every match.",
+            inputs=[
+                io.String.Input(
+                    "input_string",
+                    multiline=True,
+                    tooltip="The text to search. The content of the first delimiter pair comes out as extracted_text, the rest as remainder_text.",
+                    placeholder="A photo of a [red fox] in the snow.\n\nWith delimiters [] this gives:\nextracted_text: red fox\nremainder_text: A photo of a  in the snow.",
+                ),
+                io.String.Input(
+                    "delimiters",
+                    multiline=False,
+                    tooltip="Two characters: the opening one, then the closing one, e.g. [] () <> {}. Use the same character twice for marks like ** or \"\". Fewer than two characters extracts nothing.",
+                    placeholder="[]  (opening + closing character)",
+                ),
+            ],
+            outputs=[
+                io.String.Output(
+                    display_name="extracted_text",
+                    tooltip="The content found inside the first instance of the specified delimiters.",
+                ),
+                io.String.Output(
+                    display_name="remainder_text",
+                    tooltip="The rest of the text after the extracted content and its delimiters have been removed.",
+                ),
+                io.String.Output(
+                    display_name="extracted_list",
+                    tooltip="A list of all items found between the delimiters.",
+                ),
+            ],
+        )
 
-    RETURN_TYPES = ("STRING", "STRING", "STRING",)
-    RETURN_NAMES = ("extracted_text", "remainder_text", "extracted_list",)
-    OUTPUT_TOOLTIPS = (
-        "The content found inside the first instance of the specified delimiters.",
-        "The rest of the text after the extracted content and its delimiters have been removed.",
-        "A list of all items found between the delimiters.",
-    )
-
-    def extract_text(self, input_string, delimiters):
+    @classmethod
+    def execute(cls, input_string, delimiters) -> io.NodeOutput:
         if not delimiters or len(delimiters) < 2:
             # If delimiters are invalid, return original text as remainder
-            return ("", input_string, [])
+            return io.NodeOutput("", input_string, [])
 
         start_delim = re.escape(delimiters[0])
         end_delim = re.escape(delimiters[-1])
@@ -52,15 +64,7 @@ class StringTextExtractor:
             extracted_text = match.group(1)
             # The remainder is the part before the match plus the part after the match
             remainder_text = input_string[:match.start()] + input_string[match.end():]
-            return (extracted_text, remainder_text, all_captures)
+            return io.NodeOutput(extracted_text, remainder_text, all_captures)
         else:
             # No match found
-            return ("", input_string, [])
-
-NODE_CLASS_MAPPINGS = {
-    "StringTextExtractor": StringTextExtractor,
-}
-
-NODE_DISPLAY_NAME_MAPPINGS = {
-    "StringTextExtractor": "String Text Extractor",
-}
+            return io.NodeOutput("", input_string, [])

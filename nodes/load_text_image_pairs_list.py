@@ -3,41 +3,81 @@ import torch
 import numpy as np
 from PIL import Image
 import torchvision.transforms.functional as F
+from comfy_api.latest import io
+
 from ..utils.file_utils import find_image_text_pairs
 
-class LoadTextImagePairsList:
-    def __init__(self):
-        self.cached_data = None
-        self.cached_folder_path = None
+# Cache kept at module level: V3 nodes execute as classmethods on a per-run class
+# clone and cannot hold instance state between executions.
+_CACHED_DATA = None
+_CACHED_FOLDER_PATH = None
+
+
+class LoadTextImagePairsList(io.ComfyNode):
+    @classmethod
+    def define_schema(cls) -> io.Schema:
+        return io.Schema(
+            node_id="MNeMiC_LoadTextImagePairsList",
+            display_name="🖼️+📝 Load Text-Image Pairs (List)",
+            category="⚡ MNeMiC Nodes",
+            inputs=[
+                io.Int.Input(
+                    "seed",
+                    default=0,
+                    min=0,
+                    max=0xffffffffffffffff,
+                    control_after_generate=io.ControlAfterGenerate.increment,
+                    tooltip="Index of the first pair to load, starting at 0. Increments every run by default to step through the folder.",
+                ),
+                io.String.Input(
+                    "folder_path",
+                    multiline=False,
+                    default="",
+                    tooltip="Path to a folder containing image and text files with matching basenames. This is used only if image_input and text_input are not connected.",
+                ),
+                io.Boolean.Input(
+                    "force_reload",
+                    default=False,
+                    tooltip="If true, forces a reload of data from disk, bypassing the cache.",
+                ),
+                io.Image.Input(
+                    "image_input",
+                    optional=True,
+                    tooltip="A single image or a list/batch of images. This input has priority over the folder_path.",
+                ),
+                io.String.Input(
+                    "text_input",
+                    optional=True,
+                    force_input=True,
+                    tooltip="A single text string or a list of strings. This input has priority over the folder_path.",
+                ),
+                io.Int.Input(
+                    "limit_count",
+                    optional=True,
+                    default=0,
+                    min=0,
+                    max=10000,
+                    step=1,
+                    tooltip="The maximum number of pairs to return in the output lists. If set to 0, all found pairs will be returned.",
+                ),
+                io.String.Input(
+                    "text_format_extension",
+                    optional=True,
+                    default="txt",
+                    tooltip="The file extension for the text files to look for (without the dot).",
+                ),
+            ],
+            outputs=[
+                io.Image.Output(display_name="image_list", tooltip="A list of all images from the dataset, rotated so that the selected image is the first item in the list."),
+                io.String.Output(display_name="string_list", tooltip="A list of all text strings from the dataset, rotated so that the selected text is the first item in the list."),
+                io.String.Output(display_name="image_path_list", tooltip="A list of full absolute paths of all images."),
+                io.String.Output(display_name="image_filename_list", tooltip="A list of filenames (without extension) of all images."),
+                io.Int.Output(display_name="total_count", tooltip="The total number of pairs found in the dataset."),
+            ],
+        )
 
     @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff, "tooltip": "The seed determines the starting point for selecting pairs. Set to 'increment' in the workflow options to cycle through all available pairs sequentially."}),
-                "folder_path": ("STRING", {"multiline": False, "default": "", "tooltip": "Path to a folder containing image and text files with matching basenames. This is used only if image_input and text_input are not connected."}),
-                "force_reload": ("BOOLEAN", {"default": False, "tooltip": "If true, forces a reload of data from disk, bypassing the cache."}),
-            },
-            "optional": {
-                "image_input": ("IMAGE", {"tooltip": "A single image or a list/batch of images. This input has priority over the folder_path."}),
-                "text_input": ("STRING", {"forceInput": True, "tooltip": "A single text string or a list of strings. This input has priority over the folder_path."}),
-                "limit_count": ("INT", {"default": 0, "min": 0, "max": 10000, "step": 1, "tooltip": "The maximum number of pairs to return in the output lists. If set to 0, all found pairs will be returned."}),
-                "text_format_extension": ("STRING", {"default": "txt", "tooltip": "The file extension for the text files to look for (without the dot)."}),
-            }
-        }
-
-    RETURN_TYPES = ("IMAGE", "STRING", "STRING", "STRING", "INT")
-    RETURN_NAMES = ("image_list", "string_list", "image_path_list", "image_filename_list", "total_count")
-    OUTPUT_TOOLTIPS = (
-        "A list of all images from the dataset, rotated so that the selected image is the first item in the list.",
-        "A list of all text strings from the dataset, rotated so that the selected text is the first item in the list.",
-        "A list of full absolute paths of all images.",
-        "A list of filenames (without extension) of all images.",
-        "The total number of pairs found in the dataset."
-    )
-    FUNCTION = "load_pairs_list"
-
-    def _resize_and_crop_image(self, img_tensor: torch.Tensor, target_height: int, target_width: int) -> torch.Tensor:
+    def _resize_and_crop_image(cls, img_tensor: torch.Tensor, target_height: int, target_width: int) -> torch.Tensor:
         img_tensor_chw = img_tensor.permute(2, 0, 1)
         _, current_height, current_width = img_tensor_chw.shape
         target_aspect = target_width / target_height
@@ -56,7 +96,10 @@ class LoadTextImagePairsList:
             cropped_tensor = F.crop(resized_tensor, int(top), 0, target_height, target_width)
         return cropped_tensor.permute(1, 2, 0)
 
-    def load_pairs_list(self, seed, folder_path, force_reload=False, limit_count=0, text_format_extension="txt", image_input=None, text_input=None):
+    @classmethod
+    def execute(cls, seed, folder_path, force_reload=False, limit_count=0, text_format_extension="txt", image_input=None, text_input=None) -> io.NodeOutput:
+        global _CACHED_DATA, _CACHED_FOLDER_PATH
+
         if image_input is not None and text_input is not None:
             # Handle direct inputs
             # Assuming image_input is a batch of images (tensor)
@@ -85,8 +128,8 @@ class LoadTextImagePairsList:
             # Re-batch images after potential truncation
             batched_images = torch.cat(all_images, dim=0) if all_images else torch.empty(0)
 
-            self.cached_data = (all_images, all_texts, all_paths, all_basenames, batched_images)
-            self.cached_folder_path = None # No folder path when using direct inputs
+            _CACHED_DATA = (all_images, all_texts, all_paths, all_basenames, batched_images)
+            _CACHED_FOLDER_PATH = None  # No folder path when using direct inputs
             
             # Skip folder loading logic and proceed to output processing
             current_index = seed % total_count if total_count > 0 else 0
@@ -109,19 +152,19 @@ class LoadTextImagePairsList:
                 final_basenames = rotated_basenames
                 final_images = torch.cat((batched_images[current_index:], batched_images[:current_index]), dim=0)
 
-            return (final_images, final_texts, final_paths, final_basenames, total_count)
+            return io.NodeOutput(final_images, final_texts, final_paths, final_basenames, total_count)
 
-        if not force_reload and self.cached_folder_path == folder_path and self.cached_data:
+        if not force_reload and _CACHED_FOLDER_PATH == folder_path and _CACHED_DATA:
             print("LoadTextImagePairsList: Using cached data.")
-            all_images, all_texts, all_paths, all_basenames, batched_images = self.cached_data
+            all_images, all_texts, all_paths, all_basenames, batched_images = _CACHED_DATA
         else:
             if not folder_path or not os.path.isdir(folder_path):
-                return (None, "", "", "", None, [], [], [], 0)
+                return io.NodeOutput(None, "", "", "", 0)
             
             print("LoadTextImagePairsList: Loading new data from disk.")
             pairs = find_image_text_pairs(folder_path, text_format_extension)
             if not pairs:
-                return (None, "", "", "", None, [], [], [], 0)
+                return io.NodeOutput(None, "", "", "", 0)
 
             all_images, all_texts, all_paths, all_basenames = [], [], [], []
             for image_path, text_path, basename in pairs:
@@ -137,21 +180,21 @@ class LoadTextImagePairsList:
                     print(f"Error loading pair {basename}: {e}")
             
             if not all_images:
-                return (None, "", "", "", None, [], [], [], 0)
+                return io.NodeOutput(None, "", "", "", 0)
 
             first_img_h, first_img_w = all_images[0].shape[1], all_images[0].shape[2]
             processed_images = []
             for img_tensor in all_images:
                 if img_tensor.shape[1] != first_img_h or img_tensor.shape[2] != first_img_w:
                     img_tensor_hwc = img_tensor.squeeze(0)
-                    processed_tensor_hwc = self._resize_and_crop_image(img_tensor_hwc, first_img_h, first_img_w)
+                    processed_tensor_hwc = cls._resize_and_crop_image(img_tensor_hwc, first_img_h, first_img_w)
                     processed_images.append(processed_tensor_hwc.unsqueeze(0))
                 else:
                     processed_images.append(img_tensor)
             batched_images = torch.cat(processed_images, dim=0)
 
-            self.cached_data = (all_images, all_texts, all_paths, all_basenames, batched_images)
-            self.cached_folder_path = folder_path
+            _CACHED_DATA = (all_images, all_texts, all_paths, all_basenames, batched_images)
+            _CACHED_FOLDER_PATH = folder_path
 
         total_count = len(all_texts)
         current_index = seed % total_count
@@ -174,4 +217,4 @@ class LoadTextImagePairsList:
             final_basenames = rotated_basenames
             final_images = torch.cat((batched_images[current_index:], batched_images[:current_index]), dim=0)
 
-        return (final_images, final_texts, final_paths, final_basenames, total_count)
+        return io.NodeOutput(final_images, final_texts, final_paths, final_basenames, total_count)

@@ -8,39 +8,52 @@ import numpy as np
 import torch
 from PIL import Image, ImageOps, ImageSequence
 
+from comfy_api.latest import io
 
-class LoadImageTemporarily:
+
+class LoadImageTemporarily(io.ComfyNode):
     """
     Loads an image and stores it in ComfyUI /temp-folder instead of the /input folder.
     """
 
     @classmethod
-    def INPUT_TYPES(cls):
+    def define_schema(cls) -> io.Schema:
+        # The temp folder does not exist until ComfyUI first writes to it, and a
+        # failure here would take down the whole extension: schemas are built at
+        # load time.
         temp_dir = folder_paths.get_temp_directory()
-        files = [f for f in os.listdir(temp_dir) if os.path.isfile(os.path.join(temp_dir, f))]
+        try:
+            files = [f for f in os.listdir(temp_dir) if os.path.isfile(os.path.join(temp_dir, f))]
+        except OSError:
+            files = []
         files = folder_paths.filter_files_content_types(files, ["image"])
         # Keep new node instances clear by default instead of preselecting
         # whichever temp file currently exists first.
         files = [""] + sorted(files)
-        return {
-            "required": {
-                "image": (files, {"image_upload": True, "image_folder": "temp"}),
-            }
-        }
+        return io.Schema(
+            node_id="MNeMiC_LoadImageTemporarily",
+            display_name="🖼️ Load Image Temporarily",
+            category="⚡ MNeMiC Nodes",
+            description="Loads an image and stores it in ComfyUI /temp-folder instead of the /input folder.",
+            inputs=[
+                io.Combo.Input(
+                    "image",
+                    options=files,
+                    upload=io.UploadType.image,
+                    image_folder=io.FolderType.temp,
+                    tooltip="Image to load from ComfyUI's temp folder. Uploads through this node go to temp instead of input, so they are cleared when ComfyUI restarts.",
+                ),
+            ],
+            outputs=[
+                io.Image.Output(display_name="image", tooltip="The loaded image tensor."),
+                io.Mask.Output(display_name="mask", tooltip="The image alpha mask (inverted like ComfyUI LoadImage)."),
+                io.Int.Output(display_name="width", tooltip="Image width."),
+                io.Int.Output(display_name="height", tooltip="Image height."),
+            ],
+        )
 
-    RETURN_TYPES = ("IMAGE", "MASK", "INT", "INT")
-    RETURN_NAMES = ("image", "mask", "width", "height")
-    OUTPUT_TOOLTIPS = (
-        "The loaded image tensor.",
-        "The image alpha mask (inverted like ComfyUI LoadImage).",
-        "Image width.",
-        "Image height.",
-    )
-    FUNCTION = "load_image"
-    CATEGORY = "⚡ MNeMiC Nodes"
-    DESCRIPTION = "Loads an image and stores it in ComfyUI /temp-folder instead of the /input folder."
-
-    def load_image(self, image):
+    @classmethod
+    def execute(cls, image) -> io.NodeOutput:
         image_path = folder_paths.get_annotated_filepath(image)
         img = node_helpers.pillow(Image.open, image_path)
 
@@ -88,10 +101,10 @@ class LoadImageTemporarily:
             output_image = output_images[0]
             output_mask = output_masks[0]
 
-        return (output_image, output_mask, w, h)
+        return io.NodeOutput(output_image, output_mask, w, h)
 
     @classmethod
-    def IS_CHANGED(cls, image):
+    def fingerprint_inputs(cls, image):
         image_path = folder_paths.get_annotated_filepath(image)
         m = hashlib.sha256()
         with open(image_path, "rb") as f:
@@ -99,12 +112,7 @@ class LoadImageTemporarily:
         return m.digest().hex()
 
     @classmethod
-    def VALIDATE_INPUTS(cls, image):
+    def validate_inputs(cls, image):
         if not folder_paths.exists_annotated_filepath(image):
             return f"Invalid image file: {image}"
         return True
-
-
-NODE_DISPLAY_NAME_MAPPINGS = {
-    "LoadImageTemporarily": "🖼️ Load Image Temporarily",
-}

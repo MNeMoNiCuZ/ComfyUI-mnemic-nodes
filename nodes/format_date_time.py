@@ -2,58 +2,61 @@ from datetime import datetime
 import re
 import time
 
-class FormatDateTime:
-    def __init__(self):
-        pass
+from comfy_api.latest import io
+
+
+class FormatDateTime(io.ComfyNode):
+    @classmethod
+    def define_schema(cls) -> io.Schema:
+        return io.Schema(
+            node_id="MNeMiC_FormatDateTime",
+            display_name="📅 Format Date Time",
+            category="⚡ MNeMiC Nodes",
+            description="Formats the current date and time into a string based on a specified format.",
+            inputs=[
+                io.String.Input(
+                    "date_format",
+                    default="%Y-%m-%d/%Y-%m-%d - %H.%M.%S",
+                    multiline=True,
+                    tooltip="Formats a date string using Python's strftime directives.\n\n"
+                            "%Y: Year (e.g., 2025)\n"
+                            "%m: Month (01-12)\n"
+                            "%d: Day of month (01-31)\n"
+                            "%H: Hour (24-hour clock) (00-23)\n"
+                            "%S: Second (00-59)\n"
+                            "%f: Microsecond (000000-999999)\n"
+                            "%x: Date representation\n"
+                            "%X: Time (. to separate instead of :)\n"
+                            "%c: Date and time representation\n"
+                            "%p: AM/PM\n"
+                            "%A: Weekday full name (e.g., Thursday)\n"
+                            "%a: Weekday abbreviated name (e.g., Thu)\n"
+                            "%B: Month full name (e.g., August)\n"
+                            "%b: Month abbreviated name (e.g., Aug)\n"
+                            "%j: Day of year (001-366)\n"
+                            "%W: Week number of year (Monday as first day) (00-53)\n"
+                            "%w: Day index of week (Monday is 0) (0-6)\n"
+                            "%U: Week number of year (Sunday as first day) (00-53)\n"
+                            "%u: Day index of week (Sunday is 0) (0-6)\n"
+                            "%%: A literal '%' character",
+                ),
+                io.Boolean.Input(
+                    "respect_system_locale",
+                    default=False,
+                    tooltip="If enabled, %x and %c will use the system's locale settings (which might be MM/DD/YY). If disabled, %x forces YYYY-MM-DD.",
+                ),
+            ],
+            outputs=[
+                io.String.Output(display_name="formatted_date_time", tooltip="The current date and time rendered with the format above."),
+            ],
+        )
 
     @classmethod
-    def IS_CHANGED(cls, *args, **kwargs):
+    def fingerprint_inputs(cls, **kwargs):
         return time.time()
 
     @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "date_format": ("STRING", {
-                    "default": "%Y-%m-%d/%Y-%m-%d - %H.%M.%S",
-                    "multiline": True,
-                    "tooltip": "Formats a date string using Python's strftime directives.\n\n"
-                               "%Y: Year (e.g., 2025)\n"
-                               "%m: Month (01-12)\n"
-                               "%d: Day of month (01-31)\n"
-                               "%H: Hour (24-hour clock) (00-23)\n"
-                               "%S: Second (00-59)\n"
-                               "%f: Microsecond (000000-999999)\n"
-                               "%x: Date representation\n"
-                               "%X: Time (. to separate instead of :)\n"
-                               "%c: Date and time representation\n"
-                               "%p: AM/PM\n"
-                               "%A: Weekday full name (e.g., Thursday)\n"
-                               "%a: Weekday abbreviated name (e.g., Thu)\n"
-                               "%B: Month full name (e.g., August)\n"
-                               "%b: Month abbreviated name (e.g., Aug)\n"
-                               "%j: Day of year (001-366)\n"
-                               "%W: Week number of year (Monday as first day) (00-53)\n"
-                               "%w: Day index of week (Monday is 0) (0-6)\n"
-                               "%U: Week number of year (Sunday as first day) (00-53)\n"
-                               "%u: Day index of week (Sunday is 0) (0-6)\n"
-                               "%%: A literal '%' character"
-                }),
-                "respect_system_locale": ("BOOLEAN", {
-                    "default": False,
-                    "tooltip": "If enabled, %x and %c will use the system's locale settings (which might be MM/DD/YY). If disabled, %x forces YYYY-MM-DD."
-                }),
-            }
-        }
-
-    RETURN_TYPES = ("STRING",)
-    RETURN_NAMES = ("formatted_date_time",)
-    OUTPUT_NODE = True
-    FUNCTION = "format_date_time"
-    CATEGORY = "⚡ MNeMiC Nodes"
-    DESCRIPTION = "Formats the current date and time into a string based on a specified format."
-
-    def format_date_time(self, date_format, respect_system_locale=False):
+    def execute(cls, date_format, respect_system_locale=False) -> io.NodeOutput:
         """
         Formats the current date and time using the provided format string.
         The format string directly uses Python's strftime directives.
@@ -61,10 +64,10 @@ class FormatDateTime:
         Includes custom handling for %w (Monday is 0) and %u (Sunday is 0).
         """
         now = datetime.now()
-        
+
         # Store original format to check for %X and %c later
         original_date_format = date_format
-        
+
         # Step 1: Temporarily replace '%%' with a unique placeholder
         # This prevents '%%w' from becoming '%w' prematurely and being
         # caught by our custom %w/%u replacement logic.
@@ -78,8 +81,8 @@ class FormatDateTime:
         # Step 2: Replace custom %w and %u directives with their calculated values
         # We use regex with a negative lookbehind to ensure we only replace
         # standalone %w and %u (i.e., not preceded by another '%').
-        custom_w_value = str(now.weekday()) # Monday is 0
-        custom_u_value = str(now.isoweekday() % 7) # Sunday is 0
+        custom_w_value = str(now.weekday())  # Monday is 0
+        custom_u_value = str(now.isoweekday() % 7)  # Sunday is 0
 
         # Replace %w and %u with their custom values directly in temp_format
         temp_format = re.sub(r'(?<!%)%w', custom_w_value, temp_format)
@@ -113,4 +116,4 @@ class FormatDateTime:
             # Replace the original %c output in the final string with the dot version
             formatted_string = formatted_string.replace(formatted_c_from_strftime, formatted_c_with_dots)
 
-        return (formatted_string,)
+        return io.NodeOutput(formatted_string)

@@ -1,34 +1,27 @@
 import random
 import time
 
-class RandomSeed:
-    def __init__(self):
-        pass
+from comfy_api.latest import io
+
+
+class RandomSeed(io.ComfyNode):
+    @classmethod
+    def define_schema(cls) -> io.Schema:
+        return io.Schema(
+            node_id="MNeMiC_RandomSeed",
+            display_name="🎲 Random Seed",
+            category="⚡ MNeMiC Nodes",
+            description="Generates a random seed value (0 to 2^64-1). Useful for feeding into other nodes that accept seed inputs. Regenerates on each execution.",
+            inputs=[],
+            outputs=[
+                io.Int.Output(display_name="seed", tooltip="A fresh random seed, 0 to 2^64-1. Re-rolls on every run."),
+            ],
+        )
 
     @classmethod
-    def IS_CHANGED(cls, *args, **kwargs):
+    def fingerprint_inputs(cls, **kwargs):
         return time.time()
 
     @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {},
-        }
-
-    RETURN_TYPES = ("INT",)
-    RETURN_NAMES = ("seed",)
-    FUNCTION = "generate_random_seed"
-    CATEGORY = "⚡ MNeMiC Nodes"
-    DESCRIPTION = "Generates a random seed value (0 to 2^64-1). Useful for feeding into other nodes that accept seed inputs. Regenerates on each execution."
-
-    def generate_random_seed(self):
-        result = random.randint(0, 0xffffffffffffffff)
-        return (result,)
-
-NODE_CLASS_MAPPINGS = {
-    "RandomSeed": RandomSeed,
-}
-
-NODE_DISPLAY_NAME_MAPPINGS = {
-    "RandomSeed": "Random Seed",
-}
+    def execute(cls) -> io.NodeOutput:
+        return io.NodeOutput(random.randint(0, 0xffffffffffffffff))

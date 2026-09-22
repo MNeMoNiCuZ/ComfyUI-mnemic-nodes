@@ -129,7 +129,9 @@ def _collect_loras_from_model_path(start_link, prompt: dict):
                     out.append(n)
                     seen_names.add(n)
 
-        if "lora loader prompt tags" in ct.lower() or ct == "LoraTagLoader":
+        ct_lower = str(ct or "").lower()
+        # Node ids changed from emoji display strings to MNeMiC_*; accept both.
+        if "lora loader prompt tags" in ct_lower or "loratagloader" in ct_lower:
             s = inp.get("STRING", "")
             if isinstance(s, list) and s:
                 s = s[0]

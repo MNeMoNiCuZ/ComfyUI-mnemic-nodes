@@ -1,43 +1,47 @@
 import random
 
-class RandomIntInRange:
-    def __init__(self):
-        pass
+from comfy_api.latest import io
+
+
+class RandomIntInRange(io.ComfyNode):
+    @classmethod
+    def define_schema(cls) -> io.Schema:
+        return io.Schema(
+            node_id="MNeMiC_RandomIntInRange",
+            display_name="🎲 Random Int in Range",
+            category="⚡ MNeMiC Nodes",
+            description="Generates a random integer within the specified range (min to max, inclusive). Use seed for reproducibility or -1 for random results.",
+            inputs=[
+                io.Int.Input(
+                    "min_value",
+                    default=0,
+                    min=-0xffffffffffffffff,
+                    max=0xffffffffffffffff,
+                    tooltip="Minimum value for the random integer (inclusive).",
+                ),
+                io.Int.Input(
+                    "max_value",
+                    default=100,
+                    min=-0xffffffffffffffff,
+                    max=0xffffffffffffffff,
+                    tooltip="Maximum value for the random integer (inclusive).",
+                ),
+                io.Int.Input(
+                    "seed",
+                    optional=True,
+                    default=-1,
+                    min=-1,
+                    max=0xffffffffffffffff,
+                    tooltip="Seed for random number generator. Use -1 for random seed (different each time), or set a specific value for reproducibility.",
+                ),
+            ],
+            outputs=[
+                io.Int.Output(display_name="random_int", tooltip="The rolled number, inside the range set above."),
+            ],
+        )
 
     @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "min_value": ("INT", {
-                    "default": 0,
-                    "min": -0xffffffffffffffff,
-                    "max": 0xffffffffffffffff,
-                    "tooltip": "Minimum value for the random integer (inclusive)."
-                }),
-                "max_value": ("INT", {
-                    "default": 100,
-                    "min": -0xffffffffffffffff,
-                    "max": 0xffffffffffffffff,
-                    "tooltip": "Maximum value for the random integer (inclusive)."
-                }),
-            },
-            "optional": {
-                "seed": ("INT", {
-                    "default": -1,
-                    "min": -1,
-                    "max": 0xffffffffffffffff,
-                    "tooltip": "Seed for random number generator. Use -1 for random seed (different each time), or set a specific value for reproducibility."
-                }),
-            }
-        }
-
-    RETURN_TYPES = ("INT",)
-    RETURN_NAMES = ("random_int",)
-    FUNCTION = "generate_random_int"
-    CATEGORY = "⚡ MNeMiC Nodes"
-    DESCRIPTION = "Generates a random integer within the specified range (min to max, inclusive). Use seed for reproducibility or -1 for random results."
-
-    def generate_random_int(self, min_value, max_value, seed=-1):
+    def execute(cls, min_value, max_value, seed=-1) -> io.NodeOutput:
         if min_value > max_value:
             min_value, max_value = max_value, min_value
 
@@ -47,12 +51,4 @@ class RandomIntInRange:
         else:
             result = random.randint(min_value, max_value)
 
-        return (result,)
-
-NODE_CLASS_MAPPINGS = {
-    "RandomIntInRange": RandomIntInRange,
-}
-
-NODE_DISPLAY_NAME_MAPPINGS = {
-    "RandomIntInRange": "Random Int in Range",
-}
+        return io.NodeOutput(result)

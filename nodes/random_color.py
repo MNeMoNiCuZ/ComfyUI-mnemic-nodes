@@ -1,30 +1,36 @@
 import random
 
-class RandomColor:
-    def __init__(self):
-        pass
+from comfy_api.latest import io
+
+
+class RandomColor(io.ComfyNode):
+    @classmethod
+    def define_schema(cls) -> io.Schema:
+        return io.Schema(
+            node_id="MNeMiC_RandomColor",
+            display_name="🎲 Random Color",
+            category="⚡ MNeMiC Nodes",
+            description="Generates a random RGB color. Returns both hex format (#RRGGBB) and individual RGB values (0-255). Use seed for reproducibility or -1 for random results.",
+            inputs=[
+                io.Int.Input(
+                    "seed",
+                    optional=True,
+                    default=-1,
+                    min=-1,
+                    max=0xffffffffffffffff,
+                    tooltip="Seed for random number generator. Use -1 for random seed (different each time), or set a specific value for reproducibility.",
+                ),
+            ],
+            outputs=[
+                io.String.Output(display_name="hex_color", tooltip="The rolled colour as #RRGGBB."),
+                io.Int.Output(display_name="red", tooltip="Red channel of the rolled colour, 0-255."),
+                io.Int.Output(display_name="green", tooltip="Green channel of the rolled colour, 0-255."),
+                io.Int.Output(display_name="blue", tooltip="Blue channel of the rolled colour, 0-255."),
+            ],
+        )
 
     @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {},
-            "optional": {
-                "seed": ("INT", {
-                    "default": -1,
-                    "min": -1,
-                    "max": 0xffffffffffffffff,
-                    "tooltip": "Seed for random number generator. Use -1 for random seed (different each time), or set a specific value for reproducibility."
-                }),
-            }
-        }
-
-    RETURN_TYPES = ("STRING", "INT", "INT", "INT",)
-    RETURN_NAMES = ("hex_color", "red", "green", "blue",)
-    FUNCTION = "generate_random_color"
-    CATEGORY = "⚡ MNeMiC Nodes"
-    DESCRIPTION = "Generates a random RGB color. Returns both hex format (#RRGGBB) and individual RGB values (0-255). Use seed for reproducibility or -1 for random results."
-
-    def generate_random_color(self, seed=-1):
+    def execute(cls, seed=-1) -> io.NodeOutput:
         if seed >= 0:
             rng = random.Random(seed)
             r = rng.randint(0, 255)
@@ -37,12 +43,4 @@ class RandomColor:
 
         hex_color = f"#{r:02X}{g:02X}{b:02X}"
 
-        return (hex_color, r, g, b)
-
-NODE_CLASS_MAPPINGS = {
-    "RandomColor": RandomColor,
-}
-
-NODE_DISPLAY_NAME_MAPPINGS = {
-    "RandomColor": "Random Color",
-}
+        return io.NodeOutput(hex_color, r, g, b)
