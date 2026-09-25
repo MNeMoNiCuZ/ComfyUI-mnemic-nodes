@@ -215,9 +215,12 @@ function addPreview(node) {
     const widget = node.addDOMWidget("wildcard_preview", "mnm_wildcard_preview", element, {
         serialize: false,
         hideOnZoom: false,
-        getMinHeight: height,
-        getMaxHeight: height,
     });
+    // Give the widget a fixed size so it never takes a share of the node's
+    // spare height. A computeSize gives it a fixed row on the classic canvas;
+    // without computeLayoutSize the Vue renderer sizes its row to content.
+    widget.computeSize = (width) => [width ?? node.size[0], height()];
+    widget.computeLayoutSize = undefined;
     element.addEventListener("pointerdown", (event) => event.stopPropagation());
 
     header.addEventListener("click", () => {
