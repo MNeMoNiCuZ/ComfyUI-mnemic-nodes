@@ -122,7 +122,7 @@ class LLMAPI(io.ComfyNode):
                 io.Int.Input("seed", default=42, min=0, max=0xffffffff, advanced=True,
                              control_after_generate=io.ControlAfterGenerate.fixed,
                              tooltip="Sent to the endpoint for repeatable replies where supported. Changing it also forces a fresh reply instead of the cached one."),
-                io.String.Input("stop", default="", advanced=True,
+                io.String.Input("stop", default="", advanced=True, placeholder="###|</answer>",
                                 tooltip="Stop generating when this text appears. Separate several with |. Empty sends none."),
                 io.Boolean.Input("json_mode", default=False, advanced=True,
                                  tooltip="Ask for a valid JSON reply. Code fences around the reply are removed."),

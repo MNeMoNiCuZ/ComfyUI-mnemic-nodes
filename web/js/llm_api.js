@@ -401,8 +401,11 @@ class LLMPanel {
     // ---- endpoint status ------------------------------------------------
 
     async refreshStatus(force = false) {
-        const byName = await getEndpoints(force);
+        let byName = await getEndpoints(force);
         const name = this.widget("endpoint")?.value;
+        // An endpoint added since the last fetch (edit + R): ask again once.
+        if (!byName.has(name) && !force) byName = await getEndpoints(true);
+        if (this.widget("endpoint")?.value !== name) return;
         const info = byName.get(name);
         this.info = info;
         if (!info) {
@@ -464,6 +467,7 @@ class LLMPanel {
         if (!input) return;
         if (preset && preset !== DEFAULT_PRESET) {
             const text = (await getPresets(preset))[preset] ?? "";
+            if (this.widget("preset")?.value !== preset) return;
             input.style.opacity = "0.45";
             input.title = "Ignored while a preset is selected.";
             input.dataset.mnemicPlaceholder ??= input.placeholder ?? "";
@@ -517,7 +521,8 @@ class LLMPanel {
         if (act === "models") return showModelPicker(this, button);
         if (act === "preset") return showPreset(this, button);
         if (act === "copy") {
-            const text = this.result?.text ?? "";
+            // The reply on screen: the finished one, or what streamed in so far.
+            const text = this.result?.text ?? this.partial?.text ?? "";
             if (!text) return;
             const ok = await copyText(text);
             button.textContent = ok ? "✓ Copied" : "Copy failed";
@@ -526,13 +531,14 @@ class LLMPanel {
         }
         if (act === "test") {
             button.disabled = true;
+            const runId = this.runId;
             await this.refreshStatus(true);
             this.setDot("busy");
             const endpoint = this.widget("endpoint")?.value;
             const data = await getModels(endpoint, true);
             button.disabled = false;
             // A slow test must not paint over a newer endpoint or a running reply.
-            if (this.widget("endpoint")?.value !== endpoint || this.state === "running") return;
+            if (this.widget("endpoint")?.value !== endpoint || this.state === "running" || this.runId !== runId) return;
             if (data.ok) {
                 this.setDot("ok");
                 this.showNote(`✓ ${endpoint} answered in ${data.ms} ms with ${data.models.length} model${data.models.length === 1 ? "" : "s"}.`, false);
@@ -575,6 +581,9 @@ class LLMPanel {
 
     onStream(msg) {
         if (msg.phase === "start") {
+            this.runId = (this.runId ?? 0) + 1;
+            this.result = null;
+            this.partial = { text: "", thinking: "" };
             this.state = "running";
             this.startedAt = performance.now();
             this.setDot("busy");
@@ -584,7 +593,8 @@ class LLMPanel {
             this.state = "running";
             this.setDot("busy");
             const [text, inline] = splitInlineThinking(msg.text ?? "");
-            this.renderReply(text, [msg.thinking, inline].filter(Boolean).join("\n\n"), true);
+            this.partial = { text, thinking: [msg.thinking, inline].filter(Boolean).join("\n\n") };
+            this.renderReply(this.partial.text, this.partial.thinking, true);
             const secs = (performance.now() - (this.startedAt ?? performance.now())) / 1000;
             this.stats.textContent = `streaming · ${secs.toFixed(1)} s · ${(msg.text ?? "").length.toLocaleString()} chars`;
         } else if (msg.phase === "error") {
@@ -597,6 +607,7 @@ class LLMPanel {
     }
 
     onResult(summary) {
+        this.runId = (this.runId ?? 0) + 1;
         this.state = "idle";
         if (!summary.ok) {
             this.result = null;
@@ -624,6 +635,8 @@ class LLMPanel {
         if (this.state !== "running") return;
         this.state = "idle";
         this.setDot("warn");
+        // Keep what arrived, without the streaming caret.
+        if (this.partial?.text || this.partial?.thinking) this.renderReply(this.partial.text, this.partial.thinking, false);
         this.stats.textContent = "interrupted";
     }
 }
