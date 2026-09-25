@@ -23,6 +23,15 @@ const TAG_RE = /<([a-zA-Z_][a-zA-Z0-9_]*):[^<>\n]*>/y;
 const COUNT_RE = /\d+(?:-\d+)?\$\$/y;
 const WEIGHT_RE = /\d+(?:\.\d+)?::/y;
 
+// Limits that keep parsing fast and the call stack safe on pathological
+// text (thousands of nested or unclosed braces). Text past them is shown
+// without highlighting instead of freezing or crashing the editor.
+const MAX_DEPTH = 200;
+const STEP_BUDGET_BASE = 200000;
+const STEP_BUDGET_PER_CHAR = 40;
+
+class TooComplex extends Error {}
+
 function matchAt(re, text, index) {
     re.lastIndex = index;
     return re.exec(text);
@@ -51,6 +60,9 @@ function delim(start, end, kind) {
  */
 export function parseWildcardText(text) {
     const n = text.length;
+    let steps = 0;
+    let level = 0;
+    const budget = STEP_BUDGET_BASE + STEP_BUDGET_PER_CHAR * n;
     // Blocks that never close, by start offset. Whether a block closes does
     // not depend on where it is nested, so each one is parsed only once;
     // without this, nested unclosed blocks take exponential time.
@@ -59,7 +71,9 @@ export function parseWildcardText(text) {
     function parseSequence(i, mode, depth) {
         // mode: "top" | "option" (inside a choice) | "value" (inside a vardef)
         const children = [];
+        if (++level > MAX_DEPTH) throw new TooComplex();
         while (i < n) {
+            if (++steps > budget) throw new TooComplex();
             const c = text[i];
             if (c === "$" && text[i + 1] === "{") {
                 const node = failed.get(i) ?? parseVariable(i, depth);
@@ -91,6 +105,7 @@ export function parseWildcardText(text) {
                     if (text[j] === "{") nested++;
                     else if (text[j] === "}" && nested-- === 0) break;
                     j++;
+                    if (++steps > budget) throw new TooComplex();
                 }
                 children.push({ type: "comment", start: i, end: j, children: [] });
                 i = j;
@@ -112,6 +127,7 @@ export function parseWildcardText(text) {
             }
             i++;
         }
+        level--;
         return { children, end: i };
     }
 
@@ -141,16 +157,14 @@ export function parseWildcardText(text) {
             i = countAt;
             node.children.push(delim(i, i + count[0].length, "count"));
             i += count[0].length;
-            const sepEnd = text.indexOf("$$", i);
-            if (sepEnd !== -1) {
-                let stop = n;
-                for (const ch of "|{}") {
-                    const k = text.indexOf(ch, i);
-                    if (k !== -1 && k < stop) stop = k;
-                }
-                if (sepEnd < stop) {
-                    node.children.push(delim(i, sepEnd + 2, "sep"));
-                    i = sepEnd + 2;
+            // A custom separator runs to the next "$$", if that comes
+            // before any |, { or }.
+            for (let j = i; j < n && !"|{}".includes(text[j]); j++) {
+                if (++steps > budget) throw new TooComplex();
+                if (text[j] === "$" && text[j + 1] === "$") {
+                    node.children.push(delim(i, j + 2, "sep"));
+                    i = j + 2;
+                    break;
                 }
             }
         }
@@ -229,7 +243,13 @@ export function parseWildcardText(text) {
         return node;
     }
 
-    const root = { type: "root", start: 0, end: n, children: parseSequence(0, "top", 0).children };
+    let root;
+    try {
+        root = { type: "root", start: 0, end: n, children: parseSequence(0, "top", 0).children };
+    } catch (err) {
+        if (!(err instanceof TooComplex)) throw err;
+        return { type: "root", start: 0, end: n, children: [], tooComplex: true };
+    }
 
     // Link variable definitions and uses. A definition's value is resolved
     // on its own, without the other variables, so uses inside it never work.
@@ -611,8 +631,15 @@ export class WildcardHighlighter {
         if (!this.ensureMounted()) return;
         const text = this.textarea.value;
         if (text === this.lastText && this.lastHTML !== null) return;
+        let html;
+        try {
+            html = renderWildcardHTML(text, this.options, this.baseColor);
+        } catch (err) {
+            // Never leave stale highlighting behind; show the text plainly.
+            console.warn("[MNeMiC] Wildcard highlighting failed:", err);
+            html = escapeHTML(text) + (text.endsWith("\n") || !text ? " " : "");
+        }
         this.lastText = text;
-        const html = renderWildcardHTML(text, this.options, this.baseColor);
         if (html !== this.lastHTML) {
             this.backdrop.innerHTML = html;
             this.lastHTML = html;

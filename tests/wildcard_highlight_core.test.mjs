@@ -83,3 +83,19 @@ test("custom colors accept hex and rgb()", () => {
     const html = renderWildcardHTML("{a|b}", { palette: "Custom", customColors: "rgb(255, 0, 0), #00ff00" });
     assert.ok(html.includes("rgba(255,0,0,"));
 });
+
+test("pathological text renders plainly instead of crashing or stalling", () => {
+    const inputs = [
+        "{".repeat(3000) + "}".repeat(3000),
+        "${a=!".repeat(4000),
+        "{".repeat(2000) + "a".repeat(18000),
+        "{#".repeat(5000),
+        "{1$$".repeat(8000),
+    ];
+    for (const text of inputs) {
+        const start = performance.now();
+        const html = renderWildcardHTML(text);
+        assert.ok(performance.now() - start < 300, `took too long for length ${text.length}`);
+        assert.ok(html.startsWith(text.slice(0, 20).replace(/&/g, "&amp;").replace(/</g, "&lt;")));
+    }
+});

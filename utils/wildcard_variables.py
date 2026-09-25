@@ -3,8 +3,8 @@ def split_variable_definitions(text):
 
     The value may contain nested {...} blocks, e.g. ${color=!{red|{dark|light} blue}},
     so the closing brace is found by counting braces rather than taking the
-    first "}". Plain ${name} uses are left in place, as are definitions that are
-    never closed.
+    first "}". Plain ${name} uses are left in place. A definition whose braces
+    never balance ends at the first "}" on its line, as it always has.
 
     Returns (definitions, text_without_definitions), where definitions is a
     list of (name, value_expression) tuples in the order they appear.
@@ -36,10 +36,13 @@ def split_variable_definitions(text):
                 depth -= 1
             end += 1
         if end >= len(text):
-            # Unclosed definition; leave the text untouched.
-            parts.append(text[i:start + 2])
-            i = start + 2
-            continue
+            # Unclosed definition. Keep the old behaviour: the value ends at
+            # the first "}" on the same line, or the text is left untouched.
+            if close == -1 or "\n" in text[start:close]:
+                parts.append(text[i:start + 2])
+                i = start + 2
+                continue
+            end = close
 
         definitions.append((name, text[eq + 2:end]))
         parts.append(text[i:start])
