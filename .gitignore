@@ -13,3 +13,8 @@ wildcards/*
 todo.txt
 temp
 AGENTS.md
+.env.*
+!.env.example
+nodes/llm/UserEndpoints.json
+nodes/llm/CustomEndpoints.local.json
+nodes/llm/CustomEndpoints.local.json.tmp

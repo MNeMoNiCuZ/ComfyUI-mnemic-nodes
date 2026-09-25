@@ -5,6 +5,7 @@ from .get_file_path import GetFilePath
 from .groq_api_llm import GroqAPILLM
 from .groq_api_vlm import GroqAPIVLM
 from .groq_api_alm_transcribe import GroqAPIALMTranscribe
+from .llm_api import LLMAPI
 from .tiktoken_tokenizer import TiktokenTokenizer
 from .string_cleaning import StringCleaning
 from .lora_tag_loader import LoraTagLoader
@@ -48,6 +49,7 @@ __all__ = [
     "GroqAPILLM",
     "GroqAPIVLM",
     "GroqAPIALMTranscribe",
+    "LLMAPI",
     "TiktokenTokenizer",
     "StringCleaning",
     "GenerateNegativePrompt",

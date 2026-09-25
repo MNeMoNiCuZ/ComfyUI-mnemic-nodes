@@ -1,0 +1,134 @@
+{
+    "_readme": "Shipped with the pack and overwritten on update. Do not edit: add or override endpoints in UserEndpoints.json instead (an entry with the same name replaces the one here). Secrets and private addresses go in the .env file in the pack root, referenced here as ${VAR} or ${VAR:-fallback}.",
+    "endpoints": [
+        {
+            "name": "Ollama (this PC)",
+            "provider": "ollama",
+            "base_url": "${OLLAMA_LOCAL_URL:-http://127.0.0.1:11434}",
+            "description": "Ollama running on the same machine as ComfyUI. No key needed."
+        },
+        {
+            "name": "Ollama (network)",
+            "provider": "ollama",
+            "base_url": "${OLLAMA_NETWORK_URL}",
+            "api_key_env": "OLLAMA_NETWORK_API_KEY",
+            "api_key_optional": true,
+            "description": "Ollama on another machine on your network. Set OLLAMA_NETWORK_URL in .env, e.g. http://192.168.1.50:11434."
+        },
+        {
+            "name": "LM Studio (this PC)",
+            "provider": "openai",
+            "base_url": "${LMSTUDIO_URL:-http://127.0.0.1:1234/v1}",
+            "description": "LM Studio's local server (Developer tab → Start Server)."
+        },
+        {
+            "name": "OpenAI-compatible server",
+            "provider": "openai",
+            "base_url": "${OPENAI_COMPATIBLE_URL}",
+            "api_key_env": "OPENAI_COMPATIBLE_API_KEY",
+            "api_key_optional": true,
+            "description": "Any OpenAI-compatible server: llama.cpp, vLLM, KoboldCpp, text-generation-webui, LocalAI, Jan… Set OPENAI_COMPATIBLE_URL in .env (usually ending in /v1)."
+        },
+        {
+            "name": "Local Claude Code Subscription",
+            "provider": "claude_cli",
+            "command": "${CLAUDE_CLI:-claude}",
+            "options": {
+                "command_env": "CLAUDE_CLI"
+            },
+            "description": "Runs the Claude Code CLI on this PC (claude -p) with your Claude subscription. Install Claude Code and sign in once by running `claude` in a terminal. Empty model uses Claude Code's default."
+        },
+        {
+            "name": "Local Codex Subscription",
+            "provider": "codex_cli",
+            "command": "${CODEX_CLI:-codex}",
+            "options": {
+                "command_env": "CODEX_CLI"
+            },
+            "description": "Runs the Codex CLI on this PC (codex exec) with your ChatGPT subscription. Install Codex and sign in once with `codex login`. Empty model uses Codex's default."
+        },
+        {
+            "name": "OpenAI (ChatGPT)",
+            "provider": "openai",
+            "base_url": "https://api.openai.com/v1",
+            "api_key_env": "OPENAI_API_KEY",
+            "default_model": "gpt-5-mini",
+            "options": {
+                "max_tokens_param": "max_completion_tokens"
+            },
+            "description": "OpenAI's API. Key from platform.openai.com/api-keys."
+        },
+        {
+            "name": "Anthropic (Claude)",
+            "provider": "anthropic",
+            "base_url": "https://api.anthropic.com/v1",
+            "api_key_env": "ANTHROPIC_API_KEY",
+            "default_model": "claude-sonnet-5",
+            "description": "Anthropic's Claude API. Key from console.anthropic.com."
+        },
+        {
+            "name": "Google (Gemini)",
+            "provider": "openai",
+            "base_url": "https://generativelanguage.googleapis.com/v1beta/openai",
+            "api_key_env": "GEMINI_API_KEY",
+            "default_model": "gemini-2.5-flash",
+            "description": "Gemini through Google's OpenAI-compatible endpoint. Key from aistudio.google.com."
+        },
+        {
+            "name": "xAI (Grok)",
+            "provider": "openai",
+            "base_url": "https://api.x.ai/v1",
+            "api_key_env": "XAI_API_KEY",
+            "default_model": "grok-4",
+            "description": "xAI's Grok API. Key from console.x.ai."
+        },
+        {
+            "name": "Groq",
+            "provider": "openai",
+            "base_url": "https://api.groq.com/openai/v1",
+            "api_key_env": "GROQ_API_KEY",
+            "default_model": "openai/gpt-oss-120b",
+            "description": "Groq's fast inference API. Same key as the Groq nodes."
+        },
+        {
+            "name": "OpenRouter",
+            "provider": "openai",
+            "base_url": "https://openrouter.ai/api/v1",
+            "api_key_env": "OPENROUTER_API_KEY",
+            "default_model": "openrouter/auto",
+            "headers": {
+                "X-Title": "ComfyUI MNeMiC Nodes"
+            },
+            "description": "One key for hundreds of models from every major lab. Key from openrouter.ai/keys."
+        },
+        {
+            "name": "Mistral",
+            "provider": "openai",
+            "base_url": "https://api.mistral.ai/v1",
+            "api_key_env": "MISTRAL_API_KEY",
+            "default_model": "mistral-small-latest",
+            "description": "Mistral AI's API. Key from console.mistral.ai."
+        },
+        {
+            "name": "DeepSeek",
+            "provider": "openai",
+            "base_url": "https://api.deepseek.com/v1",
+            "api_key_env": "DEEPSEEK_API_KEY",
+            "default_model": "deepseek-chat",
+            "description": "DeepSeek's API. Key from platform.deepseek.com."
+        },
+        {
+            "name": "Sanctum",
+            "provider": "openai",
+            "base_url": "${SANCTUM_URL}",
+            "api_key_env": "SANCTUM_API_KEY",
+            "options": {
+                "ensure_path": "/v1",
+                "model_optional": true,
+                "keep_order": true,
+                "pin_last": true
+            },
+            "description": "Set SANCTUM_URL and SANCTUM_API_KEY in the .env file."
+        }
+    ]
+}

@@ -1,0 +1,18 @@
+{
+    "_readme": "Your own endpoints for the ✨🧠 Universal LLM API node. Copied to UserEndpoints.json on first run; that copy is git-ignored and survives updates. Entries here are added to the built-in list; one with the same name as a built-in replaces it, and \"enabled\": false hides it. Never paste keys or private addresses here: put them in the .env file in the pack root and reference them as ${VAR}. Press R in ComfyUI (refresh node definitions) after editing.",
+    "endpoints": [
+        {
+            "name": "My llama.cpp box",
+            "enabled": false,
+            "provider": "openai",
+            "base_url": "${LLAMACPP_URL:-http://127.0.0.1:8080/v1}",
+            "api_key_env": "LLAMACPP_API_KEY",
+            "api_key_optional": true,
+            "default_model": "",
+            "models": [],
+            "headers": {},
+            "extra_body": {},
+            "description": "Example entry. Set \"enabled\": true to show it in the node."
+        }
+    ]
+}

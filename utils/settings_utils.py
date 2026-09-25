@@ -21,9 +21,14 @@ GROQ_TRANSCRIBE_TIMEOUT_SETTING_ID = "MNeMiC.GroqTranscribe.RequestTimeout"
 GROQ_TRANSLATE_CONSOLE_LOG_SETTING_ID = "MNeMiC.GroqTranslate.ConsoleLogging"
 GROQ_TRANSLATE_TIMEOUT_SETTING_ID = "MNeMiC.GroqTranslate.RequestTimeout"
 
+LLM_CONSOLE_LOG_SETTING_ID = "MNeMiC.LLM.ConsoleLogging"
+LLM_TIMEOUT_SETTING_ID = "MNeMiC.LLM.RequestTimeout"
+LLM_STREAM_SETTING_ID = "MNeMiC.LLM.LivePreview"
+
 DEFAULT_MAX_LOGGED_CANDIDATES = 15
 DEFAULT_MAX_NESTED_PASSES = 10
 DEFAULT_GROQ_REQUEST_TIMEOUT = 120
+DEFAULT_LLM_REQUEST_TIMEOUT = 300
 
 PROMPT_PROPERTY_EXTRACTOR_CONSOLE_LOG_SETTING_ID = "MNeMiC.PromptPropertyExtractor.ConsoleLogging"
 
@@ -122,3 +127,15 @@ def is_prompt_property_extractor_console_log_enabled():
 
 def is_load_random_checkpoint_console_log_enabled():
     return bool(get_comfy_setting(LOAD_RANDOM_CHECKPOINT_CONSOLE_LOG_SETTING_ID, False))
+
+
+def is_llm_console_log_enabled():
+    return bool(get_comfy_setting(LLM_CONSOLE_LOG_SETTING_ID, False))
+
+
+def get_llm_request_timeout():
+    return get_comfy_int_setting(LLM_TIMEOUT_SETTING_ID, DEFAULT_LLM_REQUEST_TIMEOUT)
+
+
+def is_llm_live_preview_enabled():
+    return bool(get_comfy_setting(LLM_STREAM_SETTING_ID, True))
