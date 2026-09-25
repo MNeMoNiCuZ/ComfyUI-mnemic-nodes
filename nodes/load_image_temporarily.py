@@ -11,6 +11,14 @@ from PIL import Image, ImageOps, ImageSequence
 from comfy_api.latest import io
 
 
+def _temp_image_path(image):
+    temp_dir = folder_paths.get_temp_directory()
+    image_path = folder_paths.get_annotated_filepath(image, default_dir=temp_dir)
+    if not folder_paths.is_within_directory(temp_dir, image_path) or not os.path.isfile(image_path):
+        raise ValueError(f"Invalid temporary image: {image!r}")
+    return image_path
+
+
 class LoadImageTemporarily(io.ComfyNode):
     """
     Loads an image and stores it in ComfyUI /temp-folder instead of the /input folder.
@@ -54,7 +62,9 @@ class LoadImageTemporarily(io.ComfyNode):
 
     @classmethod
     def execute(cls, image) -> io.NodeOutput:
-        image_path = folder_paths.get_annotated_filepath(image)
+        if not image:
+            raise ValueError("Select an image.")
+        image_path = _temp_image_path(image)
         img = node_helpers.pillow(Image.open, image_path)
 
         output_images = []
@@ -105,7 +115,9 @@ class LoadImageTemporarily(io.ComfyNode):
 
     @classmethod
     def fingerprint_inputs(cls, image):
-        image_path = folder_paths.get_annotated_filepath(image)
+        if not image:
+            return None
+        image_path = _temp_image_path(image)
         m = hashlib.sha256()
         with open(image_path, "rb") as f:
             m.update(f.read())
@@ -113,6 +125,11 @@ class LoadImageTemporarily(io.ComfyNode):
 
     @classmethod
     def validate_inputs(cls, image):
-        if not folder_paths.exists_annotated_filepath(image):
-            return f"Invalid image file: {image}"
+        # An empty selection may belong to an unused lazy branch.
+        if not image:
+            return True
+        try:
+            _temp_image_path(image)
+        except ValueError as e:
+            return str(e)
         return True
