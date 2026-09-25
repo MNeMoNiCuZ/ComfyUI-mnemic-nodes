@@ -23,6 +23,7 @@ from io import BytesIO
 from urllib.parse import urlparse
 
 import requests
+from urllib3.exceptions import LocationValueError
 
 from .env_manager import redact
 
@@ -603,8 +604,8 @@ def run_chat(ep, req, *, timeout=300, max_retries=2, on_delta=None, check_interr
         try:
             response = requests.post(url, headers=headers, json=body, stream=bool(body.get("stream")),
                                      timeout=(15, timeout))
-        except requests.RequestException as e:
-            if attempt >= max_retries:
+        except (requests.RequestException, LocationValueError) as e:
+            if isinstance(e, LocationValueError) or attempt >= max_retries:
                 raise LLMError(redact(f"Could not reach {ep.endpoint.name}: {_short_exception(e)}"), status="connection error")
             if log:
                 log(f"Connection failed ({_short_exception(e)}); retrying.")
@@ -685,7 +686,7 @@ def _short_exception(e):
         return "TLS/certificate error"
     if isinstance(e, requests.exceptions.ProxyError):
         return "the proxy refused the connection"
-    if isinstance(e, (requests.exceptions.InvalidURL, requests.exceptions.MissingSchema,
+    if isinstance(e, (LocationValueError, requests.exceptions.InvalidURL, requests.exceptions.MissingSchema,
                       requests.exceptions.InvalidSchema, requests.exceptions.URLRequired)):
         return "invalid base_url"
     if isinstance(e, requests.exceptions.ChunkedEncodingError):
@@ -725,7 +726,7 @@ def list_models(ep, timeout=15):
     adapter = get_adapter(ep.endpoint.provider)
     try:
         return adapter.list_models(ep, timeout)
-    except requests.RequestException as e:
-        raise LLMError(redact(f"Could not reach {ep.endpoint.name}: {_short_exception(e)}"), status="connection error")
-    except (ValueError, KeyError) as e:
-        raise LLMError(f"Unexpected model list from {ep.endpoint.name}: {e}", status="bad response")
+    except (requests.RequestException, LocationValueError) as e:
+        raise LLMError(f"Could not reach {ep.endpoint.name}: {_short_exception(e)}", status="connection error")
+    except (ValueError, KeyError, TypeError):
+        raise LLMError(f"Unexpected model list from {ep.endpoint.name}.", status="bad response") from None

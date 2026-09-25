@@ -103,14 +103,22 @@ def expand_vars(text):
                 missing.append(name)
                 return ""
             return fallback
+        # Whatever came from .env or the environment is private, including
+        # values that only exist in the system environment.
+        register_secret(value, min_length=8)
         return value
 
     return _VAR_PATTERN.sub(_sub, text), missing
 
 
-def register_secret(value):
-    """Mark a value as secret so redact() masks it wherever it appears."""
-    if value and isinstance(value, str) and len(value.strip()) >= 8 and not is_placeholder(value):
+def register_secret(value, min_length=4):
+    """Mark a value as secret so redact() masks it wherever it appears.
+
+    Keys and passwords are masked from 4 characters. General values (an
+    expanded ${VAR}) use a higher floor so short strings like a port number
+    don't get masked inside ordinary text.
+    """
+    if value and isinstance(value, str) and len(value.strip()) >= min_length and not is_placeholder(value):
         _RUNTIME_SECRETS.add(value.strip())
 
 
@@ -123,7 +131,8 @@ def _secret_values():
     env_file = _load_env_file()
     values = set(env_file.values()) | _RUNTIME_SECRETS
     values |= {os.environ[name] for name in env_file if name in os.environ}
-    return sorted({v.strip() for v in values if v and len(v.strip()) >= 8 and not is_placeholder(v)}, key=len, reverse=True)
+    values = {v.strip() for v in values if v and len(v.strip()) >= 8 and not is_placeholder(v)}
+    return sorted(values | _RUNTIME_SECRETS, key=len, reverse=True)
 
 
 def redact(text, extra=()):
@@ -136,7 +145,7 @@ def redact(text, extra=()):
     if not text or not isinstance(text, str):
         return text
     for secret in list(extra) + _secret_values():
-        if secret and len(secret) >= 8 and secret in text:
+        if secret and len(secret) >= 4 and secret in text:
             text = text.replace(secret, mask(secret))
     return text
 

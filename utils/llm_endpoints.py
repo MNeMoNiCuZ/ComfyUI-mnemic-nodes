@@ -81,9 +81,16 @@ class ResolvedEndpoint:
         # Whatever the source (.env, system environment, a URL), these must
         # never show up in outputs, errors or logs.
         register_secret(api_key)
-        for value in headers.values():
-            register_secret(value)
-        register_secret(urlparse(base_url).password if base_url else None)
+        for key, value in headers.items():
+            if "${" in str((ep.headers or {}).get(key, "")):
+                register_secret(value)
+        if base_url:
+            parsed = urlparse(base_url)
+            register_secret(parsed.password)
+            if "${" in ep.base_url and classify_location(base_url) != "local":
+                # A private address from .env: mask it even on its own, as
+                # servers and proxies echo bare hostnames in errors.
+                register_secret(parsed.hostname)
         return cls(ep, base_url, api_key or "", headers, problems)
 
     @property
