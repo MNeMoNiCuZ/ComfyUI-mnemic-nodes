@@ -5,6 +5,7 @@ from pathlib import Path
 import folder_paths
 import json
 from ..utils.file_utils import find_best_match
+from ..utils.wildcard_variables import split_variable_definitions
 from ..utils.settings_utils import (
     is_wildcard_console_log_enabled,
     is_wildcard_fuzzy_search_enabled,
@@ -536,11 +537,9 @@ class WildcardProcessor(io.ComfyNode):
         text = wildcard_string
 
         # 1. Find and evaluate variable definitions: ${var=!{...}}
-        variable_pattern = r"\${(.*?)=!(.*?)}"
-        definitions = re.findall(variable_pattern, text)
-        
-        # Create a temporary, clean version of the text with definitions removed
-        text_no_defs = re.sub(variable_pattern, "", text)
+        # Values may contain nested {...} blocks, so this is brace-aware.
+        # Also creates a clean version of the text with definitions removed.
+        definitions, text_no_defs = split_variable_definitions(text)
 
         for var_name, var_value_expr in definitions:
             var_name = var_name.strip()

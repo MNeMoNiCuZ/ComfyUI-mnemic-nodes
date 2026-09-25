@@ -25,7 +25,7 @@ Save images with Civitai-compatible metadata auto-detected from the workflow. Ad
 
 ## 📝 [Wildcard Processor](./README/wildcard_processor.md)
 
-A versatile text processor that replaces wildcards with content from wildcard files or inline lists.
+A versatile text processor that replaces wildcards with content from wildcard files or inline lists. The prompt box colors each `{a|b}` block, variable and wildcard so complex prompts stay readable.
 <img width="1649" height="417" alt="image" src="https://github.com/user-attachments/assets/ed495b54-3e53-44d7-8655-d7b5f105cc1f" />
 
 ## 🏷️ [LoRA Loader Prompt Tags](./README/lora_tag_loader.md)

@@ -11,6 +11,30 @@ This node adds powerful dynamic capabilities to your prompts. Wildcards are gene
 - **Wildcard Processor**: Lightweight/default node. Outputs only `processed_text`. Keeps wildcard processing features, but does not expose extra outputs.
 - **Wildcard Processor Advanced**: Full node behavior. Includes extra outputs like extracted tags, raw tags, and seed, plus advanced controls such as `multiple_separator`.
 
+## Syntax Highlighting
+
+The prompt boxes of the Wildcard Processor, Wildcard Processor Advanced, Batch Wildcard Upscale Sampler (positive and negative) and Prompt Property Extractor color the wildcard syntax as you type, so it is easy to see which text belongs to which block:
+
+- Every `{a|b|c}` block gets its own color, including nested blocks. The braces and `|` separators, weights (`5::`), counts (`2$$`, `1-3$$`) and custom separators get a stronger shade of the block's color.
+- A variable's definition (`${animal=!cat}`) and every use of it (`${animal}`) share one color. File wildcards (`__animals__`) and tags (`<lora:name:1>`) are colored by name the same way.
+- `#` comments inside blocks are greyed out.
+- Mistakes are underlined in red: an unclosed `{` or `${`, a stray `}`, and variables that are used but never defined.
+
+Configure it under **Settings → ⚡MNeMiC Nodes → Wildcard Highlighting**:
+
+| Setting | Options |
+| --- | --- |
+| Enable wildcard highlighting | On / off |
+| Color palette | Pastel, Light, Vivid, Dark, Muted, or Custom |
+| Highlight style | Background, Text color, Background + text color, Underline |
+| Color blocks by | Each block (every block its own color) or Nesting depth (one color per level) |
+| Background intensity (%) | How strong highlight backgrounds are |
+| Emphasize syntax characters | Stronger shade on braces, pipes, weights and counts |
+| Mark syntax errors | Red underline on mistakes |
+| Custom colors | Colors used by the Custom palette, e.g. `#ffb3ba, #baffc9, #bae1ff` |
+
+Other nodes can opt in by adding their node id and text widget names to `WILDCARD_TEXT_WIDGETS` in `web/js/wildcard_highlight.js`, or by calling `attachWildcardHighlight(node, widgetName)` from their own script.
+
 ## Feature Summary
 
 ### Smart Wildcard Matching
@@ -293,6 +317,8 @@ Define a variable to reuse a randomly selected value multiple times in the same 
     -   **Prompt Input**: `The ${animal=!__animals__} is a happy ${animal}. It loves to chase a {red|blue} ball.`
     -   **Explanation**: The `__animals__` wildcard is evaluated once and stored in the `animal` variable. That same value is then used everywhere `${animal}` appears.
     -   **Possible Output**: `The cat is a happy cat. It loves to chase a red ball.`
+
+The value can itself contain nested blocks, e.g. `${color=!{red|{dark|light} blue}}`.
 
 ### Nesting
 
