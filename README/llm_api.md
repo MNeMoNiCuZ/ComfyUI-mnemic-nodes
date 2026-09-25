@@ -40,8 +40,8 @@ presets with the Groq nodes.
    ANTHROPIC_API_KEY=sk-ant-...
    OLLAMA_NETWORK_URL=http://192.168.1.50:11434
    ```
-3. Pick the endpoint on the node. Its status panel turns green when it is
-   ready.
+3. Pick the endpoint on the node. Its status dot turns green once its key
+   and address are set; **⚡ Test** checks that the server actually answers.
 
 Ollama and LM Studio running on the same PC need no setup.
 

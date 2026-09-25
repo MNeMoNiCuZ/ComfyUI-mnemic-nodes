@@ -1,4 +1,6 @@
 import asyncio
+import sys
+import time
 
 import numpy as np
 from PIL import Image
@@ -52,7 +54,14 @@ def _free_comfy_vram():
 
 
 def _log(message):
-    print(f"\033[36m[MNeMiC LLM]\033[0m {redact(message)}")
+    line = f"\033[36m[MNeMiC LLM]\033[0m {redact(message)}"
+    try:
+        print(line)
+    except UnicodeEncodeError:
+        # A cp1252 console can't show emoji or CJK prompts; logging must
+        # never be what fails the node.
+        encoding = getattr(sys.stdout, "encoding", None) or "ascii"
+        print(line.encode(encoding, "replace").decode(encoding))
 
 
 def _tensor_to_pil_list(images):
@@ -60,6 +69,23 @@ def _tensor_to_pil_list(images):
         return []
     batch = images if images.ndim == 4 else images.unsqueeze(0)
     return [Image.fromarray(np.clip(img.cpu().numpy() * 255.0, 0, 255).astype(np.uint8)) for img in batch]
+
+
+# Settings whose last run failed with raise_on_error off. Their result must
+# not be served from ComfyUI's cache, or a transient 429/5xx/connection
+# error would repeat on every queue until an input changes.
+_FAILED_SIGNATURES = []
+_MAX_FAILED = 64
+
+
+def _signature(kwargs):
+    return {k: v for k, v in kwargs.items() if isinstance(v, (str, int, float, bool))}
+
+
+def _recently_failed(constants):
+    # ComfyUI passes fingerprint_inputs only the widget constants (linked
+    # inputs are absent), so compare on the keys it gave us.
+    return any(all(failed.get(k) == v for k, v in constants.items()) for failed in _FAILED_SIGNATURES)
 
 
 class LLMAPI(io.ComfyNode):
@@ -128,10 +154,23 @@ class LLMAPI(io.ComfyNode):
         )
 
     @classmethod
+    def fingerprint_inputs(cls, **kwargs):
+        if _recently_failed(_signature(kwargs)):
+            return time.time()
+        return ""
+
+    @classmethod
     async def execute(cls, endpoint, model, preset, system_message, user_input, temperature,
                       reasoning="default", max_tokens=0, top_p=1.0, seed=42, stop="", json_mode=False,
                       unload_model_after=False, context_length=0, free_comfy_vram=False, max_retries=2,
                       raise_on_error=True, images=None) -> io.NodeOutput:
+        signature = _signature(dict(
+            endpoint=endpoint, model=model, preset=preset, system_message=system_message, user_input=user_input,
+            temperature=temperature, reasoning=reasoning, max_tokens=max_tokens, top_p=top_p, seed=seed, stop=stop,
+            json_mode=json_mode, unload_model_after=unload_model_after, context_length=context_length,
+            free_comfy_vram=free_comfy_vram, max_retries=max_retries, raise_on_error=raise_on_error))
+        if signature in _FAILED_SIGNATURES:
+            _FAILED_SIGNATURES.remove(signature)
         node_id = cls.hidden.unique_id if cls.hidden else None
         client_id = _current_client_id()
         console_log = is_llm_console_log_enabled()
@@ -140,6 +179,9 @@ class LLMAPI(io.ComfyNode):
         def fail(message, status="error"):
             message = redact(message)
             _send(STREAM_EVENT, {"node": node_id, "phase": "error", "error": message}, client_id)
+            if signature not in _FAILED_SIGNATURES:
+                _FAILED_SIGNATURES.append(signature)
+                del _FAILED_SIGNATURES[:-_MAX_FAILED]
             if raise_on_error:
                 # from None: the chained original error would otherwise be
                 # printed in ComfyUI's traceback.

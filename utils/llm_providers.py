@@ -103,6 +103,7 @@ def encode_images(images):
 
 
 _THINK_BLOCK = re.compile(r"<(think|thinking|reasoning)>(.*?)</\1>", re.DOTALL | re.IGNORECASE)
+_THINK_OPEN_TAG = re.compile(r"<(think|thinking|reasoning)>", re.IGNORECASE)
 _THINK_OPEN_ONLY = re.compile(r"^\s*<(think|thinking|reasoning)>(.*)$", re.DOTALL | re.IGNORECASE)
 # Only a closing tag on its own line boundary counts, so a normal reply that
 # mentions "</think>" mid-sentence is left alone.
@@ -121,7 +122,7 @@ def split_thinking(text):
     thoughts = [m.group(2).strip() for m in _THINK_BLOCK.finditer(text)]
     text = _THINK_BLOCK.sub("", text)
     match = _THINK_CLOSE_ONLY.match(text)
-    if match and "<" not in match.group(1):
+    if match and not _THINK_OPEN_TAG.search(match.group(1)):
         thoughts.insert(0, match.group(1).strip())
         text = text[match.end():]
     match = _THINK_OPEN_ONLY.match(text)
@@ -204,7 +205,8 @@ class OpenAIAdapter:
         if system:
             messages.append({"role": "system", "content": system})
         if req.images:
-            content = [{"type": "text", "text": req.user}]
+            # Empty text parts are rejected by stricter servers; images alone are fine.
+            content = [{"type": "text", "text": req.user}] if req.user else []
             for mime, data in encode_images(req.images):
                 content.append({"type": "image_url", "image_url": {"url": f"data:{mime};base64,{data}"}})
             messages.append({"role": "user", "content": content})
@@ -335,7 +337,8 @@ class AnthropicAdapter:
         if req.images:
             content = [{"type": "image", "source": {"type": "base64", "media_type": mime, "data": data}}
                        for mime, data in encode_images(req.images)]
-            content.append({"type": "text", "text": req.user})
+            if req.user:  # Claude rejects empty text blocks
+                content.append({"type": "text", "text": req.user})
         else:
             content = req.user
         body = {
@@ -363,13 +366,18 @@ class AnthropicAdapter:
                     # Thinking can't be turned off here; ask for the least.
                     body["output_config"] = {"effort": "low"}
         elif req.reasoning in ANTHROPIC_THINKING_BUDGET:
-            # A fixed budget spends from max_tokens, so the reply keeps its
-            # full allowance on top. run_chat takes it back off if the
-            # endpoint rejects thinking.
+            # An explicit max_tokens is a cap the user chose (and may be the
+            # model's maximum), so the budget fits inside it. With max_tokens
+            # left at 0 the budget goes on top of the default instead.
             budget = ANTHROPIC_THINKING_BUDGET[req.reasoning]
-            body["thinking"] = {"type": "enabled", "budget_tokens": budget}
-            body["max_tokens"] += budget
-            thinking_on = True
+            if req.max_tokens:
+                budget = min(budget, req.max_tokens - 1)
+            if budget >= 1024:
+                body["thinking"] = {"type": "enabled", "budget_tokens": budget}
+                if not req.max_tokens:
+                    body["max_tokens"] += budget
+                    body["_budget_added"] = budget
+                thinking_on = True
 
         # Thinking fixes the sampling parameters on models that still take them.
         if sampling and not thinking_on:
@@ -536,7 +544,7 @@ def _raise_for_status(response):
 # Running a request
 # --------------------------------------------------------------------------
 
-def _adjust_for_rejection(provider, body, error_text, already):
+def _adjust_for_rejection(provider, body, error_text, already, budget_added=0):
     """Drop or rename the first parameter the error names.
 
     Returns None if nothing matched, else a note for the status line ("" when
@@ -551,10 +559,10 @@ def _adjust_for_rejection(provider, body, error_text, already):
                 body[renamed] = body.pop(key)
                 already.add(renamed)
                 return f"renamed {key} → {renamed}"
-            removed = body.pop(key)
-            if key == "thinking" and isinstance(removed, dict) and removed.get("budget_tokens"):
+            body.pop(key)
+            if key == "thinking" and budget_added:
                 # The budget was added on top of max_tokens; give it back.
-                body["max_tokens"] = max(1, body.get("max_tokens", 0) - removed["budget_tokens"])
+                body["max_tokens"] = max(1, body.get("max_tokens", 0) - budget_added)
             return "" if key == "stream_options" else f"dropped {key}"
     return None
 
@@ -588,6 +596,7 @@ def run_chat(ep, req, *, timeout=300, max_retries=2, on_delta=None, check_interr
     url = adapter.chat_url(ep)
     headers = adapter.headers(ep)
     body = adapter.build(ep, req)
+    budget_added = body.pop("_budget_added", 0)
     body.update(ep.endpoint.extra_body or {})
 
     result = ChatResult()
@@ -615,7 +624,7 @@ def run_chat(ep, req, *, timeout=300, max_retries=2, on_delta=None, check_interr
 
         if response.status_code in (400, 422):
             error_text = _error_text(response)
-            note = _adjust_for_rejection(ep.endpoint.provider, body, error_text, adjusted)
+            note = _adjust_for_rejection(ep.endpoint.provider, body, error_text, adjusted, budget_added)
             if note is not None:
                 response.close()
                 if note:

@@ -422,7 +422,8 @@ class LLMPanel {
         this.host.title = [info.description, ...info.problems].filter(Boolean).join("\n\n");
         this.updateModelHint();
         if (this.state === "idle") {
-            this.setDot(info.ok ? "" : "warn");
+            // Green once configured; ⚡ Test checks that it actually answers.
+            this.setDot(info.ok ? "ok" : "warn");
             if (!info.ok && !this.result) this.showNote(info.problems.join(" "), false);
             else if (info.ok && !this.result) this.showNote("The reply will appear here.", false);
         }
@@ -625,6 +626,13 @@ class LLMPanel {
 // Wiring
 // --------------------------------------------------------------------------
 
+// Panels whose node is still in a graph; drops any that were detached
+// without an onRemoved.
+function livePanels() {
+    for (const panel of panels) if (!panel.node.graph) panels.delete(panel);
+    return [...panels];
+}
+
 function chainCallback(widget, fn) {
     if (!widget) return;
     const original = widget.callback;
@@ -649,7 +657,6 @@ app.registerExtension({
             const r = onNodeCreated?.apply(this, arguments);
             const panel = new LLMPanel(this);
             this.mnemicLLM = panel;
-            panels.add(panel);
 
             chainCallback(panel.widget("endpoint"), (_value, previous) => panel.onEndpointChanged(previous));
             chainCallback(panel.widget("preset"), () => panel.updatePresetState());
@@ -692,6 +699,16 @@ app.registerExtension({
             return r;
         };
 
+        // Registered only once the node is in a graph: copy/paste and
+        // convert-to-subgraph build throwaway clones that are never added,
+        // and so never removed either.
+        const onAdded = nodeType.prototype.onAdded;
+        nodeType.prototype.onAdded = function () {
+            const r = onAdded?.apply(this, arguments);
+            if (this.mnemicLLM) panels.add(this.mnemicLLM);
+            return r;
+        };
+
         const onRemoved = nodeType.prototype.onRemoved;
         nodeType.prototype.onRemoved = function () {
             if (this.mnemicLLM) panels.delete(this.mnemicLLM);
@@ -703,10 +720,10 @@ app.registerExtension({
         addStylesheet();
         api.addEventListener(STREAM_EVENT, ({ detail }) => {
             if (!detail?.node) return;
-            for (const panel of panels) if (panel.matches(detail.node)) panel.onStream(detail);
+            for (const panel of livePanels()) if (panel.matches(detail.node)) panel.onStream(detail);
         });
-        api.addEventListener("execution_interrupted", () => panels.forEach((p) => p.onInterrupted()));
-        api.addEventListener("execution_error", () => panels.forEach((p) => p.state === "running" && p.onInterrupted()));
+        api.addEventListener("execution_interrupted", () => livePanels().forEach((p) => p.onInterrupted()));
+        api.addEventListener("execution_error", () => livePanels().forEach((p) => p.state === "running" && p.onInterrupted()));
         document.addEventListener("keydown", (e) => {
             if (e.key === "Escape" && openPopup) closePopup();
         });
