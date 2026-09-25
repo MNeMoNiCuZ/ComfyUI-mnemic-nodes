@@ -2,6 +2,8 @@ import { app } from "../../../scripts/app.js";
 import {
     WildcardHighlighter,
     getWidgetTextarea,
+    onWildcardHighlightRefresh,
+    renderPreviewHTML,
     setWildcardHighlightOptionsProvider,
 } from "./wildcard_highlight_core.js";
 
@@ -15,6 +17,13 @@ export const WILDCARD_TEXT_WIDGETS = {
     MNeMiC_PromptPropertyExtractor: ["input_string"],
 };
 
+// Nodes that get a Preview section showing the resolved prompt, colored by
+// where each part came from. Maps node id to the widget holding the template.
+const PREVIEW_NODES = {
+    MNeMiC_WildcardProcessor: "wildcard_string",
+    MNeMiC_WildcardProcessorAdvanced: "wildcard_string",
+};
+
 const SETTING_PREFIX = "MNeMiC.WildcardHighlight.";
 
 /** Read one of the MNeMiC.WildcardHighlight.* settings. */
@@ -24,59 +33,241 @@ function getSetting(name, fallback) {
     return value ?? fallback;
 }
 
-setWildcardHighlightOptionsProvider(() => ({
-    enabled: getSetting("Enabled", true),
-    palette: getSetting("Palette", "Pastel"),
-    style: getSetting("Style", "Background"),
-    coloring: getSetting("Coloring", "Each block"),
-    intensity: getSetting("Intensity", 35),
-    emphasizeSyntax: getSetting("EmphasizeSyntax", true),
-    markErrors: getSetting("MarkErrors", true),
-    customColors: getSetting("CustomColors", ""),
-}));
+/** The current highlight options from the settings. */
+function highlightOptions() {
+    return {
+        enabled: getSetting("Enabled", true),
+        palette: getSetting("Palette", "Pastel"),
+        style: getSetting("Style", "Background"),
+        coloring: getSetting("Coloring", "Each block"),
+        intensity: getSetting("Intensity", 35),
+        emphasizeSyntax: getSetting("EmphasizeSyntax", true),
+        markErrors: getSetting("MarkErrors", true),
+        customColors: getSetting("CustomColors", ""),
+    };
+}
+
+setWildcardHighlightOptionsProvider(highlightOptions);
+
+// ---------------------------------------------------------------------------
+// Finding the textarea
+// ---------------------------------------------------------------------------
+
+/**
+ * The <textarea> currently showing a node's widget. The classic canvas uses
+ * the widget's own DOM element. The Vue node renderer ("Nodes 2.0") draws
+ * its own <textarea> inside the node's element instead, linked to a <label>
+ * with the widget's name, and leaves the widget's element unmounted.
+ */
+function findTextarea(node, widgetName) {
+    const widget = node.widgets?.find((w) => w.name === widgetName);
+    if (!widget) return null;
+
+    const container = document.querySelector(`[data-node-id="${CSS.escape(String(node.id))}"]`);
+    if (container) {
+        const label = widget.label || widget.name;
+        for (const el of container.querySelectorAll("label[for]")) {
+            if (el.textContent.trim() !== label) continue;
+            const target = document.getElementById(el.htmlFor);
+            if (target instanceof HTMLTextAreaElement) return target;
+        }
+        // No label (some layouts hide it): match by order among the node's
+        // multiline widgets.
+        const areas = [...container.querySelectorAll("textarea")].filter((t) => !t.dataset.mnmProbe);
+        const multiline = node.widgets.filter((w) => w.type === "customtext");
+        const index = multiline.indexOf(widget);
+        if (index !== -1 && areas.length === multiline.length) return areas[index];
+    }
+
+    const classic = getWidgetTextarea(widget);
+    return classic?.isConnected ? classic : null;
+}
+
+// ---------------------------------------------------------------------------
+// Attaching highlighters
+// ---------------------------------------------------------------------------
+
+const attachments = new Set();
+let frame = 0;
+let loopRunning = false;
+
+/** Keep every highlighter on the right textarea and up to date. */
+function tick() {
+    frame++;
+    for (const attachment of attachments) {
+        const { node, widgetName } = attachment;
+        if (!node.graph) {
+            detach(attachment);
+            continue;
+        }
+        // The textarea can be swapped (switching renderers, re-mounting);
+        // look for it again a few times a second.
+        if (!attachment.highlighter || frame % 15 === 0) {
+            const textarea = findTextarea(node, widgetName);
+            if (textarea !== attachment.textarea) {
+                attachment.highlighter?.destroy();
+                attachment.textarea = textarea;
+                attachment.highlighter = textarea ? new WildcardHighlighter(textarea) : null;
+            }
+        }
+        // Also catches values set from code, which fire no input event.
+        attachment.highlighter?.update();
+    }
+    if (attachments.size) requestAnimationFrame(tick);
+    else loopRunning = false;
+}
+
+/** Stop highlighting one widget. */
+function detach(attachment) {
+    attachment.highlighter?.destroy();
+    attachments.delete(attachment);
+}
 
 /**
  * Attach wildcard highlighting to one multiline text widget of a node.
  * Safe to call more than once for the same widget.
  */
 export function attachWildcardHighlight(node, widgetName) {
-    node.__mnmWildcardHighlighters ??= new Map();
-    if (node.__mnmWildcardHighlighters.has(widgetName)) return;
-    const widget = node.widgets?.find((w) => w.name === widgetName);
-    const textarea = getWidgetTextarea(widget);
-    if (!textarea) return;
-    node.__mnmWildcardHighlighters.set(widgetName, new WildcardHighlighter(textarea));
-
-    if (node.__mnmWildcardHighlightHooked) return;
-    node.__mnmWildcardHighlightHooked = true;
-
-    // The textarea is mounted lazily and its value can be set from code
-    // (loading a workflow, pasting nodes), so re-check on every node draw.
-    const onDrawForeground = node.onDrawForeground;
-    node.onDrawForeground = function () {
-        for (const highlighter of this.__mnmWildcardHighlighters.values()) highlighter.update();
-        return onDrawForeground?.apply(this, arguments);
-    };
-
-    const onRemoved = node.onRemoved;
-    node.onRemoved = function () {
-        for (const highlighter of this.__mnmWildcardHighlighters.values()) highlighter.destroy();
-        this.__mnmWildcardHighlighters.clear();
-        return onRemoved?.apply(this, arguments);
-    };
+    for (const attachment of attachments) {
+        if (attachment.node === node && attachment.widgetName === widgetName) return;
+    }
+    attachments.add({ node, widgetName, textarea: null, highlighter: null });
+    if (!loopRunning) {
+        loopRunning = true;
+        requestAnimationFrame(tick);
+    }
 }
+
+/** Stop highlighting every widget of a node. */
+function detachNode(node) {
+    for (const attachment of attachments) {
+        if (attachment.node === node) detach(attachment);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Preview section
+// ---------------------------------------------------------------------------
+
+const PREVIEW_STYLE = `
+.mnm-wildcard-preview { display: flex; flex-direction: column; min-height: 0; font-size: 12px; color: var(--input-text, #ddd); }
+.mnm-wildcard-preview-header { all: unset; cursor: pointer; user-select: none; padding: 2px 4px; opacity: 0.8; }
+.mnm-wildcard-preview-header:hover { opacity: 1; }
+.mnm-wildcard-preview-body { flex: 1; min-height: 0; overflow: auto; white-space: pre-wrap; overflow-wrap: break-word;
+  font-family: monospace; line-height: 1.5; padding: 4px 6px; border-radius: 6px;
+  background: var(--comfy-input-bg, rgba(0,0,0,0.25)); }
+.mnm-wildcard-preview-empty { opacity: 0.6; font-style: italic; }
+`;
+
+let previewStyleAdded = false;
+
+/** Add the preview's stylesheet once. */
+function addPreviewStyle() {
+    if (previewStyleAdded) return;
+    previewStyleAdded = true;
+    const style = document.createElement("style");
+    style.textContent = PREVIEW_STYLE;
+    document.head.appendChild(style);
+}
+
+const COLLAPSED_HEIGHT = 26;
+const EXPANDED_HEIGHT = 120;
+
+/** Add the expandable Preview section to a wildcard processor node. */
+function addPreview(node) {
+    addPreviewStyle();
+    const element = document.createElement("div");
+    element.className = "mnm-wildcard-preview";
+    const header = document.createElement("button");
+    header.className = "mnm-wildcard-preview-header";
+    header.type = "button";
+    const body = document.createElement("div");
+    body.className = "mnm-wildcard-preview-body";
+    element.append(header, body);
+
+    node.properties ??= {};
+    const state = { data: null };
+    const isOpen = () => node.properties.mnmPreviewOpen === true;
+
+    const render = () => {
+        header.textContent = `${isOpen() ? "▾" : "▸"} Preview`;
+        body.style.display = isOpen() ? "" : "none";
+        if (!isOpen()) return;
+        if (!state.data) {
+            body.innerHTML = '<span class="mnm-wildcard-preview-empty">Run the workflow to see the result.</span>';
+            return;
+        }
+        body.innerHTML = renderPreviewHTML(state.data.source, state.data.segments, highlightOptions());
+    };
+
+    const widget = node.addDOMWidget("wildcard_preview", "mnm_wildcard_preview", element, {
+        serialize: false,
+        hideOnZoom: false,
+        getMinHeight: () => (isOpen() ? EXPANDED_HEIGHT : COLLAPSED_HEIGHT),
+        getMaxHeight: () => (isOpen() ? undefined : COLLAPSED_HEIGHT),
+    });
+    element.addEventListener("pointerdown", (event) => event.stopPropagation());
+
+    header.addEventListener("click", () => {
+        node.properties.mnmPreviewOpen = !isOpen();
+        render();
+        // Grow or shrink the node to fit (classic canvas).
+        const size = node.computeSize?.();
+        if (size) node.setSize([node.size[0], isOpen() ? Math.max(node.size[1], size[1]) : size[1]]);
+        node.setDirtyCanvas?.(true, true);
+    });
+
+    node.mnmWildcardPreview = {
+        widget,
+        show(data) {
+            state.data = data;
+            render();
+        },
+        refresh: render,
+    };
+    render();
+}
+
+/** Re-render every open Preview, e.g. after a highlight setting changed. */
+export function refreshWildcardPreviews() {
+    for (const node of app.graph?._nodes ?? []) node.mnmWildcardPreview?.refresh();
+}
+
+onWildcardHighlightRefresh(refreshWildcardPreviews);
+
+// ---------------------------------------------------------------------------
+// Registration
+// ---------------------------------------------------------------------------
 
 app.registerExtension({
     name: "MNeMiC.WildcardHighlight",
     async beforeRegisterNodeDef(nodeType, nodeData) {
         const widgetNames = WILDCARD_TEXT_WIDGETS[nodeData.name];
         if (!widgetNames) return;
+        const hasPreview = nodeData.name in PREVIEW_NODES;
 
         const onNodeCreated = nodeType.prototype.onNodeCreated;
         nodeType.prototype.onNodeCreated = function () {
             const result = onNodeCreated?.apply(this, arguments);
             for (const name of widgetNames) attachWildcardHighlight(this, name);
+            if (hasPreview) addPreview(this);
             return result;
         };
+
+        const onRemoved = nodeType.prototype.onRemoved;
+        nodeType.prototype.onRemoved = function () {
+            detachNode(this);
+            return onRemoved?.apply(this, arguments);
+        };
+
+        if (hasPreview) {
+            const onExecuted = nodeType.prototype.onExecuted;
+            nodeType.prototype.onExecuted = function (message) {
+                const result = onExecuted?.apply(this, arguments);
+                const data = message?.mnm_wildcard_preview?.[0];
+                if (data) this.mnmWildcardPreview?.show(data);
+                return result;
+            };
+        }
     },
 });

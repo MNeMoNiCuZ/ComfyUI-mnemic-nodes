@@ -479,14 +479,11 @@ function paintTree(text, options) {
 
     const visit = (node, inherited, layer) => {
         for (const child of node.children) {
-            const paint = {};
+            let paint = {};
             let rgb = inherited;
             if (child.color !== undefined) {
                 rgb = colorOf(child.color);
-                if (fillsBackground) paint.background = rgba(rgb, bgAlpha);
-                if (colorsText) paint.color = rgba(rgb, 1);
-                if (opts.style === "Underline") paint.underline = rgba(rgb, 1);
-                paint.rounded = true;
+                paint = blockPaint(rgb, opts);
             } else if (child.type === "delim" && opts.emphasizeSyntax && inherited) {
                 // Syntax characters get a second layer of their block's color.
                 paint.background = opts.style === "Underline"
@@ -509,6 +506,66 @@ function paintTree(text, options) {
     };
     visit(root, null, 1);
     return { root, colorsText };
+}
+
+/** How a colored block is painted in the chosen highlight style. */
+function blockPaint(rgb, opts) {
+    const colorsText = opts.style === "Text color" || opts.style === "Background + text color";
+    const fillsBackground = opts.style === "Background" || opts.style === "Background + text color";
+    const alpha = Math.max(0.05, Math.min(1, Number(opts.intensity) / 100 || DEFAULT_OPTIONS.intensity / 100));
+    const paint = { rounded: true };
+    if (fillsBackground) paint.background = rgba(rgb, opts.style === "Background + text color" ? alpha * 0.6 : alpha);
+    if (colorsText) paint.color = rgba(rgb, 1);
+    if (opts.style === "Underline") paint.underline = rgba(rgb, 1);
+    return paint;
+}
+
+/**
+ * Render a processed prompt for the node's Preview, colored by where each
+ * part came from. `source` is the template the processor ran on, and
+ * `segments` is the processor's tree of [{ text } | { key, children }],
+ * where key is "c<offset>" (a {…} block), "w<offset>" (a __wildcard__) or
+ * "v<name>" (a variable). Each part gets the color that source has in the
+ * template's own highlighting. Hovering a part shows the source it came from.
+ */
+export function renderPreviewHTML(source, segments, options = {}) {
+    const opts = { ...DEFAULT_OPTIONS, ...options };
+    const root = parseWildcardText(source);
+    assignColors(root, opts.coloring);
+    const colorOf = makeColorSource(opts);
+
+    const byKey = new Map();
+    walk(root, (node) => {
+        if (node.color === undefined) return;
+        if (node.type === "choice") byKey.set(`c${node.start}`, node);
+        else if (node.type === "wildcard") byKey.set(`w${node.start}`, node);
+        else if (node.type === "vardef" && !byKey.has(`v${node.name}`)) byKey.set(`v${node.name}`, node);
+    });
+
+    const plainText = (items) => (items || []).map((item) => item.text ?? plainText(item.children)).join("");
+    const render = (items) => {
+        let html = "";
+        for (const item of items || []) {
+            if (typeof item.text === "string") {
+                html += escapeHTML(item.text);
+                continue;
+            }
+            const node = byKey.get(item.key);
+            // A variable's text is shown in the variable's color only, so it
+            // links clearly to its ${name} uses in the template.
+            const inner = node?.type === "vardef" ? escapeHTML(plainText(item.children)) : render(item.children);
+            if (!node) {
+                html += inner;
+                continue;
+            }
+            const origin = source.slice(node.start, node.end);
+            const title = origin.length > 200 ? `${origin.slice(0, 200)}…` : origin;
+            const css = paintToSpanCSS(blockPaint(colorOf(node.color), opts));
+            html += `<span class="mnm-wh-from" style="${css}" title="${escapeHTML(title)}">${inner}</span>`;
+        }
+        return html;
+    };
+    return render(segments);
 }
 
 /** Inline CSS for a node's paint, for the span-based renderer. */
@@ -650,9 +707,17 @@ export function setWildcardHighlightOptionsProvider(fn) {
     refreshWildcardHighlighters();
 }
 
+const refreshListeners = new Set();
+
+/** Call fn whenever the highlighters are refreshed (e.g. to redraw previews). */
+export function onWildcardHighlightRefresh(fn) {
+    refreshListeners.add(fn);
+}
+
 /** Re-render every highlighter, e.g. after a setting changed. */
 export function refreshWildcardHighlighters() {
     for (const highlighter of highlighters) highlighter.refresh();
+    for (const fn of refreshListeners) fn();
 }
 
 /** Current highlight options from the settings, falling back to the defaults. */
@@ -693,6 +758,7 @@ export class WildcardHighlighter {
         this.probe.setAttribute("aria-hidden", "true");
         this.probe.tabIndex = -1;
         this.probe.style.display = "none";
+        this.probe.dataset.mnmProbe = "1";
 
         this.rendered = false;
         this.lastText = null;

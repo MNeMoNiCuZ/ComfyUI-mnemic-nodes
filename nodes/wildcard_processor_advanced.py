@@ -6,6 +6,15 @@ import folder_paths
 import json
 from ..utils.file_utils import find_best_match
 from ..utils.wildcard_variables import split_variable_definitions
+from ..utils.wildcard_provenance import (
+    MARKED_BRACES_RE,
+    MARKED_WILDCARD_RE,
+    InnerMatch,
+    build_segments,
+    mark_sources,
+    strip_markers,
+    wrap,
+)
 from ..utils.settings_utils import (
     is_wildcard_console_log_enabled,
     is_wildcard_fuzzy_search_enabled,
@@ -42,6 +51,7 @@ class WildcardProcessor(io.ComfyNode):
         self.max_nested_passes = get_wildcard_max_nested_passes()
         # Variables for the current processing run
         self.variables = {}
+        self.last_preview = None
 
     @classmethod
     def define_schema(cls) -> io.Schema:
@@ -103,7 +113,8 @@ class WildcardProcessor(io.ComfyNode):
         if _INSTANCE is None:
             _INSTANCE = WildcardProcessor()
         results = _INSTANCE.process_wildcards(**kwargs)
-        return io.NodeOutput(*results, ui=ui.PreviewText(results[0]))
+        preview = {"text": [results[0]], "mnm_wildcard_preview": [_INSTANCE.last_preview]}
+        return io.NodeOutput(*results, ui=preview)
 
     def wildcard_log(self, message, level=0):
         """Logs a message to the console if logging is enabled, with color and indentation."""
@@ -407,6 +418,19 @@ class WildcardProcessor(io.ComfyNode):
         self.wildcard_log(f"{Style.DIM}Evaluated {{{match.group(1)}}} -> {Style.NORMAL}{Fore.CYAN}{resolved_result}", level=1)
         return self._protect_resolved_text(resolved_result)
 
+    def _evaluate_marked_braces(self, match):
+        """Resolve a {...} block and tag the result with the block's source offset."""
+        result = self.evaluate_curly_braces(InnerMatch(match, "{", "}"))
+        return wrap(f"c{match.group(1)}", result) if match.group(1) else result
+
+    def _evaluate_marked_wildcard(self, match):
+        """Resolve a __wildcard__ and tag the result with its source offset."""
+        inner = InnerMatch(match, "__", "__")
+        result = self._evaluate_file_wildcard(inner)
+        if not match.group(1) or result == inner.group(0):
+            return result
+        return wrap(f"w{match.group(1)}", result)
+
     def _process_text(self, text):
         """
         Iteratively processes a string, resolving wildcards from the inside out.
@@ -418,14 +442,13 @@ class WildcardProcessor(io.ComfyNode):
             
             # First, substitute any defined variables.
             for var_name, var_value in self.variables.items():
-                text = text.replace(f"${{{var_name}}}", var_value)
+                text = text.replace(f"${{{var_name}}}", wrap(f"v{var_name}", var_value))
 
             # Process innermost curly braces expressions
-            text = re.sub(r'{([^{}]*?)}', self.evaluate_curly_braces, text)
-            
-            # Process file-based wildcards
+            text = MARKED_BRACES_RE.sub(self._evaluate_marked_braces, text)
+
             # Process file-based wildcards (including glob patterns)
-            text = re.sub(r'__([a-zA-Z0-9_./\\*?\[\] -]+?)__', self._evaluate_file_wildcard, text)
+            text = MARKED_WILDCARD_RE.sub(self._evaluate_marked_wildcard, text)
 
             if text == original_text:
                 break
@@ -546,12 +569,15 @@ class WildcardProcessor(io.ComfyNode):
                 print(f"{Fore.YELLOW}Tag Delimiters:{Style.RESET_ALL} {tag_extraction_tags}")
 
 
-        text = wildcard_string
+        # The top-level call marks where each block and wildcard sits in the
+        # template, so the Preview can show which part produced which text.
+        # Nested calls (variable values) receive already-marked text.
+        definition_depth = kwargs.get("_definition_depth", 0)
+        text = mark_sources(wildcard_string) if definition_depth == 0 else wildcard_string
 
         # 1. Find and evaluate variable definitions: ${var=!{...}}
         # Values may contain nested {...} blocks, so this is brace-aware.
         # Also creates a clean version of the text with definitions removed.
-        definition_depth = kwargs.get("_definition_depth", 0)
         if definition_depth < MAX_VARIABLE_DEFINITION_DEPTH:
             definitions, text_no_defs = split_variable_definitions(text)
         else:
@@ -569,13 +595,19 @@ class WildcardProcessor(io.ComfyNode):
             random.setstate(outer_random_state)
             
             self.variables[var_name] = evaluated_value
-            self.wildcard_log(f"Defined variable ${{{var_name}}} = {evaluated_value}")
+            self.wildcard_log(f"Defined variable ${{{var_name}}} = {strip_markers(evaluated_value)}")
 
         # 2. Extract and process tags
         text_after_extraction, processed_tags, raw_tags = self.extract_and_process_tags(text_no_defs, tag_extraction_tags)
 
         # 3. Process the main text (which has definitions and tags removed)
         processed_text = self._process_text(text_after_extraction)
+
+        if definition_depth == 0:
+            self.last_preview = {"source": wildcard_string, "segments": build_segments(processed_text)}
+            processed_text = strip_markers(processed_text)
+            processed_tags = [strip_markers(tag) for tag in processed_tags]
+            raw_tags = [strip_markers(tag) for tag in raw_tags]
 
         # 4. Prepare outputs
         extracted_tags_string = "|".join(processed_tags)

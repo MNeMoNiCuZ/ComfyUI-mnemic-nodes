@@ -21,7 +21,7 @@ The prompt boxes of the Wildcard Processor, Wildcard Processor Advanced, Batch W
 - Mistakes are underlined in red: an unclosed `{` or `${`, a stray `}`, and variables that are used where they are not defined. Each variable's value is worked out on its own, so inside a value you can only use variables defined in that same value.
 - A definition whose braces don't balance, like `${hair=!{red|blond} hair`, is cut off at the first `}` on its line. It is shown that way, underlined.
 
-Configure it under **Settings → ⚡MNeMiC Nodes → Wildcard Highlighting**:
+Configure it under **Settings → ⚡MNeMiC Nodes → Wildcard Processing** (the highlighting options are at the top):
 
 | Setting | Options |
 | --- | --- |
@@ -34,7 +34,11 @@ Configure it under **Settings → ⚡MNeMiC Nodes → Wildcard Highlighting**:
 | Mark syntax errors | Red underline on mistakes |
 | Custom colors | Colors used by the Custom palette, e.g. `#ffb3ba, #baffc9, #bae1ff` |
 
-Highlighting needs a browser with the CSS Custom Highlight API for exact alignment (any current Chromium, including the ComfyUI desktop app); older browsers fall back to a mode that can be off by a line on some widths. It works in the classic node display. It is not shown when ComfyUI's newer Vue-based node display ("Nodes 2.0") is turned on.
+Highlighting works in both the classic node display and the Vue-based node display ("Nodes 2.0"). It needs a browser with the CSS Custom Highlight API for exact alignment (any current Chromium, including the ComfyUI desktop app); older browsers fall back to a mode that can be off by a line on some widths.
+
+### Preview
+
+Both Wildcard Processor nodes have a collapsible **Preview** section. Click it to open it; after the workflow runs it shows the resolved prompt, with each part colored like the part of the template it came from. Hover a colored part to see the template text that produced it. Variable values are shown in the variable's color.
 
 Other nodes can opt in by adding their node id and text widget names to `WILDCARD_TEXT_WIDGETS` in `web/js/wildcard_highlight.js`, or by calling `attachWildcardHighlight(node, widgetName)` from their own script.
 
