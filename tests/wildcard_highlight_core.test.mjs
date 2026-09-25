@@ -47,3 +47,39 @@ test("many nested unclosed blocks parse quickly", () => {
         assert.ok(performance.now() - start < 500, `${unit} x200 took too long`);
     }
 });
+
+test("a block inside a # comment does not end the comment", () => {
+    const root = parseWildcardText("{red\n|# {dark|light} blue\n|green}");
+    assert.equal(root.children.length, 1);
+    assert.equal(root.children[0].type, "choice");
+    assert.ok(!types(root).includes("error"));
+});
+
+test("counts and weights after a line break are recognized", () => {
+    const kinds = [];
+    const collect = (node) => {
+        if (node.type === "delim") kinds.push(node.kind);
+        node.children.forEach(collect);
+    };
+    collect(parseWildcardText("{\n2$$a|b|c} {\n5::a\n|1::b\n}"));
+    assert.ok(kinds.includes("count"));
+    assert.equal(kinds.filter((k) => k === "weight").length, 2);
+});
+
+test("variables used inside a variable definition are flagged", () => {
+    const root = parseWildcardText("${a=!cat} ${b=!big ${a}} ${b}");
+    const uses = [];
+    const collect = (node) => {
+        if (node.type === "varuse") uses.push(node);
+        node.children.forEach(collect);
+    };
+    collect(root);
+    assert.equal(uses.length, 2);
+    assert.ok(uses[0].error, "use inside a definition should be flagged");
+    assert.ok(!uses[1].error, "top-level use should be fine");
+});
+
+test("custom colors accept hex and rgb()", () => {
+    const html = renderWildcardHTML("{a|b}", { palette: "Custom", customColors: "rgb(255, 0, 0), #00ff00" });
+    assert.ok(html.includes("rgba(255,0,0,"));
+});

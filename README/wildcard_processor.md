@@ -18,7 +18,7 @@ The prompt boxes of the Wildcard Processor, Wildcard Processor Advanced, Batch W
 - Every `{a|b|c}` block gets its own color, including nested blocks. The braces and `|` separators, weights (`5::`), counts (`2$$`, `1-3$$`) and custom separators get a stronger shade of the block's color.
 - A variable's definition (`${animal=!cat}`) and every use of it (`${animal}`) share one color. File wildcards (`__animals__`) and tags (`<lora:name:1>`) are colored by name the same way.
 - `#` comments inside blocks are greyed out.
-- Mistakes are underlined in red: an unclosed `{` or `${`, a stray `}`, and variables that are used but never defined.
+- Mistakes are underlined in red: an unclosed `{` or `${`, a stray `}`, variables that are used but never defined, and variables used inside another variable's definition (those are never filled in).
 
 Configure it under **Settings → ⚡MNeMiC Nodes → Wildcard Highlighting**:
 
@@ -32,6 +32,8 @@ Configure it under **Settings → ⚡MNeMiC Nodes → Wildcard Highlighting**:
 | Emphasize syntax characters | Stronger shade on braces, pipes, weights and counts |
 | Mark syntax errors | Red underline on mistakes |
 | Custom colors | Colors used by the Custom palette, e.g. `#ffb3ba, #baffc9, #bae1ff` |
+
+Highlighting works in the classic node display. It is not shown when ComfyUI's newer Vue-based node display ("Nodes 2.0") is turned on.
 
 Other nodes can opt in by adding their node id and text widget names to `WILDCARD_TEXT_WIDGETS` in `web/js/wildcard_highlight.js`, or by calling `attachWildcardHighlight(node, widgetName)` from their own script.
 

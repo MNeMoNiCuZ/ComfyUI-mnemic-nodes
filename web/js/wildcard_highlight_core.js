@@ -83,8 +83,15 @@ export function parseWildcardText(text) {
             } else if (c === "|" && mode === "option") {
                 break;
             } else if (c === "#" && mode === "option") {
+                // The processor resolves blocks nested in a comment first, so
+                // only a } at the comment's own level ends it.
                 let j = i;
-                while (j < n && text[j] !== "\n" && text[j] !== "}") j++;
+                let nested = 0;
+                while (j < n && text[j] !== "\n") {
+                    if (text[j] === "{") nested++;
+                    else if (text[j] === "}" && nested-- === 0) break;
+                    j++;
+                }
                 children.push({ type: "comment", start: i, end: j, children: [] });
                 i = j;
                 continue;
@@ -115,13 +122,23 @@ export function parseWildcardText(text) {
         return { type: "error", start: node.start, end: node.start + length, message: node.error, children: [] };
     }
 
+    // The processor drops whitespace that contains a line break before it
+    // reads counts and weights, so "{\n2$$a|b}" still has a count.
+    function skipLineBreak(i) {
+        let j = i;
+        while (j < n && /\s/.test(text[j])) j++;
+        return text.slice(i, j).includes("\n") ? j : i;
+    }
+
     function parseChoice(start, depth) {
         const node = { type: "choice", depth, start, end: n, children: [delim(start, start + 1, "brace")] };
         let i = start + 1;
 
         // Optional count prefix (N$$ or N-M$$), then an optional custom separator (sep$$).
-        const count = matchAt(COUNT_RE, text, i);
+        const countAt = skipLineBreak(i);
+        const count = matchAt(COUNT_RE, text, countAt);
         if (count) {
+            i = countAt;
             node.children.push(delim(i, i + count[0].length, "count"));
             i += count[0].length;
             const sepEnd = text.indexOf("$$", i);
@@ -141,8 +158,10 @@ export function parseWildcardText(text) {
         let index = 0;
         while (true) {
             const option = { type: "option", index: index++, start: i, end: i, children: [] };
-            const weight = matchAt(WEIGHT_RE, text, i);
+            const weightAt = skipLineBreak(i);
+            const weight = matchAt(WEIGHT_RE, text, weightAt);
             if (weight) {
+                i = weightAt;
                 option.children.push(delim(i, i + weight[0].length, "weight"));
                 i += weight[0].length;
             }
@@ -212,13 +231,19 @@ export function parseWildcardText(text) {
 
     const root = { type: "root", start: 0, end: n, children: parseSequence(0, "top", 0).children };
 
-    // Link variable definitions and uses.
+    // Link variable definitions and uses. A definition's value is resolved
+    // on its own, without the other variables, so uses inside it never work.
     const defined = new Set();
     walk(root, (node) => {
         if (node.type === "vardef") defined.add(node.name);
     });
     walk(root, (node) => {
         if (node.type === "varuse" && !defined.has(node.name)) node.error = "Undefined variable";
+        if (node.type === "vardef") {
+            walk(node, (inner) => {
+                if (inner.type === "varuse") inner.error = "Variables can't be used inside a variable definition";
+            });
+        }
     });
 
     return root;
@@ -286,7 +311,7 @@ function hslToRgb(h, s, l) {
 
 function makeColorSource(options) {
     const custom = options.palette === "Custom"
-        ? String(options.customColors || "").split(/[\s,;]+/).map(parseColor).filter(Boolean)
+        ? (String(options.customColors || "").match(/#[0-9a-f]{3}(?:[0-9a-f]{3})?\b|rgba?\([^)]*\)/gi) || []).map(parseColor).filter(Boolean)
         : [];
     if (custom.length) return (index) => custom[index % custom.length];
     const { s, l } = PALETTES[options.palette] || PALETTES.Pastel;
@@ -466,8 +491,17 @@ export class WildcardHighlighter {
             borderColor: "transparent",
             zIndex: "0",
         });
+        // The textarea itself is made transparent, so its theme colors are
+        // read from this hidden twin. That keeps them live when the theme
+        // or palette changes.
+        this.probe = document.createElement("textarea");
+        this.probe.setAttribute("aria-hidden", "true");
+        this.probe.tabIndex = -1;
+        this.probe.style.display = "none";
+
         this.lastHTML = null;
         this.lastText = null;
+        this.styleKey = null;
         this.active = false;
         this.saved = null;
 
@@ -481,7 +515,7 @@ export class WildcardHighlighter {
             : null;
         this.resizeObserver?.observe(textarea);
         this.mutationObserver = typeof MutationObserver !== "undefined"
-            ? new MutationObserver(() => this.syncGeometry())
+            ? new MutationObserver(() => this.update())
             : null;
         this.mutationObserver?.observe(textarea, { attributes: true, attributeFilter: ["style", "class", "hidden"] });
 
@@ -493,45 +527,23 @@ export class WildcardHighlighter {
     refresh() {
         this.options = { ...readOptions(), ...this.fixedOptions };
         this.lastHTML = null;
+        this.styleKey = null;
         if (!this.options.enabled) {
             this.deactivate();
             return;
         }
-        this.activate();
-        this.update();
-    }
-
-    activate() {
-        const ta = this.textarea;
         if (!this.saved) {
+            const style = this.textarea.style;
             this.saved = {
-                background: ta.style.background,
-                color: ta.style.color,
-                caretColor: ta.style.caretColor,
-                position: ta.style.position,
-                zIndex: ta.style.zIndex,
+                background: style.background,
+                color: style.color,
+                caretColor: style.caretColor,
+                position: style.position,
+                zIndex: style.zIndex,
             };
         }
-        // Read the textarea's natural colors with our overrides removed.
-        ta.style.background = this.saved.background;
-        ta.style.color = this.saved.color;
-        const computed = getComputedStyle(ta);
-        this.baseColor = computed.color;
-        this.backdrop.style.backgroundColor = computed.backgroundColor;
-        this.backdrop.style.backgroundImage = computed.backgroundImage;
-
-        ta.style.background = "transparent";
-        const colorsText = this.options.style === "Text color" || this.options.style === "Background + text color";
-        if (colorsText) {
-            ta.style.color = "transparent";
-            ta.style.caretColor = this.baseColor;
-        } else {
-            ta.style.caretColor = this.saved.caretColor;
-        }
-        if (computed.position === "static") ta.style.position = "relative";
-        if (!ta.style.zIndex) ta.style.zIndex = "1";
         this.active = true;
-        this.ensureMounted();
+        this.update();
     }
 
     deactivate() {
@@ -540,26 +552,63 @@ export class WildcardHighlighter {
             this.saved = null;
         }
         this.backdrop.remove();
+        this.probe.remove();
         this.active = false;
     }
 
-    /** Make sure the backdrop sits right behind the textarea. Cheap to call often. */
+    /**
+     * Keep the backdrop right behind the textarea. The textarea may be created
+     * detached and mounted later (ComfyUI does this), so nothing is read
+     * from it until it is in the document. Returns false until then.
+     */
     ensureMounted() {
-        if (!this.active) return false;
-        const parent = this.textarea.parentElement;
-        if (!parent) return false;
-        if (this.backdrop.parentElement !== parent || this.backdrop.nextSibling !== this.textarea) {
+        const ta = this.textarea;
+        const parent = ta.parentElement;
+        if (!this.active || !ta.isConnected || !parent) return false;
+        if (this.backdrop.parentElement !== parent || this.backdrop.nextSibling !== ta) {
             if (getComputedStyle(parent).position === "static") parent.style.position = "relative";
-            parent.insertBefore(this.backdrop, this.textarea);
-            this.syncGeometry();
+            parent.insertBefore(this.probe, ta);
+            parent.insertBefore(this.backdrop, ta);
+            this.styleKey = null;
         }
+        this.syncStyles();
         return true;
     }
 
-    /** Re-render if the text changed (also catches programmatic value changes). */
+    /** Re-apply colors and layout if the theme, font or textarea styles changed. */
+    syncStyles() {
+        const ta = this.textarea;
+        if (this.probe.className !== ta.className) this.probe.className = ta.className;
+        this.probe.style.background = this.saved.background;
+        this.probe.style.color = this.saved.color;
+        const theme = getComputedStyle(this.probe);
+        const cs = getComputedStyle(ta);
+        const key = [
+            theme.backgroundColor, theme.backgroundImage, theme.color,
+            cs.font, cs.lineHeight, cs.letterSpacing, cs.padding, cs.borderWidth,
+            cs.position, cs.display, cs.visibility, ta.className, this.options.style,
+        ].join("|");
+        if (key === this.styleKey) return;
+        this.styleKey = key;
+
+        this.baseColor = theme.color;
+        this.backdrop.style.backgroundColor = theme.backgroundColor;
+        this.backdrop.style.backgroundImage = theme.backgroundImage;
+        ta.style.background = "transparent";
+        const colorsText = this.options.style === "Text color" || this.options.style === "Background + text color";
+        ta.style.color = colorsText ? "transparent" : this.saved.color;
+        ta.style.caretColor = colorsText ? this.baseColor : this.saved.caretColor;
+        // The textarea must be positioned to paint above the backdrop.
+        if (cs.position === "static") ta.style.position = "relative";
+        if (!ta.style.zIndex) ta.style.zIndex = "1";
+
+        this.lastHTML = null;
+        this.syncGeometry();
+    }
+
+    /** Re-render if the text or styles changed. Cheap enough to call on every draw. */
     update() {
-        if (!this.active) return;
-        this.ensureMounted();
+        if (!this.ensureMounted()) return;
         const text = this.textarea.value;
         if (text === this.lastText && this.lastHTML !== null) return;
         this.lastText = text;
@@ -572,7 +621,7 @@ export class WildcardHighlighter {
     }
 
     syncGeometry() {
-        if (!this.active || !this.backdrop.parentElement) return;
+        if (!this.active || !this.backdrop.parentElement || !this.textarea.isConnected) return;
         const ta = this.textarea;
         const cs = getComputedStyle(ta);
         const bd = this.backdrop.style;
