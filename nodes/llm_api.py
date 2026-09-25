@@ -98,7 +98,7 @@ class LLMAPI(io.ComfyNode):
                 io.Combo.Input("endpoint", options=endpoint_names, default=endpoint_names[0],
                                tooltip="Which server to talk to. Endpoints are defined in nodes/llm/*.json; keys and private addresses come from .env and are never saved in the workflow."),
                 io.String.Input("model", default="",
-                                tooltip="Model name as the endpoint knows it. Empty uses the endpoint's default model. Use the 🔍 Models button on the node to browse what the endpoint offers."),
+                                tooltip="Model name as the endpoint knows it. Empty uses the endpoint's default model, or on a local/network server the first model it lists (for Ollama, one already in memory). Use 🔍 Models on the node to browse."),
                 io.Combo.Input("preset", options=[DEFAULT_PROMPT] + presets, default=DEFAULT_PROMPT,
                                tooltip="A saved system prompt, shared with the Groq nodes. The first entry uses the system_message field instead."),
                 io.String.Input("system_message", multiline=True, default="",
@@ -176,7 +176,10 @@ class LLMAPI(io.ComfyNode):
             return fail(f"{endpoint}: {' '.join(ep.problems)}", "not configured")
 
         model = (model or "").strip() or ep_config.default_model
-        if not model and ep_config.provider == "ollama":
+        # Local and network servers (Ollama, LM Studio, llama.cpp…) usually
+        # serve what's loaded: take the first model they list. A cloud
+        # endpoint's list is too broad to guess from.
+        if not model and (ep_config.provider == "ollama" or ep.location() in ("local", "network")):
             try:
                 available = await asyncio.to_thread(list_models, ep)
             except LLMError as e:

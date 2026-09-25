@@ -29,9 +29,11 @@ and what is missing if not.
 
 - **endpoint** — Which server to call. The list comes from
   `nodes/llm/DefaultEndpoints.json` and your `nodes/llm/UserEndpoints.json`.
-- **model** — Model name. Empty uses the endpoint's default (for Ollama, a
-  model already in memory if there is one, else the first installed one
-  alphabetically). Click **🔍 Models** to browse and search what the
+- **model** — Model name. Empty uses the endpoint's default model. Endpoints
+  on this PC or your network without one use the first model the server
+  lists (for Ollama, a model already in memory if there is one, else the
+  first installed one alphabetically); cloud endpoints without one need a
+  model chosen. Click **🔍 Models** to browse and search what the
   endpoint offers; Ollama models already in memory are marked.
 - **preset** — A saved system prompt, or the first entry to use
   `system_message`. Click **📜 Preset** to read the selected one.

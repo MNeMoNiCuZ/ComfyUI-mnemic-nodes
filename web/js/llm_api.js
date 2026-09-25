@@ -448,7 +448,9 @@ class LLMPanel {
         if (!model) {
             hint = this.info.default_model
                 ? `model: ${this.info.default_model} (default)`
-                : this.info.provider === "ollama" ? "model: one in memory, else first installed" : "no model chosen";
+                : this.info.provider === "ollama" ? "model: one in memory, else first installed"
+                : ["local", "network"].includes(this.info.location) ? "model: first the server lists"
+                : "no model chosen";
         }
         this.host.textContent = [this.info.host, hint].filter(Boolean).join(" · ");
     }
@@ -524,8 +526,8 @@ class LLMPanel {
         }
         if (act === "test") {
             button.disabled = true;
-            this.setDot("busy");
             await this.refreshStatus(true);
+            this.setDot("busy");
             const endpoint = this.widget("endpoint")?.value;
             const data = await getModels(endpoint, true);
             button.disabled = false;
@@ -614,6 +616,8 @@ class LLMPanel {
         if (summary.output_tokens && summary.seconds > 0) parts.push(`${Math.round(summary.output_tokens / summary.seconds)} tok/s`);
         if (summary.status && summary.status !== "200 OK") parts.push(summary.status.replace(/^200 OK /, ""));
         this.stats.textContent = parts.join(" · ");
+        // .env may have changed since the panel last looked (e.g. a key added).
+        this.refreshStatus(true);
     }
 
     onInterrupted() {
