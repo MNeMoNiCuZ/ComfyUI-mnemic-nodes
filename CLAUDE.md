@@ -18,7 +18,13 @@ review loop below has passed:
    Findings that are wrong get dismissed with a reason.
 4. You are done only after **3 consecutive review rounds with no valid
    findings**. Any fix resets the count to zero.
-5. When reporting back, say how many review rounds ran and what they found and
+5. For a PR, also subscribe to its activity (`subscribe_pr_activity`) as soon
+   as it is opened, so CodeRabbit and reviewer feedback arrives without being
+   asked. The PR is done only when CodeRabbit has reviewed the latest commit
+   with no open findings, including the warnings in its summary comment (not
+   just inline comments). If it is rate-limited, wait and then request a review
+   with an `@coderabbitai review` comment.
+6. When reporting back, say how many review rounds ran and what they found and
    fixed.
 
 This applies to every task in this repository, including small fixes and
