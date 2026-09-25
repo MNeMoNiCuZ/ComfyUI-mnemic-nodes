@@ -127,7 +127,7 @@ app.registerExtension({
       id: "MNeMiC.WildcardHighlight.MarkErrors",
       name: "Mark syntax errors",
       category: [...HIGHLIGHT_CATEGORY, "Mark Errors"],
-      tooltip: "Underline unclosed { or ${, stray }, and ${variables} that are used but never defined, with a red wavy line.",
+      tooltip: "Underline unclosed { or ${, stray }, unbalanced ${name=!...} definitions, and ${variables} used where they are not defined, with a red wavy line. A variable's value only sees variables defined inside that value.",
       type: "boolean",
       defaultValue: true,
       onChange: () => refreshWildcardHighlighters(),

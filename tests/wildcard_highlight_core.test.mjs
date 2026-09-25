@@ -1,7 +1,7 @@
 // Run with: node --test tests/
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { parseWildcardText, renderWildcardHTML } from "../web/js/wildcard_highlight_core.js";
+import { computeWildcardRanges, parseWildcardText, renderWildcardHTML } from "../web/js/wildcard_highlight_core.js";
 
 function types(node, out = []) {
     for (const child of node.children) {
@@ -98,4 +98,57 @@ test("pathological text renders plainly instead of crashing or stalling", () => 
         assert.ok(performance.now() - start < 300, `took too long for length ${text.length}`);
         assert.ok(html.startsWith(text.slice(0, 20).replace(/&/g, "&amp;").replace(/</g, "&lt;")));
     }
+});
+
+function collect(node, type, out = []) {
+    for (const child of node.children) {
+        if (child.type === type) out.push(child);
+        collect(child, type, out);
+    }
+    return out;
+}
+
+test("wildcard syntax inside tags is parsed", () => {
+    const root = parseWildcardText("${l=!{a|b}} photo <lora:{styleA|styleB}:0.8> <lora:${l}:1> <lora:${x}:1>");
+    const tags = collect(root, "tag");
+    assert.equal(tags.length, 3);
+    assert.equal(collect(tags[0], "choice").length, 1);
+    const uses = collect(root, "varuse");
+    assert.ok(!uses[0].error, "defined variable in a tag");
+    assert.ok(uses[1].error, "undefined variable in a tag");
+});
+
+test("tags do not nest into each other", () => {
+    const root = parseWildcardText("<a:{x|y} ".repeat(2500));
+    assert.ok(!root.tooComplex);
+});
+
+test("an unbalanced definition ends at the first } like the processor", () => {
+    const root = parseWildcardText("${hair=!{red|blond} a girl with ${hair} hair");
+    const [def] = collect(root, "vardef");
+    assert.equal(def.end, "${hair=!{red|blond}".length);
+    assert.ok(def.error);
+    assert.equal(collect(root, "choice").length, 0);
+    const [use] = collect(root, "varuse");
+    assert.ok(!use.error, "the processor still defines the variable");
+});
+
+test("each definition's value is its own variable scope", () => {
+    const inner = parseWildcardText("${a=!${b=!x} ${b}} A=[${a}]");
+    const innerUses = collect(inner, "varuse");
+    assert.ok(innerUses.every((u) => !u.error));
+
+    const outer = parseWildcardText("${a=!${b=!x}} B=[${b}]");
+    const [use] = collect(outer, "varuse");
+    assert.ok(use.error, "b is only defined inside a's value");
+});
+
+test("highlight ranges cover the styled text", () => {
+    const ranges = computeWildcardRanges("a {red|blue} ${v=!x} ${v}");
+    assert.ok(ranges.length > 0);
+    for (const r of ranges) {
+        assert.ok(r.end > r.start && r.css && r.layer >= 1);
+    }
+    const block = ranges.find((r) => r.start === 2 && r.end === 12);
+    assert.ok(block, "the {red|blue} block is one range");
 });

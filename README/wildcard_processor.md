@@ -16,9 +16,10 @@ This node adds powerful dynamic capabilities to your prompts. Wildcards are gene
 The prompt boxes of the Wildcard Processor, Wildcard Processor Advanced, Batch Wildcard Upscale Sampler (positive and negative) and Prompt Property Extractor color the wildcard syntax as you type, so it is easy to see which text belongs to which block:
 
 - Every `{a|b|c}` block gets its own color, including nested blocks. The braces and `|` separators, weights (`5::`), counts (`2$$`, `1-3$$`) and custom separators get a stronger shade of the block's color.
-- A variable's definition (`${animal=!cat}`) and every use of it (`${animal}`) share one color. File wildcards (`__animals__`) and tags (`<lora:name:1>`) are colored by name the same way.
+- A variable's definition (`${animal=!cat}`) and every use of it (`${animal}`) share one color. File wildcards (`__animals__`) and tags (`<lora:name:1>`) are colored by name the same way. Syntax inside a tag, like `<lora:{styleA|styleB}:0.8>`, is highlighted too.
 - `#` comments inside blocks are greyed out.
-- Mistakes are underlined in red: an unclosed `{` or `${`, a stray `}`, variables that are used but never defined, and variables used inside another variable's definition (those are never filled in).
+- Mistakes are underlined in red: an unclosed `{` or `${`, a stray `}`, and variables that are used where they are not defined. Each variable's value is worked out on its own, so inside a value you can only use variables defined in that same value.
+- A definition whose braces don't balance, like `${hair=!{red|blond} hair`, is cut off at the first `}` on its line. It is shown that way, underlined.
 
 Configure it under **Settings → ⚡MNeMiC Nodes → Wildcard Highlighting**:
 
@@ -33,7 +34,7 @@ Configure it under **Settings → ⚡MNeMiC Nodes → Wildcard Highlighting**:
 | Mark syntax errors | Red underline on mistakes |
 | Custom colors | Colors used by the Custom palette, e.g. `#ffb3ba, #baffc9, #bae1ff` |
 
-Highlighting works in the classic node display. It is not shown when ComfyUI's newer Vue-based node display ("Nodes 2.0") is turned on.
+Highlighting needs a browser with the CSS Custom Highlight API for exact alignment (any current Chromium, including the ComfyUI desktop app); older browsers fall back to a mode that can be off by a line on some widths. It works in the classic node display. It is not shown when ComfyUI's newer Vue-based node display ("Nodes 2.0") is turned on.
 
 Other nodes can opt in by adding their node id and text widget names to `WILDCARD_TEXT_WIDGETS` in `web/js/wildcard_highlight.js`, or by calling `attachWildcardHighlight(node, widgetName)` from their own script.
 
