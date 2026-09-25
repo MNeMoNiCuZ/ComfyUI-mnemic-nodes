@@ -45,10 +45,12 @@ Advanced:
 
 - **reasoning** — Thinking effort for reasoning models: `none` turns it off
   where supported, `low`/`medium`/`high` ask for more. Sent as
-  `reasoning_effort` (OpenAI-style), `think` (Ollama) or an extended-thinking
-  budget of 2k/8k/24k tokens (Claude).
+  `reasoning_effort` (OpenAI-style), `think` (Ollama), or on Claude as
+  adaptive thinking with that effort level (older Claude models such as Haiku
+  4.5 get a 2k/8k/24k-token thinking budget instead). Where Claude can't turn
+  thinking off (Opus 5.5, Fable), `none` asks for the lowest effort.
 - **max_tokens** — Reply length cap. 0 leaves it to the server (Claude gets
-  4096).
+  16000). Thinking counts against it on current Claude models.
 - **top_p** — Nucleus sampling. 1.0 is off and not sent.
 - **seed** — Sent for repeatable replies where supported. Fixed by default, so
   an unchanged node reuses its cached reply instead of paying for a new one.
@@ -89,8 +91,9 @@ back in an error message is masked before it is shown or returned.
 | `ollama`    | Ollama's native API (for `keep_alive`, `num_ctx`, `think`)      |
 
 **Parameters that don't fit.** Models differ in what they accept: OpenAI's
-reasoning models refuse `temperature`, some Claude models refuse `temperature`
-and `top_p` together, some servers don't know `seed`. When an endpoint rejects a
+reasoning models refuse `temperature`, some servers don't know `seed`. For
+Claude the node already knows which models dropped `temperature`/`top_p`
+(Sonnet 5, Opus 4.7 and later, Fable) and doesn't send them. When an endpoint rejects a
 parameter by name, the node drops it (or renames `max_tokens` ↔
 `max_completion_tokens`) and retries, then reports what it changed in
 `status`.

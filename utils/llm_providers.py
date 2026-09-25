@@ -29,15 +29,18 @@ from .env_manager import redact
 RETRY_STATUSES = {408, 409, 425, 429, 500, 502, 503, 504, 529}
 MAX_IMAGE_SIDE = 2048
 ANTHROPIC_VERSION = "2023-06-01"
-ANTHROPIC_DEFAULT_MAX_TOKENS = 4096
+ANTHROPIC_DEFAULT_MAX_TOKENS = 16000
+# Older Claude models (Haiku 4.5, 4.5 and earlier) take a fixed thinking
+# budget; current ones take adaptive thinking with an effort level.
 ANTHROPIC_THINKING_BUDGET = {"minimal": 1024, "low": 2048, "medium": 8192, "high": 24576}
+ANTHROPIC_EFFORT = {"minimal": "low", "low": "low", "medium": "medium", "high": "high"}
 
 # Parameters an endpoint may reject, in the order they are given up. When a
 # 400/422 names one of these, it is dropped (or renamed) and the call retried.
 _ADJUSTABLE = {
     "openai": ["stream_options", "reasoning_effort", "seed", "top_p", "temperature", "stop",
                "response_format", "max_tokens", "max_completion_tokens"],
-    "anthropic": ["top_p", "temperature", "thinking", "stop_sequences"],
+    "anthropic": ["top_p", "temperature", "output_config", "thinking", "stop_sequences"],
     "ollama": ["think", "format"],
 }
 _RENAMES = {"max_tokens": "max_completion_tokens", "max_completion_tokens": "max_tokens"}
@@ -100,7 +103,9 @@ def encode_images(images):
 
 _THINK_BLOCK = re.compile(r"<(think|thinking|reasoning)>(.*?)</\1>", re.DOTALL | re.IGNORECASE)
 _THINK_OPEN_ONLY = re.compile(r"^\s*<(think|thinking|reasoning)>(.*)$", re.DOTALL | re.IGNORECASE)
-_THINK_CLOSE_ONLY = re.compile(r"^(.*?)</(think|thinking|reasoning)>", re.DOTALL | re.IGNORECASE)
+# Only a closing tag on its own line boundary counts, so a normal reply that
+# mentions "</think>" mid-sentence is left alone.
+_THINK_CLOSE_ONLY = re.compile(r"^(.*?)</(think|thinking|reasoning)>[ \t]*(?:\r?\n|$)", re.DOTALL | re.IGNORECASE)
 
 
 def split_thinking(text):
@@ -115,7 +120,7 @@ def split_thinking(text):
     thoughts = [m.group(2).strip() for m in _THINK_BLOCK.finditer(text)]
     text = _THINK_BLOCK.sub("", text)
     match = _THINK_CLOSE_ONLY.match(text)
-    if match and "<" + match.group(2) not in match.group(1).lower():
+    if match and "<" not in match.group(1):
         thoughts.insert(0, match.group(1).strip())
         text = text[match.end():]
     match = _THINK_OPEN_ONLY.match(text)
@@ -276,6 +281,40 @@ class OpenAIAdapter:
         return sorted(models, key=lambda m: m["id"].lower())
 
 
+_CLAUDE_VERSION = re.compile(r"claude-(?:(opus|sonnet|haiku)-(\d+)(?:[-.](\d)(?!\d))?|(\d+)(?:[-.](\d))?-(opus|sonnet|haiku))")
+
+
+def claude_profile(model):
+    """What a Claude model accepts, from its id.
+
+    Returns (adaptive, sampling, can_disable):
+    - adaptive: thinking is {"type": "adaptive"} + output_config.effort
+      (Claude 4.6+ except Haiku); otherwise {"type": "enabled", budget_tokens}.
+    - sampling: temperature / top_p are accepted (removed on Sonnet 5,
+      Opus 4.7+, Fable and Mythos, where sending them is a 400).
+    - can_disable: {"type": "disabled"} is accepted (not on Opus 5.5+,
+      Fable or Mythos, where thinking is always on).
+    Unknown ids are treated as current models; the rejection fallback in
+    run_chat covers any mismatch.
+    """
+    m = model.lower()
+    if "fable" in m or "mythos" in m:
+        return True, False, False
+    match = _CLAUDE_VERSION.search(m)
+    if not match:
+        return True, False, True
+    if match.group(1):
+        family, major, minor = match.group(1), int(match.group(2)), int(match.group(3) or 0)
+    else:  # claude-3-5-sonnet style
+        family, major, minor = match.group(6), int(match.group(4)), int(match.group(5) or 0)
+    version = (major, minor)
+    if family == "haiku" or version < (4, 6):
+        return False, True, True
+    if family == "sonnet":
+        return True, version < (5, 0), True
+    return True, version < (4, 7), version < (5, 5)
+
+
 class AnthropicAdapter:
     name = "anthropic"
 
@@ -307,13 +346,32 @@ class AnthropicAdapter:
             body["system"] = system
         if req.stop:
             body["stop_sequences"] = req.stop
-        budget = ANTHROPIC_THINKING_BUDGET.get(req.reasoning)
-        if budget:
-            # Extended thinking spends from max_tokens and fixes the sampling
-            # parameters, so the reply keeps its full budget on top.
+
+        adaptive, sampling, can_disable = claude_profile(req.model)
+        thinking_on = False
+        if adaptive:
+            if req.reasoning in ANTHROPIC_EFFORT:
+                # "summarized": the thinking text is empty by default.
+                body["thinking"] = {"type": "adaptive", "display": "summarized"}
+                body["output_config"] = {"effort": ANTHROPIC_EFFORT[req.reasoning]}
+                thinking_on = True
+            elif req.reasoning == "none":
+                if can_disable:
+                    body["thinking"] = {"type": "disabled"}
+                else:
+                    # Thinking can't be turned off here; ask for the least.
+                    body["output_config"] = {"effort": "low"}
+        elif req.reasoning in ANTHROPIC_THINKING_BUDGET:
+            # A fixed budget spends from max_tokens, so the reply keeps its
+            # full allowance on top. run_chat takes it back off if the
+            # endpoint rejects thinking.
+            budget = ANTHROPIC_THINKING_BUDGET[req.reasoning]
             body["thinking"] = {"type": "enabled", "budget_tokens": budget}
             body["max_tokens"] += budget
-        else:
+            thinking_on = True
+
+        # Thinking fixes the sampling parameters on models that still take them.
+        if sampling and not thinking_on:
             if req.temperature is not None:
                 body["temperature"] = min(req.temperature, 1.0)
             if req.top_p is not None and req.top_p < 1.0:
@@ -492,7 +550,10 @@ def _adjust_for_rejection(provider, body, error_text, already):
                 body[renamed] = body.pop(key)
                 already.add(renamed)
                 return f"renamed {key} → {renamed}"
-            body.pop(key)
+            removed = body.pop(key)
+            if key == "thinking" and isinstance(removed, dict) and removed.get("budget_tokens"):
+                # The budget was added on top of max_tokens; give it back.
+                body["max_tokens"] = max(1, body.get("max_tokens", 0) - removed["budget_tokens"])
             return "" if key == "stream_options" else f"dropped {key}"
     return None
 
@@ -574,8 +635,10 @@ def run_chat(ep, req, *, timeout=300, max_retries=2, on_delta=None, check_interr
         _raise_for_status(response)
         break
 
+    content_type = response.headers.get("content-type", "").lower()
+    streamed = bool(body.get("stream")) and "application/json" not in content_type
     try:
-        if body.get("stream"):
+        if streamed:
             text_parts, thinking_parts = [], []
             last_push = 0.0
             for kind, piece in adapter.stream(response, result):
@@ -588,7 +651,13 @@ def run_chat(ep, req, *, timeout=300, max_retries=2, on_delta=None, check_interr
                     on_delta("".join(text_parts), "".join(thinking_parts))
             result.text = "".join(text_parts)
             result.thinking = "".join(thinking_parts)
+            if not text_parts and not thinking_parts and not result.finish_reason:
+                raise LLMError(f"{ep.endpoint.name} ended the stream without sending a reply. "
+                               "If it doesn't support streaming, turn off Live reply preview in the settings.",
+                               status="empty stream")
         else:
+            # Also the path for servers that ignore stream: true and answer
+            # with a plain JSON body.
             adapter.parse(response.json(), result)
     except (ValueError, requests.RequestException) as e:
         raise LLMError(redact(f"Bad response from {ep.endpoint.name}: {_short_exception(e)}"), status="bad response")

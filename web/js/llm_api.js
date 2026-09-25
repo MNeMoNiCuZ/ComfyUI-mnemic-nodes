@@ -50,9 +50,16 @@ async function getEndpoints(force = false) {
     return endpointCache.promise;
 }
 
-async function getPresets() {
+// Presets can change on disk (R refreshes the dropdown), so a name the cache
+// doesn't know triggers one refetch.
+async function getPresets(name) {
     presetCache ??= fetchJSON("/mnemic/llm/presets").then((d) => d.presets ?? {}).catch(() => ({}));
-    return presetCache;
+    let presets = await presetCache;
+    if (name && !(name in presets)) {
+        presetCache = fetchJSON("/mnemic/llm/presets").then((d) => d.presets ?? {}).catch(() => ({}));
+        presets = await presetCache;
+    }
+    return presets;
 }
 
 async function getModels(endpoint, force = false) {
@@ -76,6 +83,32 @@ function splitInlineThinking(text) {
     const m = text.match(/^\s*<(think|thinking|reasoning)>([\s\S]*?)(<\/\1>|$)/i);
     if (!m) return [text, ""];
     return [text.slice(m[0].length).trimStart(), m[2].trim()];
+}
+
+// navigator.clipboard only exists in secure contexts; ComfyUI opened over
+// http://<LAN IP> is not one, so fall back to the old selection copy.
+async function copyText(text) {
+    try {
+        if (navigator.clipboard?.writeText) {
+            await navigator.clipboard.writeText(text);
+            return true;
+        }
+    } catch {
+        // fall through to the fallback
+    }
+    const area = document.createElement("textarea");
+    area.value = text;
+    area.style.cssText = "position:fixed;left:-9999px;top:0;opacity:0";
+    document.body.appendChild(area);
+    area.select();
+    let ok = false;
+    try {
+        ok = document.execCommand("copy");
+    } catch {
+        ok = false;
+    }
+    area.remove();
+    return ok;
 }
 
 // --------------------------------------------------------------------------
@@ -295,7 +328,7 @@ async function showPreset(panel, anchor) {
     if (name === DEFAULT_PRESET) {
         pre.textContent = "The node is using its own system_message field.\n\nPick a preset to replace it with a saved system prompt. Presets are shared with the Groq nodes: nodes/groq/UserPrompts.json and UserPrompts_VLM.json.";
     } else {
-        pre.textContent = (await getPresets())[name] ?? "(preset not found — refresh node definitions with R)";
+        pre.textContent = (await getPresets(name))[name] ?? "(preset not found: it may have been removed from the preset files)";
     }
     pop.append(pre);
 }
@@ -386,9 +419,8 @@ class LLMPanel {
         } else {
             this.setChip(this.key, "🔓 no key needed", false);
         }
-        this.host.textContent = info.host;
         this.host.title = [info.description, ...info.problems].filter(Boolean).join("\n\n");
-        this.updateModelPlaceholder();
+        this.updateModelHint();
         if (this.state === "idle") {
             this.setDot(info.ok ? "" : "warn");
             if (!info.ok && !this.result) this.showNote(info.problems.join(" "), false);
@@ -406,11 +438,18 @@ class LLMPanel {
         this.dot.className = `mnemic-llm-dot ${kind}`;
     }
 
-    updateModelPlaceholder() {
-        const input = this.widget("model")?.inputEl;
-        if (!input) return;
-        const def = this.info?.default_model;
-        input.placeholder = def ? `Default: ${def} — 🔍 to browse` : "Pick a model — 🔍 Models";
+    // Shown in the status line: the model field is a canvas widget with no
+    // placeholder of its own.
+    updateModelHint() {
+        if (!this.info) return;
+        const model = this.widget("model")?.value ?? "";
+        let hint = "";
+        if (!model) {
+            hint = this.info.default_model
+                ? `model: ${this.info.default_model} (default)`
+                : this.info.provider === "ollama" ? "model: first installed" : "no model chosen";
+        }
+        this.host.textContent = [this.info.host, hint].filter(Boolean).join(" · ");
     }
 
     // ---- presets --------------------------------------------------------
@@ -421,7 +460,7 @@ class LLMPanel {
         const input = system?.inputEl;
         if (!input) return;
         if (preset && preset !== DEFAULT_PRESET) {
-            const text = (await getPresets())[preset] ?? "";
+            const text = (await getPresets(preset))[preset] ?? "";
             input.style.opacity = "0.45";
             input.title = "Ignored while a preset is selected.";
             input.dataset.mnemicPlaceholder ??= input.placeholder ?? "";
@@ -477,8 +516,8 @@ class LLMPanel {
         if (act === "copy") {
             const text = this.result?.text ?? "";
             if (!text) return;
-            await navigator.clipboard?.writeText(text);
-            button.textContent = "✓ Copied";
+            const ok = await copyText(text);
+            button.textContent = ok ? "✓ Copied" : "Copy failed";
             setTimeout(() => (button.textContent = "📋 Copy"), 1200);
             return;
         }
@@ -614,7 +653,10 @@ app.registerExtension({
 
             chainCallback(panel.widget("endpoint"), (_value, previous) => panel.onEndpointChanged(previous));
             chainCallback(panel.widget("preset"), () => panel.updatePresetState());
-            chainCallback(panel.widget("model"), () => panel.rememberModel());
+            chainCallback(panel.widget("model"), () => {
+                panel.rememberModel();
+                panel.updateModelHint();
+            });
 
             const [w, h] = this.size;
             this.setSize([Math.max(w, 400), Math.max(h, this.computeSize()[1])]);
