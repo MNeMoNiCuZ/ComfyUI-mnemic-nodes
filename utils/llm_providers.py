@@ -149,16 +149,27 @@ def _json_instruction(system, user):
 
 
 def _error_text(response):
+    """The error message from a failed response, redacted, then shortened.
+
+    Redacting before cutting matters: a key cut in half no longer matches
+    its registered secret and would be shown in part.
+    """
     try:
-        data = response.json()
-    except ValueError:
-        return response.text.strip()[:2000]
-    if isinstance(data, dict):
-        err = data.get("error", data)
-        if isinstance(err, dict):
-            return str(err.get("message") or err.get("error") or json.dumps(err))[:2000]
-        return str(err)[:2000]
-    return json.dumps(data)[:2000]
+        try:
+            data = response.json()
+        except ValueError:
+            text = response.text.strip()
+        else:
+            err = data.get("error", data) if isinstance(data, dict) else data
+            if isinstance(err, dict):
+                text = str(err.get("message") or err.get("error") or json.dumps(err))
+            else:
+                text = err if isinstance(err, str) else json.dumps(err)
+    except requests.RequestException:
+        # A streamed error body that stalls or resets; the exception text
+        # would carry the host.
+        return "(error body unreadable)"
+    return redact(text)[:2000] or "(no error message)"
 
 
 def _iter_sse(response):
@@ -630,7 +641,7 @@ def run_chat(ep, req, *, timeout=300, max_retries=2, on_delta=None, check_interr
                 if note:
                     result.adjustments.append(note)
                 if log:
-                    log(f"Endpoint rejected a parameter ({redact(error_text[:200])}); {note or 'dropped stream_options'}, retrying.")
+                    log(f"Endpoint rejected a parameter ({error_text[:200]}); {note or 'dropped stream_options'}, retrying.")
                 continue
 
         if response.status_code in RETRY_STATUSES and attempt < max_retries:
