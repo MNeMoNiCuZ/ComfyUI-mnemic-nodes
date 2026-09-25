@@ -12,23 +12,29 @@ split = _module.split_variable_definitions
 
 
 class SplitVariableDefinitionsTest(unittest.TestCase):
+    """Tests for split_variable_definitions."""
     def test_simple(self):
+        """Plain definitions are extracted and removed."""
         self.assertEqual(split("${animal=!cat} A ${animal}"), ([("animal", "cat")], " A ${animal}"))
 
     def test_nested_value(self):
+        """Values with nested {...} blocks are kept whole."""
         self.assertEqual(
             split("${c=!{red|{dark|light} blue}} x ${c}"),
             ([("c", "{red|{dark|light} blue}")], " x ${c}"),
         )
 
     def test_use_before_definition(self):
+        """A ${name} use before its definition is left alone."""
         self.assertEqual(split("A ${a} then ${a=!dog} end"), ([("a", "dog")], "A ${a} then  end"))
 
     def test_unclosed_keeps_old_behaviour(self):
+        """Unbalanced definitions end at the first } on the line, like the old regex."""
         self.assertEqual(split("${a=!{red|blue}"), ([("a", "{red|blue")], ""))
         self.assertEqual(split("${a=!{open"), ([], "${a=!{open"))
 
     def test_no_definitions(self):
+        """Text without definitions is returned unchanged."""
         self.assertEqual(split("no vars $5 {a|b}"), ([], "no vars $5 {a|b}"))
 
 

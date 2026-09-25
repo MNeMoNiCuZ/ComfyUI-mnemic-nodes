@@ -17,6 +17,7 @@ export const WILDCARD_TEXT_WIDGETS = {
 
 const SETTING_PREFIX = "MNeMiC.WildcardHighlight.";
 
+/** Read one of the MNeMiC.WildcardHighlight.* settings. */
 function getSetting(name, fallback) {
     const id = SETTING_PREFIX + name;
     const value = app.extensionManager?.setting?.get?.(id) ?? app.ui?.settings?.getSettingValue?.(id);

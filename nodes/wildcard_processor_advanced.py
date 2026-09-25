@@ -20,6 +20,11 @@ from comfy_api.latest import io, ui
 # survive between executions, which V3 class-clone execution otherwise loses.
 _INSTANCE = None
 
+# Variable values can contain further definitions, each evaluated by a nested
+# processor. Past this depth they are left as text, so a crafted prompt
+# cannot exhaust the Python stack.
+MAX_VARIABLE_DEFINITION_DEPTH = 20
+
 
 class WildcardProcessor(io.ComfyNode):
     """
@@ -546,7 +551,11 @@ class WildcardProcessor(io.ComfyNode):
         # 1. Find and evaluate variable definitions: ${var=!{...}}
         # Values may contain nested {...} blocks, so this is brace-aware.
         # Also creates a clean version of the text with definitions removed.
-        definitions, text_no_defs = split_variable_definitions(text)
+        definition_depth = kwargs.get("_definition_depth", 0)
+        if definition_depth < MAX_VARIABLE_DEFINITION_DEPTH:
+            definitions, text_no_defs = split_variable_definitions(text)
+        else:
+            definitions, text_no_defs = [], text
 
         for var_name, var_value_expr in definitions:
             var_name = var_name.strip()
@@ -556,7 +565,7 @@ class WildcardProcessor(io.ComfyNode):
             # Use a new random seed for variable evaluation to not interfere with main seed
             var_seed = random.randint(0, 0xffffffffffffffff)
             outer_random_state = random.getstate()
-            evaluated_value = temp_processor.process_wildcards(**{"wildcard_string": var_value_expr, "seed": var_seed})[0]
+            evaluated_value = temp_processor.process_wildcards(**{"wildcard_string": var_value_expr, "seed": var_seed, "_definition_depth": definition_depth + 1})[0]
             random.setstate(outer_random_state)
             
             self.variables[var_name] = evaluated_value

@@ -32,11 +32,13 @@ const STEP_BUDGET_PER_CHAR = 40;
 
 class TooComplex extends Error {}
 
+/** Run a sticky regex at exactly `index` and return the match or null. */
 function matchAt(re, text, index) {
     re.lastIndex = index;
     return re.exec(text);
 }
 
+/** Make a syntax-character node covering text[start, end). */
 function delim(start, end, kind) {
     return { type: "delim", kind, start, end, children: [] };
 }
@@ -68,6 +70,7 @@ export function parseWildcardText(text) {
     // without this, nested unclosed blocks take exponential time.
     const failed = new Map();
 
+    /** Parse text from `i` until the end of the current block; returns { children, end }. */
     function parseSequence(i, mode, depth) {
         // mode: "top" | "option" (inside a choice) | "value" (inside a vardef)
         const children = [];
@@ -131,21 +134,26 @@ export function parseWildcardText(text) {
         return { children, end: i };
     }
 
-    // An unclosed block only flags its opening characters; the text after
-    // it is parsed again as normal text (the processor leaves it as-is too).
+    /**
+     * An unclosed block only flags its opening characters; the text after
+     * it is parsed again as normal text (the processor leaves it as-is too).
+     */
     function strayError(node) {
         const length = node.type === "vardef" ? 2 : 1;
         return { type: "error", start: node.start, end: node.start + length, message: node.error, children: [] };
     }
 
-    // The processor drops whitespace that contains a line break before it
-    // reads counts and weights, so "{\n2$$a|b}" still has a count.
+    /**
+     * The processor drops whitespace that contains a line break before it
+     * reads counts and weights, so "{\n2$$a|b}" still has a count.
+     */
     function skipLineBreak(i) {
         let j = i;
         while (j < n && /\s/.test(text[j])) j++;
         return text.slice(i, j).includes("\n") ? j : i;
     }
 
+    /** Parse the {a|b|c} block that opens at `start`. Sets `error` if it never closes. */
     function parseChoice(start, depth) {
         const node = { type: "choice", depth, start, end: n, children: [delim(start, start + 1, "brace")] };
         let i = start + 1;
@@ -201,6 +209,7 @@ export function parseWildcardText(text) {
         }
     }
 
+    /** Parse the ${name} use or ${name=!value} definition at `start`, or return null. */
     function parseVariable(start, depth) {
         // start points at "${". Returns null when this is not a variable,
         // in which case the "$" is treated as plain text.
@@ -269,6 +278,7 @@ export function parseWildcardText(text) {
     return root;
 }
 
+/** Call fn on node and every node below it, parents first. */
 function walk(node, fn) {
     fn(node);
     for (const child of node.children) walk(child, fn);
@@ -306,6 +316,7 @@ export const DEFAULT_OPTIONS = {
 const HUE_START = 200;
 const GOLDEN_ANGLE = 137.508;
 
+/** Parse "#rgb", "#rrggbb" or "rgb(r, g, b)" into [r, g, b], or return null. */
 function parseColor(value) {
     const probe = String(value).trim();
     if (!probe) return null;
@@ -320,6 +331,7 @@ function parseColor(value) {
     return null;
 }
 
+/** Convert HSL (degrees, percent, percent) to [r, g, b] in 0-255. */
 function hslToRgb(h, s, l) {
     s /= 100;
     l /= 100;
@@ -329,6 +341,7 @@ function hslToRgb(h, s, l) {
     return [f(0), f(8), f(4)].map((v) => Math.round(v * 255));
 }
 
+/** Return a function mapping a palette index to [r, g, b] for the chosen palette. */
 function makeColorSource(options) {
     const custom = options.palette === "Custom"
         ? (String(options.customColors || "").match(/#[0-9a-f]{3}(?:[0-9a-f]{3})?\b|rgba?\([^)]*\)/gi) || []).map(parseColor).filter(Boolean)
@@ -338,6 +351,7 @@ function makeColorSource(options) {
     return (index) => hslToRgb((HUE_START + index * GOLDEN_ANGLE) % 360, s, l);
 }
 
+/** Format [r, g, b] and an alpha (clamped to 0-1) as a CSS rgba() color. */
 function rgba(rgb, alpha) {
     return `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${Math.max(0, Math.min(1, alpha)).toFixed(3)})`;
 }
@@ -381,6 +395,7 @@ function assignColors(root, coloring) {
 const ERROR_COLOR = "#ff4d4f";
 const COMMENT_RGB = [128, 128, 128];
 
+/** Escape text for use in HTML content and attribute values. */
 function escapeHTML(text) {
     return text.replace(/[&<>"]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[ch]);
 }
@@ -402,6 +417,7 @@ export function renderWildcardHTML(text, options = {}, baseColor = "inherit") {
     const alpha = Math.max(0.05, Math.min(1, Number(opts.intensity) / 100 || DEFAULT_OPTIONS.intensity / 100));
     const bgAlpha = opts.style === "Background + text color" ? alpha * 0.6 : alpha;
 
+    /** Inline CSS for one node, and the color its children inherit. */
     function styleFor(node, inherited) {
         const css = [];
         let rgb = inherited;
@@ -431,6 +447,7 @@ export function renderWildcardHTML(text, options = {}, baseColor = "inherit") {
         return { css: css.join(";"), rgb };
     }
 
+    /** Render a node's children and the plain text between them as HTML. */
     function render(node, inherited) {
         let html = "";
         let pos = node.start;
@@ -482,6 +499,7 @@ export function refreshWildcardHighlighters() {
     for (const highlighter of highlighters) highlighter.refresh();
 }
 
+/** Current highlight options from the settings, falling back to the defaults. */
 function readOptions() {
     try {
         return { ...DEFAULT_OPTIONS, ...optionsProvider() };
@@ -490,6 +508,7 @@ function readOptions() {
     }
 }
 
+/** Paints wildcard highlighting behind one textarea and keeps it in sync. */
 export class WildcardHighlighter {
     /**
      * @param {HTMLTextAreaElement} textarea
@@ -566,6 +585,7 @@ export class WildcardHighlighter {
         this.update();
     }
 
+    /** Remove the backdrop and restore the textarea's own styles. */
     deactivate() {
         if (this.saved) {
             Object.assign(this.textarea.style, this.saved);
@@ -647,6 +667,7 @@ export class WildcardHighlighter {
         this.syncGeometry();
     }
 
+    /** Copy the textarea's font, padding, size and position onto the backdrop. */
     syncGeometry() {
         if (!this.active || !this.backdrop.parentElement || !this.textarea.isConnected) return;
         const ta = this.textarea;
@@ -671,11 +692,13 @@ export class WildcardHighlighter {
         this.syncScroll();
     }
 
+    /** Scroll the backdrop to match the textarea. */
     syncScroll() {
         this.backdrop.scrollTop = this.textarea.scrollTop;
         this.backdrop.scrollLeft = this.textarea.scrollLeft;
     }
 
+    /** Detach for good: remove listeners, observers and the backdrop. */
     destroy() {
         this.textarea.removeEventListener("input", this.onInput);
         this.textarea.removeEventListener("scroll", this.onScroll);
