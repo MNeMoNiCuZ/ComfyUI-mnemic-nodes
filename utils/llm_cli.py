@@ -52,6 +52,7 @@ _CODEX_TOOL_FEATURES = (
 # model name from a (possibly shared) workflow is restricted to plain
 # characters.
 _SAFE_MODEL = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/@\[\]-]{0,127}$")
+_CODEX_SHELL_FEATURES = {"shell_tool", "unified_exec"}
 _EFFORT = {"minimal": "low", "none": "low", "low": "low", "medium": "medium", "high": "high"}
 _codex_features_cache = {}
 
@@ -253,26 +254,34 @@ def run_claude(command, req, result, *, encoded_images, system, timeout, on_delt
 # --------------------------------------------------------------------------
 
 def _codex_features(command, work):
-    """Feature flags this Codex version knows (disabling an unknown one is
-    a hard error), cached per binary."""
+    """Feature flags this Codex version knows (disabling an unknown one is a
+    hard error). Only a successful probe is cached, per binary."""
     try:
         key = (command, os.path.getmtime(command))
     except OSError:
         key = (command, None)
-    if key not in _codex_features_cache:
-        names = set()
-        try:
-            out = subprocess.run([command, "features", "list"], capture_output=True, cwd=work,
-                                 env=_env(CODEX), timeout=30,
-                                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0) if sys.platform == "win32" else 0)
+    if key in _codex_features_cache:
+        return _codex_features_cache[key]
+    names = set()
+    try:
+        out = subprocess.run([command, "features", "list"], capture_output=True, cwd=work,
+                             env=_env(CODEX), timeout=60,
+                             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0) if sys.platform == "win32" else 0)
+        if out.returncode == 0:
             for line in out.stdout.decode("utf-8", errors="replace").splitlines():
                 parts = line.split()
                 if parts and parts[0].replace("_", "").replace(".", "").isalnum():
                     names.add(parts[0])
-        except (OSError, subprocess.SubprocessError):
-            pass
-        _codex_features_cache[key] = names
-    return _codex_features_cache[key]
+    except (OSError, subprocess.SubprocessError):
+        pass
+    # Fail closed: without the shell tools turned off, a prompt could make
+    # Codex read files on this machine (.env, stored keys) into its reply.
+    if not names & _CODEX_SHELL_FEATURES:
+        raise CLIError("could not confirm that Codex's shell tools can be turned off "
+                       "(`codex features list` failed or changed), so it was not run. Update Codex and try again.",
+                       status="unsafe")
+    _codex_features_cache[key] = names
+    return names
 
 
 def run_codex(command, req, result, *, encoded_images, system, timeout, on_delta, check_interrupt, log):
@@ -280,8 +289,9 @@ def run_codex(command, req, result, *, encoded_images, system, timeout, on_delta
         last_message = os.path.join(work, "last_message.txt")
         args = [command, "exec", "--json", "--skip-git-repo-check", "--ephemeral",
                 "--sandbox", "read-only", "-C", work, "-o", last_message]
+        known = _codex_features(command, work)
         for feature in _CODEX_TOOL_FEATURES:
-            if feature in _codex_features(command, work):
+            if feature in known:
                 args += ["--disable", feature]
         if req.model:
             args += ["-m", req.model]

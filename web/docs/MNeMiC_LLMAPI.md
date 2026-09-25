@@ -123,7 +123,9 @@ ChatGPT subscription and need no API key.
 - Claude Code runs as `claude -p` with all tools and MCP servers turned off, so
   it answers as a plain model. Codex runs as `codex exec` (Codex's own `-p` is
   a profile flag, not print mode) with its tool features disabled, in a
-  read-only sandbox in an empty temporary folder.
+  read-only sandbox in an empty temporary folder. If the node can't confirm
+  Codex's shell tools are turned off, it refuses to run rather than risk a
+  prompt making Codex read files on your machine.
 - API-key variables (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`…) are removed from
   the CLI's environment, so your subscription login is what gets used.
 - **model** is optional: empty uses the CLI's default. Claude Code accepts
