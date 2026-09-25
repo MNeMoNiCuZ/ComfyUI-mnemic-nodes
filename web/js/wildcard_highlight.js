@@ -37,7 +37,7 @@ function getSetting(name, fallback) {
 function highlightOptions() {
     return {
         enabled: getSetting("Enabled", true),
-        palette: getSetting("Palette", "Pastel"),
+        palette: getSetting("Palette", "Dark"),
         style: getSetting("Style", "Background"),
         coloring: getSetting("Coloring", "Each block"),
         intensity: getSetting("Intensity", 35),
@@ -150,10 +150,10 @@ function detachNode(node) {
 // ---------------------------------------------------------------------------
 
 const PREVIEW_STYLE = `
-.mnm-wildcard-preview { display: flex; flex-direction: column; min-height: 0; font-size: 12px; color: var(--input-text, #ddd); }
+.mnm-wildcard-preview { display: flex; flex-direction: column; flex: 0 0 auto !important; font-size: 12px; color: var(--input-text, #ddd); }
 .mnm-wildcard-preview-header { all: unset; cursor: pointer; user-select: none; padding: 2px 4px; opacity: 0.8; }
 .mnm-wildcard-preview-header:hover { opacity: 1; }
-.mnm-wildcard-preview-body { flex: 1; min-height: 0; overflow: auto; white-space: pre-wrap; overflow-wrap: break-word;
+.mnm-wildcard-preview-body { flex: none; box-sizing: border-box; min-height: 40px; resize: vertical; overflow: auto; white-space: pre-wrap; overflow-wrap: break-word;
   font-family: monospace; line-height: 1.5; padding: 4px 6px; border-radius: 6px;
   background: var(--comfy-input-bg, rgba(0,0,0,0.25)); }
 .mnm-wildcard-preview-empty { opacity: 0.6; font-style: italic; }
@@ -170,8 +170,8 @@ function addPreviewStyle() {
     document.head.appendChild(style);
 }
 
-const COLLAPSED_HEIGHT = 26;
-const EXPANDED_HEIGHT = 120;
+const HEADER_HEIGHT = 22;
+const DEFAULT_BODY_HEIGHT = 100;
 
 /** Add the expandable Preview section to a wildcard processor node. */
 function addPreview(node) {
@@ -188,10 +188,22 @@ function addPreview(node) {
     node.properties ??= {};
     const state = { data: null };
     const isOpen = () => node.properties.mnmPreviewOpen === true;
+    // The body keeps a fixed height, set by dragging its bottom edge, instead
+    // of taking a share of the node's height.
+    const bodyHeight = () => node.properties.mnmPreviewHeight ?? DEFAULT_BODY_HEIGHT;
+    const height = () => HEADER_HEIGHT + (isOpen() ? bodyHeight() + 4 : 0);
+
+    /** Make the node tall enough for the preview (classic canvas). */
+    const fitNode = () => {
+        const size = node.computeSize?.();
+        if (size) node.setSize([node.size[0], Math.max(node.size[1], size[1])]);
+        node.setDirtyCanvas?.(true, true);
+    };
 
     const render = () => {
         header.textContent = `${isOpen() ? "▾" : "▸"} Preview`;
         body.style.display = isOpen() ? "" : "none";
+        body.style.height = `${bodyHeight()}px`;
         if (!isOpen()) return;
         if (!state.data) {
             body.innerHTML = '<span class="mnm-wildcard-preview-empty">Run the workflow to see the result.</span>';
@@ -203,19 +215,33 @@ function addPreview(node) {
     const widget = node.addDOMWidget("wildcard_preview", "mnm_wildcard_preview", element, {
         serialize: false,
         hideOnZoom: false,
-        getMinHeight: () => (isOpen() ? EXPANDED_HEIGHT : COLLAPSED_HEIGHT),
-        getMaxHeight: () => (isOpen() ? undefined : COLLAPSED_HEIGHT),
+        getMinHeight: height,
+        getMaxHeight: height,
     });
     element.addEventListener("pointerdown", (event) => event.stopPropagation());
 
     header.addEventListener("click", () => {
         node.properties.mnmPreviewOpen = !isOpen();
         render();
-        // Grow or shrink the node to fit (classic canvas).
-        const size = node.computeSize?.();
-        if (size) node.setSize([node.size[0], isOpen() ? Math.max(node.size[1], size[1]) : size[1]]);
-        node.setDirtyCanvas?.(true, true);
+        fitNode();
     });
+
+    // Remember the height the user drags the body to.
+    new ResizeObserver(() => {
+        if (!isOpen() || !body.isConnected) return;
+        if (body.offsetHeight && body.offsetHeight !== bodyHeight()) {
+            node.properties.mnmPreviewHeight = body.offsetHeight;
+            fitNode();
+        }
+    }).observe(body);
+
+    // A loaded workflow restores the open state and height after creation.
+    const onConfigure = node.onConfigure;
+    node.onConfigure = function () {
+        const result = onConfigure?.apply(this, arguments);
+        render();
+        return result;
+    };
 
     node.mnmWildcardPreview = {
         widget,

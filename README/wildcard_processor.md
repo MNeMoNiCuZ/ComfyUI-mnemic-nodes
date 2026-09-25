@@ -26,7 +26,7 @@ Configure it under **Settings → ⚡MNeMiC Nodes → Wildcard Processing** (the
 | Setting | Options |
 | --- | --- |
 | Enable wildcard highlighting | On / off |
-| Color palette | Pastel, Light, Vivid, Dark, Muted, or Custom |
+| Color palette | Dark (default), Pastel, Light, Vivid, Muted, or Custom |
 | Highlight style | Background, Text color, Background + text color, Underline |
 | Color blocks by | Each block (every block its own color) or Nesting depth (one color per level) |
 | Background intensity (%) | How strong highlight backgrounds are |

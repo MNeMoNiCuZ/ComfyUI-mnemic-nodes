@@ -86,10 +86,10 @@ app.registerExtension({
       name: "Highlight color palette",
       category: [...WILDCARD_CATEGORY, "Palette"],
       sortOrder: 199,
-      tooltip: "Pastel and Light suit the Background style. Vivid suits Text color and Underline. Dark suits Background on a light theme. Custom uses the colors from 'Custom colors'.",
+      tooltip: "Dark (the default) gives soft tints on ComfyUI's dark theme. Pastel and Light are brighter backgrounds. Vivid suits Text color and Underline. Custom uses the colors from 'Highlight custom colors'.",
       type: "combo",
       options: ["Pastel", "Light", "Vivid", "Dark", "Muted", "Custom"],
-      defaultValue: "Pastel",
+      defaultValue: "Dark",
       onChange: () => refreshWildcardHighlighters(),
     },
     {

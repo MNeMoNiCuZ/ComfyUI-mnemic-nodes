@@ -348,7 +348,7 @@ function walk(node, fn) {
 // Saturation / lightness per palette. Hues are generated with the golden
 // angle so neighbouring blocks always get clearly different colors, however
 // many blocks there are.
-export const PALETTES = {
+const PALETTES = {
     Pastel: { s: 75, l: 82 },
     Light: { s: 90, l: 70 },
     Vivid: { s: 85, l: 55 },
@@ -356,12 +356,10 @@ export const PALETTES = {
     Muted: { s: 25, l: 55 },
 };
 
-export const HIGHLIGHT_STYLES = ["Background", "Text color", "Background + text color", "Underline"];
-export const COLORING_MODES = ["Each block", "Nesting depth"];
 
 export const DEFAULT_OPTIONS = {
     enabled: true,
-    palette: "Pastel",
+    palette: "Dark",
     style: "Background",
     coloring: "Each block",
     intensity: 35,
@@ -404,7 +402,7 @@ function makeColorSource(options) {
         ? (String(options.customColors || "").match(/#[0-9a-f]{3}(?:[0-9a-f]{3})?\b|rgba?\([^)]*\)/gi) || []).map(parseColor).filter(Boolean)
         : [];
     if (custom.length) return (index) => custom[index % custom.length];
-    const { s, l } = PALETTES[options.palette] || PALETTES.Pastel;
+    const { s, l } = PALETTES[options.palette] || PALETTES.Dark;
     return (index) => hslToRgb((HUE_START + index * GOLDEN_ANGLE) % 360, s, l);
 }
 
@@ -485,10 +483,9 @@ function paintTree(text, options) {
                 rgb = colorOf(child.color);
                 paint = blockPaint(rgb, opts);
             } else if (child.type === "delim" && opts.emphasizeSyntax && inherited) {
-                // Syntax characters get a second layer of their block's color.
-                paint.background = opts.style === "Underline"
-                    ? rgba(inherited, alpha)
-                    : rgba(inherited, Math.min(1, bgAlpha + 0.15));
+                // Syntax characters get a faint extra layer of their block's
+                // color: just enough to spot, without drowning the text.
+                paint.background = rgba(inherited, (fillsBackground ? bgAlpha : alpha) * 0.3);
             } else if (child.type === "comment") {
                 paint.background = rgba(COMMENT_RGB, 0.2);
                 if (colorsText) paint.color = rgba(COMMENT_RGB, 1);
@@ -731,13 +728,9 @@ function readOptions() {
 
 /** Paints wildcard highlighting behind one textarea and keeps it in sync. */
 export class WildcardHighlighter {
-    /**
-     * @param {HTMLTextAreaElement} textarea
-     * @param {object} [options] Fixed options for this textarea, overriding the settings.
-     */
-    constructor(textarea, options = null) {
+    /** @param {HTMLTextAreaElement} textarea */
+    constructor(textarea) {
         this.textarea = textarea;
-        this.fixedOptions = options;
         this.backdrop = document.createElement("div");
         this.backdrop.className = "mnm-wildcard-highlight";
         this.backdrop.setAttribute("aria-hidden", "true");
@@ -787,7 +780,7 @@ export class WildcardHighlighter {
 
     /** Re-apply settings and re-render. */
     refresh() {
-        this.options = { ...readOptions(), ...this.fixedOptions };
+        this.options = readOptions();
         this.rendered = false;
         this.styleKey = null;
         if (!this.options.enabled) {
