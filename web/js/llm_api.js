@@ -374,6 +374,7 @@ class LLMPanel {
                 <div class="mnemic-llm-warn"><b>⚠ Custom endpoint.</b> The address and key you enter are stored on this
                     ComfyUI machine only (nodes/llm/CustomEndpoints.local.json, plain text) and never in the workflow:
                     the workflow keeps just a random id, so shared workflows and images don't carry them.
+                    Changing the address or protocol clears the saved key.
                     <b>Risks:</b> anyone who can open this ComfyUI can use a saved endpoint and make the server connect
                     to any address; prompts and images go to whatever server you enter, so only use one you trust.
                     For a permanent setup, prefer a named endpoint in UserEndpoints.json with its key in .env.</div>
@@ -422,7 +423,7 @@ class LLMPanel {
         this.domWidget = node.addDOMWidget("llm_panel", "mnemic_llm_panel", this.el, {
             serialize: false,
             hideOnZoom: false,
-            getMinHeight: () => (this.custom && !this.custom.hidden ? 300 : 150),
+            getMinHeight: () => 150 + (this.custom && !this.custom.hidden ? this.custom.offsetHeight + 8 : 0),
             getValue: () => "",
             setValue: () => {},
         });
@@ -440,6 +441,12 @@ class LLMPanel {
     setCustomVisible(visible) {
         if (this.custom.hidden === !visible) return;
         this.custom.hidden = !visible;
+        // Height depends on the section's rendered size: measure after layout.
+        requestAnimationFrame(() => {
+            const [w2, h2] = this.node.size;
+            this.node.setSize([w2, Math.max(h2, this.node.computeSize()[1])]);
+            this.node.setDirtyCanvas(true, true);
+        });
         const [w, h] = this.node.size;
         this.node.setSize([w, Math.max(h, this.node.computeSize()[1])]);
         this.node.setDirtyCanvas(true, true);

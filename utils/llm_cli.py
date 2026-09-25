@@ -18,8 +18,10 @@ import base64
 import json
 import re
 import os
+import contextlib
 import queue
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -77,13 +79,50 @@ def _env(provider):
 
 
 def _popen(args, provider, cwd):
+    # Its own process group: npm installs are wrappers (node, or a .cmd on
+    # Windows) around the real binary, and stopping only the wrapper would
+    # leave the model call running.
     kwargs = {}
     if sys.platform == "win32":
-        kwargs["creationflags"] = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+        kwargs["creationflags"] = getattr(subprocess, "CREATE_NO_WINDOW", 0) | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+    else:
+        kwargs["start_new_session"] = True
     return subprocess.Popen(
         args, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
         cwd=cwd, env=_env(provider), **kwargs,
     )
+
+
+def _terminate(proc):
+    """Stop the CLI and everything it started."""
+    if proc.poll() is not None:
+        return
+    try:
+        if sys.platform == "win32":
+            subprocess.run(["taskkill", "/T", "/F", "/PID", str(proc.pid)], capture_output=True, timeout=10,
+                           creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        else:
+            os.killpg(proc.pid, signal.SIGTERM)  # the node wrapper forwards it
+            try:
+                proc.wait(timeout=3)
+                return
+            except subprocess.TimeoutExpired:
+                os.killpg(proc.pid, signal.SIGKILL)
+    except (OSError, subprocess.SubprocessError):
+        proc.kill()
+    with contextlib.suppress(subprocess.TimeoutExpired):
+        proc.wait(timeout=5)
+
+
+@contextlib.contextmanager
+def _work_dir():
+    """A temporary folder that is removed afterwards even if a stopped CLI
+    still had it open (Windows refuses to delete it then)."""
+    path = tempfile.mkdtemp(prefix="mnemic_llm_")
+    try:
+        yield path
+    finally:
+        shutil.rmtree(path, ignore_errors=True)
 
 
 def _read_lines(stream, out):
@@ -127,7 +166,7 @@ def _run(args, provider, cwd, stdin_bytes, on_line, timeout, check_interrupt):
                 on_line(line)
         proc.wait(timeout=10)
     except BaseException:
-        proc.kill()
+        _terminate(proc)
         raise
     stderr = b"".join(c for c in stderr_chunks if c).decode("utf-8", errors="replace")
     return proc.returncode, stderr
@@ -151,7 +190,7 @@ def _claude_content(req, encoded_images):
 
 
 def run_claude(command, req, result, *, encoded_images, system, timeout, on_delta, check_interrupt, log):
-    with tempfile.TemporaryDirectory(prefix="mnemic_llm_") as work:
+    with _work_dir() as work:
         system_file = os.path.join(work, "system.txt")
         with open(system_file, "w", encoding="utf-8") as f:
             f.write(system or DEFAULT_SYSTEM)
@@ -237,7 +276,7 @@ def _codex_features(command, work):
 
 
 def run_codex(command, req, result, *, encoded_images, system, timeout, on_delta, check_interrupt, log):
-    with tempfile.TemporaryDirectory(prefix="mnemic_llm_") as work:
+    with _work_dir() as work:
         last_message = os.path.join(work, "last_message.txt")
         args = [command, "exec", "--json", "--skip-git-repo-check", "--ephemeral",
                 "--sandbox", "read-only", "-C", work, "-o", last_message]
@@ -252,7 +291,9 @@ def run_codex(command, req, result, *, encoded_images, system, timeout, on_delta
             path = os.path.join(work, f"image_{i}.jpg")
             with open(path, "wb") as f:
                 f.write(base64.b64decode(data))
-            args += ["-i", path]
+            # --image=<file> takes exactly one value; "-i a b" would also
+            # swallow the "-" prompt argument as an image.
+            args.append(f"--image={path}")
         args.append("-")
         # Codex has no separate system prompt in exec mode.
         prompt = f"{system}\n\n---\n\n{req.user}" if system and req.user else (system or req.user)

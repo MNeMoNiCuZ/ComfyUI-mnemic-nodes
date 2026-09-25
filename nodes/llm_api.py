@@ -137,7 +137,8 @@ class LLMAPI(io.ComfyNode):
                              tooltip="Extra attempts on connection errors, rate limits and server errors. 0 tries once."),
                 io.Boolean.Input("raise_on_error", default=True, advanced=True,
                                  tooltip="Stop the workflow with an error when the call fails. Off returns an empty response and success = false instead, for branching."),
-                io.String.Input("custom_endpoint", default="", advanced=True,
+                # Optional: prompts saved before this input existed must still validate.
+                io.String.Input("custom_endpoint", default="", advanced=True, optional=True,
                                 tooltip="Only for 'Custom Endpoint - WARNING': an id set by the node's custom-endpoint panel. The address and key it points to are stored on this machine, never in the workflow. Empty for every other endpoint."),
             ],
             outputs=[
