@@ -72,7 +72,7 @@ class LoraTagLoader(io.ComfyNode):
             description="Loads LoRA tags from the provided input string (usually the prompt) and applies them to the model without needing one or multiple LoRA Loader nodes",
             inputs=[
                 io.Model.Input("MODEL", tooltip="The model (checkpoint) to apply the LoRA to"),
-                io.Clip.Input("CLIP", tooltip="The CLIP model being used"),
+                io.Clip.Input("CLIP", optional=True, tooltip="The CLIP model being used"),
                 io.String.Input(
                     "STRING",
                     multiline=True,
@@ -88,7 +88,7 @@ class LoraTagLoader(io.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, MODEL, CLIP, STRING) -> io.NodeOutput:
+    def execute(cls, MODEL, STRING, CLIP=None) -> io.NodeOutput:
         global _LOADED_LORA
 
         console_log = is_lora_console_log_enabled()

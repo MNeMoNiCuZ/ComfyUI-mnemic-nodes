@@ -13,7 +13,8 @@ def score_filename_match(name, filename, base_path=None, fuzzy_search=False):
     base_name = p_filename.name
     base_name_no_ext = p_filename.stem
     p_name = Path(name)
-    name_no_ext = p_name.stem
+    # Strip only the candidate's file extension, preserving dots in LoRA names.
+    name_no_ext = p_name.stem if p_name.suffix == p_filename.suffix else p_name.name
 
     # Calculate path depth, and the file's directory parts relative to the
     # wildcard folder if provided (used both for the depth penalty and for
@@ -159,6 +160,15 @@ def find_best_match(search_term, file_list, log=False, wildcard_paths=None, fuzz
                 seen_filenames[base_name] = False
             matches.append((score, file_path, reason, base_path))
     
+    # A unique exact filename needs no depth penalty to break ties.
+    exact_matches = [index for index, match in enumerate(matches)
+                     if match[2].startswith("exact match (") or match[2] == "perfect path match"]
+    if len(exact_matches) == 1:
+        index = exact_matches[0]
+        score, file_path, reason, base_path = matches[index]
+        if not Path(search_term).parent.parts or "exact subfolder match" in reason or reason == "perfect path match":
+            matches[index] = (100, file_path, reason, base_path)
+
     matches.sort(key=lambda x: x[0], reverse=True)
     
     if log and matches:
