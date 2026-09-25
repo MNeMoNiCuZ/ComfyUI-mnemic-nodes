@@ -1,14 +1,20 @@
 # ✨🧠 Universal LLM API
 
 One node for every language model: ChatGPT, Claude, Gemini, Grok, Groq,
-OpenRouter, Mistral, DeepSeek, and local servers like Ollama and LM Studio,
-either on your own PC or elsewhere on your network. It shares its prompt
-presets with the Groq nodes.
+OpenRouter, Mistral, DeepSeek, local servers like Ollama and LM Studio (on
+your own PC or elsewhere on your network), and your Claude Code or Codex
+subscription through their CLIs. It shares its prompt presets with the Groq
+nodes.
 
 ### Features
 
-- **12 endpoints built in**, and any number of your own in
+- **Built-in endpoints** for all of the above, and any number of your own in
   `nodes/llm/UserEndpoints.json`.
+- **Local Claude Code / Codex subscriptions**: runs the CLI on your PC with
+  your subscription, no API key needed.
+- **Custom Endpoint - WARNING**: enter an address and key right on the node.
+  They're stored on your machine, not in the workflow; read the risks in the
+  node's help panel before using it.
 - **Nothing secret in your workflows.** Keys and private addresses live in
   `.env`. A shared workflow or image only contains the endpoint name and the
   model name.

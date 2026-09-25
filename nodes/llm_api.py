@@ -6,7 +6,8 @@ import numpy as np
 from PIL import Image
 
 from ..utils.env_manager import redact
-from ..utils.llm_endpoints import load_endpoints
+from ..utils.llm_custom import CUSTOM_ENDPOINT_NAME, custom_endpoint as load_custom_endpoint
+from ..utils.llm_endpoints import endpoint_names, load_endpoints
 from ..utils.llm_providers import ChatRequest, LLMError, list_models, run_chat
 from ..utils.prompt_presets import load_llm_presets
 from ..utils.settings_utils import get_llm_request_timeout, is_llm_console_log_enabled, is_llm_live_preview_enabled
@@ -84,7 +85,7 @@ _FAILURES = {}
 class LLMAPI(io.ComfyNode):
     @classmethod
     def define_schema(cls) -> io.Schema:
-        endpoint_names = list(load_endpoints().keys()) or ["(no endpoints configured)"]
+        names = endpoint_names()
         try:
             presets = list(load_llm_presets().keys())
         except Exception as e:
@@ -99,7 +100,7 @@ class LLMAPI(io.ComfyNode):
             search_aliases=["llm", "chat", "ollama", "openai", "chatgpt", "gpt", "claude", "anthropic", "gemini",
                             "grok", "xai", "groq", "openrouter", "lm studio", "llama.cpp", "vllm", "vlm", "prompt generator"],
             inputs=[
-                io.Combo.Input("endpoint", options=endpoint_names, default=endpoint_names[0],
+                io.Combo.Input("endpoint", options=names, default=names[0],
                                tooltip="Which server to talk to. Endpoints are defined in nodes/llm/*.json; keys and private addresses come from .env and are never saved in the workflow."),
                 io.String.Input("model", default="",
                                 tooltip="Model name as the endpoint knows it. Empty uses the endpoint's default model, or on a local/network server the first model it lists (for Ollama, one already in memory). Use 🔍 Models on the node to browse."),
@@ -108,7 +109,7 @@ class LLMAPI(io.ComfyNode):
                 io.String.Input("system_message", multiline=True, default="",
                                 tooltip="Instructions setting the model's role and rules. Ignored while a preset is selected."),
                 io.String.Input("user_input", multiline=True, default="",
-                                tooltip="The request itself: what you want the model to write, rewrite or describe."),
+                                tooltip="The request itself: what you want the model to write, rewrite or describe. May be empty: the system message or preset is then sent on its own."),
                 io.Image.Input("images", optional=True,
                                tooltip="Images to send along with the prompt, for vision models. Every image in the batch is sent."),
                 io.Float.Input("temperature", default=0.8, min=0.0, max=2.0, step=0.05,
@@ -136,6 +137,8 @@ class LLMAPI(io.ComfyNode):
                              tooltip="Extra attempts on connection errors, rate limits and server errors. 0 tries once."),
                 io.Boolean.Input("raise_on_error", default=True, advanced=True,
                                  tooltip="Stop the workflow with an error when the call fails. Off returns an empty response and success = false instead, for branching."),
+                io.String.Input("custom_endpoint", default="", advanced=True,
+                                tooltip="Only for 'Custom Endpoint - WARNING': an id set by the node's custom-endpoint panel. The address and key it points to are stored on this machine, never in the workflow. Empty for every other endpoint."),
             ],
             outputs=[
                 io.String.Output(display_name="response", tooltip="The model's reply, with any <think> reasoning removed."),
@@ -155,7 +158,7 @@ class LLMAPI(io.ComfyNode):
     async def execute(cls, endpoint, model, preset, system_message, user_input, temperature,
                       reasoning="default", max_tokens=0, top_p=1.0, seed=42, stop="", json_mode=False,
                       unload_model_after=False, context_length=0, free_comfy_vram=False, max_retries=2,
-                      raise_on_error=True, images=None) -> io.NodeOutput:
+                      raise_on_error=True, custom_endpoint="", images=None) -> io.NodeOutput:
         node_id = cls.hidden.unique_id if cls.hidden else None
         client_id = _current_client_id()
         console_log = is_llm_console_log_enabled()
@@ -172,7 +175,13 @@ class LLMAPI(io.ComfyNode):
             return io.NodeOutput("", "", False, message,
                                  ui={"mnemic_llm": [{"ok": False, "error": message, "status": status}]})
 
-        ep_config = load_endpoints().get(endpoint)
+        if endpoint == CUSTOM_ENDPOINT_NAME:
+            ep_config = load_custom_endpoint(custom_endpoint)
+            if ep_config is None:
+                return fail("The custom endpoint isn't set up on this machine. Open the node's custom-endpoint "
+                            "panel, enter the address and key, and save.", "not configured")
+        else:
+            ep_config = load_endpoints().get(endpoint)
         if ep_config is None:
             return fail(f"Endpoint '{endpoint}' is not configured. Check nodes/llm/UserEndpoints.json.")
         ep = ep_config.resolve()
@@ -183,7 +192,7 @@ class LLMAPI(io.ComfyNode):
         # Local and network servers (Ollama, LM Studio, llama.cpp…) usually
         # serve what's loaded: take the first model they list. A cloud
         # endpoint's list is too broad to guess from.
-        if not model and ep.location() in ("local", "network"):
+        if not model and not ep_config.model_optional and ep.location() in ("local", "network"):
             try:
                 available = await asyncio.to_thread(list_models, ep)
             except LLMError as e:
@@ -192,17 +201,26 @@ class LLMAPI(io.ComfyNode):
                 return fail(f"{endpoint}: unexpected {type(e).__name__} while listing models.")
             chat_models = [m for m in available if not _EMBEDDING_MODEL.search(m["id"])]
             model = chat_models[0]["id"] if chat_models else ""
-        if not model:
+        if not model and not ep_config.model_optional:
             return fail(f"No model chosen for {endpoint}. Type one in, or click 🔍 Models on the node.")
 
         if preset != DEFAULT_PROMPT:
             system_message = load_llm_presets().get(preset, system_message)
 
+        system_message, user_input = (system_message or "").strip(), (user_input or "").strip()
+        pil_images = _tensor_to_pil_list(images)
+        if not user_input and not pil_images:
+            if not system_message:
+                return fail("There is nothing to send: system_message, user_input and images are all empty.")
+            # Instructions alone are a valid request; most APIs need a user
+            # turn, so they are sent as one.
+            system_message, user_input = "", system_message
+
         request = ChatRequest(
             model=model,
-            system=system_message or "",
-            user=user_input or "",
-            images=_tensor_to_pil_list(images),
+            system=system_message,
+            user=user_input,
+            images=pil_images,
             temperature=temperature,
             top_p=top_p,
             max_tokens=max_tokens,
@@ -214,13 +232,11 @@ class LLMAPI(io.ComfyNode):
             context_length=context_length,
             stream=is_llm_live_preview_enabled() and node_id is not None and client_id is not None,
         )
-        if not request.user and not request.images:
-            return fail("user_input is empty and no images are connected; there is nothing to send.")
 
         if free_comfy_vram:
             await asyncio.to_thread(_free_comfy_vram)
 
-        _send(STREAM_EVENT, {"node": node_id, "phase": "start", "endpoint": endpoint, "model": model}, client_id)
+        _send(STREAM_EVENT, {"node": node_id, "phase": "start", "endpoint": endpoint, "model": model or "default model"}, client_id)
 
         def on_delta(text, thinking):
             _send(STREAM_EVENT, {"node": node_id, "phase": "stream", "text": text, "thinking": thinking}, client_id)
@@ -256,7 +272,7 @@ class LLMAPI(io.ComfyNode):
             "text": result.text,
             "thinking": result.thinking,
             "endpoint": endpoint,
-            "model": result.model or model,
+            "model": result.model or model or "default model",
             "input_tokens": result.input_tokens,
             "output_tokens": result.output_tokens,
             "seconds": round(result.seconds, 2),

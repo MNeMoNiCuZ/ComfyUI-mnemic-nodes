@@ -30,12 +30,32 @@
             "description": "Any OpenAI-compatible server: llama.cpp, vLLM, KoboldCpp, text-generation-webui, LocalAI, Jan… Set OPENAI_COMPATIBLE_URL in .env (usually ending in /v1)."
         },
         {
+            "name": "Local Claude Code Subscription",
+            "provider": "claude_cli",
+            "command": "${CLAUDE_CLI:-claude}",
+            "options": {
+                "command_env": "CLAUDE_CLI"
+            },
+            "description": "Runs the Claude Code CLI on this PC (claude -p) with your Claude subscription. Install Claude Code and sign in once by running `claude` in a terminal. Empty model uses Claude Code's default."
+        },
+        {
+            "name": "Local Codex Subscription",
+            "provider": "codex_cli",
+            "command": "${CODEX_CLI:-codex}",
+            "options": {
+                "command_env": "CODEX_CLI"
+            },
+            "description": "Runs the Codex CLI on this PC (codex exec) with your ChatGPT subscription. Install Codex and sign in once with `codex login`. Empty model uses Codex's default."
+        },
+        {
             "name": "OpenAI (ChatGPT)",
             "provider": "openai",
             "base_url": "https://api.openai.com/v1",
             "api_key_env": "OPENAI_API_KEY",
             "default_model": "gpt-5-mini",
-            "options": {"max_tokens_param": "max_completion_tokens"},
+            "options": {
+                "max_tokens_param": "max_completion_tokens"
+            },
             "description": "OpenAI's API. Key from platform.openai.com/api-keys."
         },
         {
@@ -76,7 +96,9 @@
             "base_url": "https://openrouter.ai/api/v1",
             "api_key_env": "OPENROUTER_API_KEY",
             "default_model": "openrouter/auto",
-            "headers": {"X-Title": "ComfyUI MNeMiC Nodes"},
+            "headers": {
+                "X-Title": "ComfyUI MNeMiC Nodes"
+            },
             "description": "One key for hundreds of models from every major lab. Key from openrouter.ai/keys."
         },
         {
@@ -94,6 +116,19 @@
             "api_key_env": "DEEPSEEK_API_KEY",
             "default_model": "deepseek-chat",
             "description": "DeepSeek's API. Key from platform.deepseek.com."
+        },
+        {
+            "name": "Sanctum",
+            "provider": "openai",
+            "base_url": "${SANCTUM_URL}",
+            "api_key_env": "SANCTUM_API_KEY",
+            "options": {
+                "ensure_path": "/v1",
+                "model_optional": true,
+                "keep_order": true,
+                "pin_last": true
+            },
+            "description": "Set SANCTUM_URL and SANCTUM_API_KEY in the .env file."
         }
     ]
 }

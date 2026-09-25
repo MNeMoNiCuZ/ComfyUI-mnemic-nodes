@@ -248,6 +248,8 @@ class OpenAIAdapter:
             messages.append({"role": "user", "content": req.user})
 
         body = {"model": req.model, "messages": messages}
+        if not req.model:
+            body.pop("model")  # the server's default
         if req.temperature is not None:
             body["temperature"] = req.temperature
         if req.top_p is not None and req.top_p < 1.0:
@@ -308,12 +310,18 @@ class OpenAIAdapter:
         models = []
         for item in response.json().get("data", []):
             detail = []
+            if item.get("is_collection"):
+                detail.append(str(item.get("label") or "collection"))
+                if item.get("member_count") == 0:
+                    detail.append("empty")
             ctx = item.get("context_length") or item.get("context_window") or item.get("max_model_len")
             if ctx:
                 detail.append(f"{int(ctx) // 1024}k ctx" if int(ctx) >= 1024 else f"{ctx} ctx")
             if item.get("owned_by") and item["owned_by"] not in ("system", "organization-owner"):
                 detail.append(str(item["owned_by"]))
             models.append({"id": item["id"], "detail": " · ".join(detail)})
+        if ep.endpoint.options.get("keep_order"):
+            return models  # the server's order is meaningful
         return sorted(models, key=lambda m: m["id"].lower())
 
 
@@ -561,6 +569,7 @@ class OllamaAdapter:
 
 
 ADAPTERS = {a.name: a for a in (OpenAIAdapter(), AnthropicAdapter(), OllamaAdapter())}
+# CLI providers (claude_cli, codex_cli) have no HTTP adapter: see llm_cli.
 
 
 def get_adapter(provider):
@@ -661,6 +670,8 @@ def run_chat(ep, req, *, timeout=300, max_retries=2, on_delta=None, check_interr
     streaming. check_interrupt() is called between chunks and during backoff
     and should raise to abort. log(message) gets redacted diagnostics.
     """
+    if ep.endpoint.is_cli:
+        return _run_cli(ep, req, timeout, on_delta, check_interrupt, log)
     adapter = get_adapter(ep.endpoint.provider)
     url = adapter.chat_url(ep)
     headers = adapter.headers(ep)
@@ -804,8 +815,33 @@ def _loggable(body):
     return shrink(body)
 
 
+def _run_cli(ep, req, timeout, on_delta, check_interrupt, log):
+    from .llm_cli import CLIError, run_cli_chat
+    result = ChatResult()
+    started = time.monotonic()
+    system = req.system
+    if req.json_mode and "json" not in (system + req.user).lower():
+        system = f"{system}\n\nRespond only with valid JSON, no code fences.".strip()
+    try:
+        run_cli_chat(ep.endpoint.provider, ep.base_url, req, result,
+                     encoded_images=encode_images(req.images), system=system, timeout=timeout,
+                     on_delta=on_delta, check_interrupt=check_interrupt, log=log)
+    except CLIError as e:
+        raise LLMError(str(e), status=e.status) from None
+    result.seconds = time.monotonic() - started
+    inline_reply, inline_thinking = split_thinking(result.text)
+    result.text = inline_reply
+    result.thinking = "\n\n".join(t for t in (result.thinking.strip(), inline_thinking) if t)
+    if req.json_mode:
+        result.text = strip_code_fence(result.text)
+    return result
+
+
 def list_models(ep, timeout=15):
     """Models the endpoint reports, falling back to the configured list."""
+    if ep.endpoint.is_cli:
+        from .llm_cli import list_cli_models
+        return list_cli_models(ep.endpoint.provider)
     adapter = get_adapter(ep.endpoint.provider)
     try:
         return adapter.list_models(ep, timeout)

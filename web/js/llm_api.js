@@ -62,15 +62,17 @@ async function getPresets(name) {
     return presets;
 }
 
-async function getModels(endpoint, force = false) {
-    const cached = modelCache.get(endpoint);
+async function getModels(endpoint, force = false, customId = "") {
+    const key = `${endpoint}\u0000${customId}`;
+    const cached = modelCache.get(key);
     if (!force && cached && Date.now() - cached.at < 60000) return cached.data;
-    const data = await fetchJSON(`/mnemic/llm/models?endpoint=${encodeURIComponent(endpoint)}`).catch((e) => ({
+    const query = `endpoint=${encodeURIComponent(endpoint)}${customId ? `&custom=${encodeURIComponent(customId)}` : ""}`;
+    const data = await fetchJSON(`/mnemic/llm/models?${query}`).catch((e) => ({
         ok: false,
         error: `ComfyUI did not answer: ${e}`,
         models: [],
     }));
-    if (data.ok) modelCache.set(endpoint, { at: Date.now(), data });
+    if (data.ok) modelCache.set(key, { at: Date.now(), data });
     return data;
 }
 
@@ -136,6 +138,17 @@ function addStylesheet() {
             background:var(--comfy-input-bg); color:var(--fg-color); border:1px solid var(--border-color); white-space:nowrap; }
         .mnemic-llm-btn:hover { border-color:#58a6ff; }
         .mnemic-llm-btn:disabled { opacity:.45; cursor:default; }
+        .mnemic-llm-custom { display:flex; flex-direction:column; gap:5px; padding:6px; border-radius:6px;
+            border:1px solid #d29922; background:#d2992214; }
+        .mnemic-llm-custom[hidden] { display:none; }
+        .mnemic-llm-warn { font-size:11px; line-height:1.35; color:var(--fg-color); }
+        .mnemic-llm-warn b { color:#d29922; }
+        .mnemic-llm-row { display:flex; gap:4px; }
+        .mnemic-llm-row input, .mnemic-llm-row select { flex:1; min-width:0; padding:3px 6px; border-radius:5px; font-size:11.5px;
+            background:var(--comfy-input-bg); color:var(--fg-color); border:1px solid var(--border-color); }
+        .mnemic-llm-row select { flex:0 0 auto; }
+        .mnemic-llm-custom-status { font-size:11px; opacity:.8; }
+        .mnemic-llm-custom-status.err { color:#f85149; opacity:1; }
         .mnemic-llm-out { flex:1; min-height:40px; overflow:auto; padding:6px 8px; border-radius:6px; white-space:pre-wrap; word-break:break-word;
             background:var(--comfy-input-bg); border:1px solid var(--border-color); user-select:text; cursor:text; }
         .mnemic-llm-out.empty { opacity:.5; font-style:italic; }
@@ -286,7 +299,7 @@ function showModelPicker(panel, anchor) {
     const load = async (force) => {
         note.className = "mnemic-llm-note";
         note.textContent = "Asking the endpoint…";
-        const data = await getModels(endpoint, force);
+        const data = await getModels(endpoint, force, panel.customId());
         if (openPopup !== pop) return;
         models = data.models ?? [];
         if (data.ok) {
@@ -357,6 +370,27 @@ class LLMPanel {
                 <button class="mnemic-llm-btn" data-act="preset" title="Show the selected preset's system prompt">📜 Preset</button>
                 <button class="mnemic-llm-btn" data-act="copy" title="Copy the last reply">📋 Copy</button>
             </div>
+            <div class="mnemic-llm-custom" hidden>
+                <div class="mnemic-llm-warn"><b>⚠ Custom endpoint.</b> The address and key you enter are stored on this
+                    ComfyUI machine only (nodes/llm/CustomEndpoints.local.json, plain text) and never in the workflow:
+                    the workflow keeps just a random id, so shared workflows and images don't carry them.
+                    <b>Risks:</b> anyone who can open this ComfyUI can use a saved endpoint and make the server connect
+                    to any address; prompts and images go to whatever server you enter, so only use one you trust.
+                    For a permanent setup, prefer a named endpoint in UserEndpoints.json with its key in .env.</div>
+                <div class="mnemic-llm-row">
+                    <select data-f="provider" title="Protocol the server speaks">
+                        <option value="openai">OpenAI-compatible</option>
+                        <option value="anthropic">Anthropic</option>
+                        <option value="ollama">Ollama</option>
+                    </select>
+                    <input data-f="url" placeholder="http://host:port/v1" spellcheck="false" autocomplete="off">
+                </div>
+                <div class="mnemic-llm-row">
+                    <input data-f="key" type="password" placeholder="API key (optional)" autocomplete="new-password">
+                    <button class="mnemic-llm-btn" data-act="custom-save" style="flex:0 0 auto">💾 Save</button>
+                </div>
+                <div class="mnemic-llm-custom-status"></div>
+            </div>
             <div class="mnemic-llm-out empty">The reply will appear here.</div>
             <div class="mnemic-llm-stats"></div>
         `;
@@ -366,6 +400,13 @@ class LLMPanel {
         this.host = this.el.querySelector(".mnemic-llm-host");
         this.out = this.el.querySelector(".mnemic-llm-out");
         this.stats = this.el.querySelector(".mnemic-llm-stats");
+        this.custom = this.el.querySelector(".mnemic-llm-custom");
+        this.customStatus = this.el.querySelector(".mnemic-llm-custom-status");
+        this.customField = (f) => this.custom.querySelector(`[data-f="${f}"]`);
+        // Typing in these fields must not trigger ComfyUI shortcuts.
+        for (const type of ["keydown", "keyup", "keypress", "pointerdown", "wheel"]) {
+            this.custom.addEventListener(type, (e) => e.stopPropagation());
+        }
 
         this.el.addEventListener("pointerdown", (e) => {
             if (e.target.closest("button, .mnemic-llm-out")) e.stopPropagation();
@@ -381,7 +422,7 @@ class LLMPanel {
         this.domWidget = node.addDOMWidget("llm_panel", "mnemic_llm_panel", this.el, {
             serialize: false,
             hideOnZoom: false,
-            getMinHeight: () => 150,
+            getMinHeight: () => (this.custom && !this.custom.hidden ? 300 : 150),
             getValue: () => "",
             setValue: () => {},
         });
@@ -390,6 +431,70 @@ class LLMPanel {
 
     widget(name) {
         return this.node.widgets?.find((w) => w.name === name);
+    }
+
+    customId() {
+        return this.widget("custom_endpoint")?.value ?? "";
+    }
+
+    setCustomVisible(visible) {
+        if (this.custom.hidden === !visible) return;
+        this.custom.hidden = !visible;
+        const [w, h] = this.node.size;
+        this.node.setSize([w, Math.max(h, this.node.computeSize()[1])]);
+        this.node.setDirtyCanvas(true, true);
+    }
+
+    // The custom endpoint's status comes from what is stored on this
+    // machine under the node's id; the key itself is never sent back.
+    async refreshCustom(info) {
+        this.setCustomVisible(true);
+        const id = this.customId();
+        const data = id ? await fetchJSON(`/mnemic/llm/custom?id=${encodeURIComponent(id)}`).catch(() => ({ ok: false })) : { ok: false };
+        if (this.widget("endpoint")?.value !== info.name || this.customId() !== id) return;
+        info.ok = !!data.ok;
+        info.location = data.location ?? "unknown";
+        info.provider = data.provider ?? "custom";
+        info.key_set = !!data.key_set;
+        info.host = data.ok ? "custom endpoint" : "not saved yet";
+        info.problems = data.ok ? [] : ["Enter the server's address (and key, if it needs one) and press Save."];
+        if (data.ok) {
+            this.customField("provider").value = data.provider;
+            if (document.activeElement !== this.customField("url")) this.customField("url").value = data.base_url ?? "";
+            this.customField("key").placeholder = data.key_set ? "API key saved (type to replace)" : "API key (optional)";
+        }
+    }
+
+    async saveCustom() {
+        const url = this.customField("url").value.trim();
+        const key = this.customField("key").value;
+        const body = { id: this.customId(), provider: this.customField("provider").value, base_url: url };
+        if (key) body.api_key = key;  // empty field: keep the saved key
+        this.customStatus.className = "mnemic-llm-custom-status";
+        this.customStatus.textContent = "Saving…";
+        let data;
+        try {
+            const res = await api.fetchApi("/mnemic/llm/custom", {
+                method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+            });
+            data = await res.json();
+        } catch (e) {
+            data = { ok: false, error: String(e) };
+        }
+        if (!data.ok) {
+            this.customStatus.className = "mnemic-llm-custom-status err";
+            this.customStatus.textContent = data.error ?? "Could not save.";
+            return;
+        }
+        this.customField("key").value = "";
+        const w = this.widget("custom_endpoint");
+        if (w && w.value !== data.id) {
+            w.value = data.id;
+            w.callback?.(data.id);
+        }
+        modelCache.clear();
+        this.customStatus.textContent = "✓ Saved on this machine.";
+        this.refreshStatus();
     }
 
     matches(id) {
@@ -406,7 +511,13 @@ class LLMPanel {
         // An endpoint added since the last fetch (edit + R): ask again once.
         if (!byName.has(name) && !force) byName = await getEndpoints(true);
         if (this.widget("endpoint")?.value !== name) return;
-        const info = byName.get(name);
+        const info = byName.has(name) ? { ...byName.get(name) } : undefined;
+        if (info?.is_custom) {
+            await this.refreshCustom(info);
+            if (this.widget("endpoint")?.value !== name) return;
+        } else {
+            this.setCustomVisible(false);
+        }
         this.info = info;
         if (!info) {
             this.setChip(this.where, "❔ Unknown endpoint", true);
@@ -417,7 +528,9 @@ class LLMPanel {
         }
         const [icon, label] = LOCATION_LABEL[info.location] ?? LOCATION_LABEL.unknown;
         this.setChip(this.where, `${icon} ${label} · ${info.provider}`, info.location === "unknown");
-        if (info.key_env) {
+        if (info.is_custom) {
+            this.setChip(this.key, info.key_set ? "🔑 key saved" : "🔓 no key", false);
+        } else if (info.key_env) {
             this.setChip(this.key, info.key_set ? "🔑 key set" : info.key_optional ? "🔓 no key" : `🔑 ${info.key_env} missing`, !info.key_set && !info.key_optional);
         } else {
             this.setChip(this.key, "🔓 no key needed", false);
@@ -448,7 +561,9 @@ class LLMPanel {
         if (!this.info) return;
         const model = this.widget("model")?.value ?? "";
         let hint = "";
-        if (!model) {
+        if (!model && this.info.model_optional) {
+            hint = this.info.is_cli ? "model: CLI default" : "model: server default";
+        } else if (!model) {
             hint = this.info.default_model
                 ? `model: ${this.info.default_model} (default)`
                 : this.info.provider === "ollama" ? "model: one in memory, else first installed"
@@ -518,6 +633,7 @@ class LLMPanel {
     // ---- buttons --------------------------------------------------------
 
     async onButton(act, button) {
+        if (act === "custom-save") return this.saveCustom();
         if (act === "models") return showModelPicker(this, button);
         if (act === "preset") return showPreset(this, button);
         if (act === "copy") {
@@ -535,7 +651,7 @@ class LLMPanel {
             await this.refreshStatus(true);
             this.setDot("busy");
             const endpoint = this.widget("endpoint")?.value;
-            const data = await getModels(endpoint, true);
+            const data = await getModels(endpoint, true, this.customId());
             button.disabled = false;
             // A slow test must not paint over a newer endpoint or a running reply.
             if (this.widget("endpoint")?.value !== endpoint || this.state === "running" || this.runId !== runId) return;

@@ -40,7 +40,8 @@ and what is missing if not.
 - **system_message** — The model's instructions. Ignored while a preset is
   active; in the classic node view it is also greyed out and shows the
   preset's text as a hint (📜 Preset shows it in either view).
-- **user_input** — The request.
+- **user_input** — The request. May be empty: the system message (or preset)
+  is then sent on its own as the request.
 - **images** — Optional. Every image in the batch is sent, for vision models.
 - **temperature** — Randomness. Dropped automatically for models that refuse
   anything but their default.
@@ -86,13 +87,15 @@ and any headers are looked up on the backend at run time from the endpoint
 config and `.env`. Keys never reach the browser, and any key a server echoes
 back in an error message is masked before it is shown or returned.
 
-**Protocols.** Each endpoint speaks one of three protocols:
+**Protocols.** Each endpoint speaks one of these:
 
-| provider    | Used for                                                        |
-| ----------- | --------------------------------------------------------------- |
-| `openai`    | OpenAI, Gemini, Grok, Groq, OpenRouter, Mistral, DeepSeek, LM Studio, llama.cpp, vLLM, KoboldCpp… |
-| `anthropic` | Claude                                                          |
-| `ollama`    | Ollama's native API (for `keep_alive`, `num_ctx`, `think`)      |
+| provider     | Used for                                                        |
+| ------------ | --------------------------------------------------------------- |
+| `openai`     | OpenAI, Gemini, Grok, Groq, OpenRouter, Mistral, DeepSeek, LM Studio, llama.cpp, vLLM, KoboldCpp… |
+| `anthropic`  | Claude                                                          |
+| `ollama`     | Ollama's native API (for `keep_alive`, `num_ctx`, `think`)      |
+| `claude_cli` | The Claude Code CLI on this PC, with your Claude subscription   |
+| `codex_cli`  | The Codex CLI on this PC, with your ChatGPT subscription        |
 
 **Parameters that don't fit.** Models differ in what they accept: OpenAI's
 reasoning models refuse `temperature`, some servers don't know `seed`. For
@@ -107,6 +110,60 @@ reasoning in a collapsible 💭 section, then show token counts and speed.
 Cancelling the queue stops a streaming request. Turn it off under
 **Settings → ⚡MNeMiC Nodes → Universal LLM API** if an endpoint can't stream.
 The console log and the request timeout (default 300 s) are there too.
+
+## Local subscriptions (Claude Code, Codex)
+
+**Local Claude Code Subscription** and **Local Codex Subscription** run the
+CLI installed on this PC instead of calling an API, so they use your Claude or
+ChatGPT subscription and need no API key.
+
+- Install the CLI and sign in once in a terminal: run `claude`, or
+  `codex login`. If the command isn't on your PATH, set `CLAUDE_CLI` or
+  `CODEX_CLI` in `.env` to its full path.
+- Claude Code runs as `claude -p` with all tools and MCP servers turned off, so
+  it answers as a plain model. Codex runs as `codex exec` (Codex's own `-p` is
+  a profile flag, not print mode) with its tool features disabled, in a
+  read-only sandbox in an empty temporary folder.
+- API-key variables (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`…) are removed from
+  the CLI's environment, so your subscription login is what gets used.
+- **model** is optional: empty uses the CLI's default. Claude Code accepts
+  aliases like `sonnet`, `opus`, `haiku`, `fable`; 🔍 Models lists them.
+- **images** work with both. **reasoning** sets the effort level.
+  `temperature`, `top_p`, `seed`, `max_tokens` and `stop` are not supported
+  by the CLIs and are ignored.
+- Each call starts the CLI fresh, which takes a few seconds. Replies still
+  stream onto the node.
+
+## Custom Endpoint - WARNING
+
+The last entry in the endpoint list lets you enter a server's address and key
+on the node itself, without editing any file. Pick it and a panel appears with
+the protocol (OpenAI-compatible, Anthropic, Ollama), the address and the key;
+press **💾 Save**.
+
+**What is kept where.** The address and key are stored on this ComfyUI machine
+only, in `nodes/llm/CustomEndpoints.local.json` (git-ignored, plain text). The
+workflow keeps just a random id in the `custom_endpoint` input, so a shared
+workflow or image never contains the address or key. The key is never sent
+back to the browser either: the panel only shows whether one is saved. Leave
+the key field empty when saving to keep the saved key.
+
+**Risks — read before using it:**
+
+- The file is plain text: anyone with access to this machine's files can read
+  the key, just as with `.env`.
+- Anyone who can open this ComfyUI in a browser can use a saved custom endpoint
+  in their own workflow, see its address (not its key), and point the server at
+  any address they like. Don't leave a key for a paid service in a custom
+  endpoint on a ComfyUI that others can reach.
+- Your prompts and images go to whatever server you enter. Only use servers
+  you trust.
+- A workflow shared with someone else won't work for them until they enter
+  their own address and key.
+- Copies of the node share the same saved endpoint; saving in one changes all.
+
+For anything permanent, prefer a named endpoint in `UserEndpoints.json` with
+its key in `.env` (below).
 
 ## Adding your own endpoints
 
@@ -138,7 +195,8 @@ OFFICE_VLLM_KEY=...
 | Field              | Meaning                                                              |
 | ------------------ | -------------------------------------------------------------------- |
 | `name`             | What the dropdown shows and the workflow saves. Keep it stable.      |
-| `provider`         | `openai`, `anthropic` or `ollama`.                                   |
+| `provider`         | `openai`, `anthropic`, `ollama`, `claude_cli` or `codex_cli`.        |
+| `command`          | CLI providers only: the command or its full path; may use `${VAR}`.  |
 | `base_url`         | Server address. `${VAR}` and `${VAR:-fallback}` read from `.env`.   |
 | `api_key_env`      | Name of the `.env` variable holding the key.                         |
 | `api_key_optional` | `true` if the server works without one.                              |
@@ -146,7 +204,7 @@ OFFICE_VLLM_KEY=...
 | `models`           | Fallback list for the model browser if the server can't list them.  |
 | `headers`          | Extra HTTP headers; values may use `${VAR}`.                         |
 | `extra_body`       | Extra JSON merged into every request body.                           |
-| `options`          | `{"max_tokens_param": "max_completion_tokens"}` for newer OpenAI models. |
+| `options`          | `max_tokens_param` (e.g. `"max_completion_tokens"` for newer OpenAI models), `ensure_path` (a path such as `"/v1"` added to `base_url` when missing), `model_optional` (an empty model is sent as-is so the server picks), `keep_order` (keep the server's model-list order), `pin_last` (list the endpoint at the end). |
 | `enabled`          | `false` hides the endpoint, including a built-in one of that name.   |
 
 An entry with the same name as a built-in replaces it.

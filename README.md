@@ -143,7 +143,7 @@ Automatically generates random Ideogram 4 json-structured compositions with dict
 
 ## ✨🧠 [Universal LLM API](./README/llm_api.md)
 
-One node for every LLM: ChatGPT, Claude, Gemini, Grok, Groq, OpenRouter, Mistral, DeepSeek, and Ollama / LM Studio / any OpenAI-compatible server on your PC or your network. Model browser, live streaming preview, vision, reasoning control, and no keys or addresses in your shared workflows. Shares prompt presets with the Groq nodes.
+One node for every LLM: ChatGPT, Claude, Gemini, Grok, Groq, OpenRouter, Mistral, DeepSeek, Ollama / LM Studio / any OpenAI-compatible server on your PC or your network, and your Claude Code or Codex subscription. Model browser, live streaming preview, vision, reasoning control, and no keys or addresses in your shared workflows. Shares prompt presets with the Groq nodes.
 
 ## ✨💬 [Groq LLM API](./README/groq_api_llm.md)
 
