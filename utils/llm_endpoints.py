@@ -18,7 +18,7 @@ import shutil
 from dataclasses import dataclass, field
 from urllib.parse import urlparse
 
-from .env_manager import expand_vars, get_secret
+from .env_manager import expand_vars, get_secret, register_secret
 
 LLM_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "nodes", "llm")
 DEFAULT_ENDPOINTS_FILE = os.path.join(LLM_DIR, "DefaultEndpoints.json")
@@ -78,6 +78,12 @@ class ResolvedEndpoint:
             if missing:
                 problems.append(f"Header '{key}' needs {', '.join(missing)} in the .env file.")
             headers[key] = expanded
+        # Whatever the source (.env, system environment, a URL), these must
+        # never show up in outputs, errors or logs.
+        register_secret(api_key)
+        for value in headers.values():
+            register_secret(value)
+        register_secret(urlparse(base_url).password if base_url else None)
         return cls(ep, base_url, api_key or "", headers, problems)
 
     @property
@@ -97,13 +103,25 @@ class ResolvedEndpoint:
             "description": ep.description,
             "default_model": ep.default_model,
             "location": self.location(),
-            "host": parsed.netloc if parsed else "",
+            "host": _display_host(parsed),
             "key_env": ep.api_key_env,
             "key_set": bool(self.api_key),
             "key_optional": ep.api_key_optional or not ep.api_key_env,
             "ok": self.ok,
             "problems": self.problems,
         }
+
+
+def _display_host(parsed):
+    """host[:port] without any user:password@ part of the URL."""
+    if not parsed or not parsed.hostname:
+        return ""
+    host = f"[{parsed.hostname}]" if ":" in parsed.hostname else parsed.hostname
+    try:
+        port = parsed.port
+    except ValueError:
+        port = None
+    return f"{host}:{port}" if port else host
 
 
 def normalize_url(url):

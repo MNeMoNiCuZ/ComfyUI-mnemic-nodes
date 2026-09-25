@@ -19,6 +19,10 @@ from dotenv import dotenv_values
 
 _ENV_CACHE = {"mtime": None, "values": {}}
 
+# Secrets resolved at run time (endpoint keys, header values, URL passwords),
+# whichever source they came from. Masked by redact() alongside .env values.
+_RUNTIME_SECRETS = set()
+
 # ${VAR} or ${VAR:-fallback}
 _VAR_PATTERN = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-([^}]*))?\}")
 
@@ -104,10 +108,22 @@ def expand_vars(text):
     return _VAR_PATTERN.sub(_sub, text), missing
 
 
+def register_secret(value):
+    """Mark a value as secret so redact() masks it wherever it appears."""
+    if value and isinstance(value, str) and len(value.strip()) >= 8 and not is_placeholder(value):
+        _RUNTIME_SECRETS.add(value.strip())
+
+
 def _secret_values():
-    """Every value from .env that is long enough to be worth scrubbing."""
-    values = set(_load_env_file().values())
-    return sorted((v.strip() for v in values if v and len(v.strip()) >= 8 and not is_placeholder(v)), key=len, reverse=True)
+    """Every known secret long enough to be worth scrubbing.
+
+    Values from .env, the process-environment overrides of those same names
+    (get_secret() prefers them), and anything registered at run time.
+    """
+    env_file = _load_env_file()
+    values = set(env_file.values()) | _RUNTIME_SECRETS
+    values |= {os.environ[name] for name in env_file if name in os.environ}
+    return sorted({v.strip() for v in values if v and len(v.strip()) >= 8 and not is_placeholder(v)}, key=len, reverse=True)
 
 
 def redact(text, extra=()):

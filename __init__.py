@@ -50,6 +50,7 @@ from .nodes.ideogram4_random_prompter import Ideogram4RandomPrompter
 from .nodes.image_save_with_metadata import ImageSaveWithMetadata
 from .utils.image_save_runtime_hook import install_runtime_hooks
 from .utils.llm_routes import register_llm_routes
+from .utils.env_manager import ensure_env_file
 
 
 _api = ComfyAPI()
@@ -162,6 +163,7 @@ def _build_replacement(old_node_id: str, node_cls: type[io.ComfyNode]) -> io.Nod
 class MnemicExtension(ComfyExtension):
     async def on_load(self) -> None:
         install_runtime_hooks("ImageSaveWithMetadata")
+        ensure_env_file()
         register_llm_routes()
 
         by_new_id = {}

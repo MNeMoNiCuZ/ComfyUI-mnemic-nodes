@@ -16,10 +16,23 @@ REASONING_LEVELS = ["default", "none", "minimal", "low", "medium", "high"]
 STREAM_EVENT = "mnemic.llm.stream"
 
 
-def _send(event, data):
+def _current_client_id():
+    """The websocket client that queued the running prompt, or None."""
     try:
         from server import PromptServer
-        PromptServer.instance.send_sync(event, data)
+        return PromptServer.instance.client_id
+    except Exception:
+        return None
+
+
+def _send(event, data, client_id):
+    # Only to the client that queued the prompt: replies must not be
+    # broadcast to everyone connected to a shared ComfyUI server.
+    if client_id is None:
+        return
+    try:
+        from server import PromptServer
+        PromptServer.instance.send_sync(event, data, client_id)
     except Exception:
         pass
 
@@ -120,12 +133,13 @@ class LLMAPI(io.ComfyNode):
                       unload_model_after=False, context_length=0, free_comfy_vram=False, max_retries=2,
                       raise_on_error=True, images=None) -> io.NodeOutput:
         node_id = cls.hidden.unique_id if cls.hidden else None
+        client_id = _current_client_id()
         console_log = is_llm_console_log_enabled()
         log = _log if console_log else None
 
         def fail(message, status="error"):
             message = redact(message)
-            _send(STREAM_EVENT, {"node": node_id, "phase": "error", "error": message})
+            _send(STREAM_EVENT, {"node": node_id, "phase": "error", "error": message}, client_id)
             if raise_on_error:
                 raise RuntimeError(f"✨🧠 Universal LLM API — {message}")
             return io.NodeOutput("", "", False, message,
@@ -165,7 +179,7 @@ class LLMAPI(io.ComfyNode):
             reasoning=reasoning,
             keep_alive=0 if unload_model_after else None,
             context_length=context_length,
-            stream=is_llm_live_preview_enabled() and node_id is not None,
+            stream=is_llm_live_preview_enabled() and node_id is not None and client_id is not None,
         )
         if not request.user and not request.images:
             return fail("user_input is empty and no images are connected; there is nothing to send.")
@@ -173,10 +187,10 @@ class LLMAPI(io.ComfyNode):
         if free_comfy_vram:
             await asyncio.to_thread(_free_comfy_vram)
 
-        _send(STREAM_EVENT, {"node": node_id, "phase": "start", "endpoint": endpoint, "model": model})
+        _send(STREAM_EVENT, {"node": node_id, "phase": "start", "endpoint": endpoint, "model": model}, client_id)
 
         def on_delta(text, thinking):
-            _send(STREAM_EVENT, {"node": node_id, "phase": "stream", "text": text, "thinking": thinking})
+            _send(STREAM_EVENT, {"node": node_id, "phase": "stream", "text": text, "thinking": thinking}, client_id)
 
         try:
             result = await asyncio.to_thread(
