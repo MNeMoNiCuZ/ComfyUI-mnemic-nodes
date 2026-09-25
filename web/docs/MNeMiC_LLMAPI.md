@@ -29,13 +29,15 @@ and what is missing if not.
 
 - **endpoint** — Which server to call. The list comes from
   `nodes/llm/DefaultEndpoints.json` and your `nodes/llm/UserEndpoints.json`.
-- **model** — Model name. Empty uses the endpoint's default (for Ollama, the
-  first installed model). Click **🔍 Models** to browse and search what the
+- **model** — Model name. Empty uses the endpoint's default (for Ollama, a
+  model already in memory if there is one, else the first installed one
+  alphabetically). Click **🔍 Models** to browse and search what the
   endpoint offers; Ollama models already in memory are marked.
 - **preset** — A saved system prompt, or the first entry to use
   `system_message`. Click **📜 Preset** to read the selected one.
-- **system_message** — The model's instructions. Greyed out while a preset is
-  active.
+- **system_message** — The model's instructions. Ignored while a preset is
+  active; in the classic node view it is also greyed out and shows the
+  preset's text as a hint (📜 Preset shows it in either view).
 - **user_input** — The request.
 - **images** — Optional. Every image in the batch is sent, for vision models.
 - **temperature** — Randomness. Dropped automatically for models that refuse

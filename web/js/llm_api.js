@@ -448,7 +448,7 @@ class LLMPanel {
         if (!model) {
             hint = this.info.default_model
                 ? `model: ${this.info.default_model} (default)`
-                : this.info.provider === "ollama" ? "model: first installed" : "no model chosen";
+                : this.info.provider === "ollama" ? "model: one in memory, else first installed" : "no model chosen";
         }
         this.host.textContent = [this.info.host, hint].filter(Boolean).join(" · ");
     }
@@ -529,6 +529,8 @@ class LLMPanel {
             const endpoint = this.widget("endpoint")?.value;
             const data = await getModels(endpoint, true);
             button.disabled = false;
+            // A slow test must not paint over a newer endpoint or a running reply.
+            if (this.widget("endpoint")?.value !== endpoint || this.state === "running") return;
             if (data.ok) {
                 this.setDot("ok");
                 this.showNote(`✓ ${endpoint} answered in ${data.ms} ms with ${data.models.length} model${data.models.length === 1 ? "" : "s"}.`, false);
@@ -684,6 +686,11 @@ app.registerExtension({
                     if (w) w._mnemicLast = w.value;
                 }
                 requestAnimationFrame(() => {
+                    // Undo/redo and tab switches rebuild the node, and
+                    // onExecuted is not replayed: restore the last reply.
+                    const outputs = app.nodeOutputs ?? {};
+                    const key = Object.keys(outputs).find((k) => panel.matches(k) && outputs[k]?.mnemic_llm?.[0]);
+                    if (key && !panel.result) panel.onResult(outputs[key].mnemic_llm[0]);
                     panel.refreshStatus();
                     panel.updatePresetState();
                 });
