@@ -51,6 +51,10 @@ function delim(start, end, kind) {
  */
 export function parseWildcardText(text) {
     const n = text.length;
+    // Blocks that never close, by start offset. Whether a block closes does
+    // not depend on where it is nested, so each one is parsed only once;
+    // without this, nested unclosed blocks take exponential time.
+    const failed = new Map();
 
     function parseSequence(i, mode, depth) {
         // mode: "top" | "option" (inside a choice) | "value" (inside a vardef)
@@ -58,14 +62,16 @@ export function parseWildcardText(text) {
         while (i < n) {
             const c = text[i];
             if (c === "$" && text[i + 1] === "{") {
-                const node = parseVariable(i, depth);
+                const node = failed.get(i) ?? parseVariable(i, depth);
                 if (node) {
+                    if (node.error) failed.set(i, node);
                     children.push(node.error ? strayError(node) : node);
                     i = node.error ? i + 2 : node.end;
                     continue;
                 }
             } else if (c === "{") {
-                const node = parseChoice(i, depth + 1);
+                const node = failed.get(i) ?? parseChoice(i, depth + 1);
+                if (node.error) failed.set(i, node);
                 children.push(node.error ? strayError(node) : node);
                 i = node.error ? i + 1 : node.end;
                 continue;
