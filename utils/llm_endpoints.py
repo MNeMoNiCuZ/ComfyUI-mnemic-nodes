@@ -93,17 +93,29 @@ class ResolvedEndpoint:
     def location(self):
         return classify_location(self.base_url)
 
+    def display_host(self):
+        """What the panel may show as the address.
+
+        The real host for addresses written in the shipped/user JSON and for
+        this machine. An address that comes from .env is private (a LAN IP, an
+        internal hostname), so the browser only learns where it came from.
+        """
+        if not self.base_url:
+            return ""
+        if "${" in self.endpoint.base_url and self.location() != "local":
+            return "address set in .env"
+        return _display_host(urlparse(self.base_url))
+
     def public_info(self):
-        """What the browser is allowed to know. No key, no header values."""
+        """What the browser is allowed to know: no key, no header values, no private address."""
         ep = self.endpoint
-        parsed = urlparse(self.base_url) if self.base_url else None
         return {
             "name": ep.name,
             "provider": ep.provider,
             "description": ep.description,
             "default_model": ep.default_model,
             "location": self.location(),
-            "host": _display_host(parsed),
+            "host": self.display_host(),
             "key_env": ep.api_key_env,
             "key_set": bool(self.api_key),
             "key_optional": ep.api_key_optional or not ep.api_key_env,

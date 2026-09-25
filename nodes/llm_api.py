@@ -141,7 +141,9 @@ class LLMAPI(io.ComfyNode):
             message = redact(message)
             _send(STREAM_EVENT, {"node": node_id, "phase": "error", "error": message}, client_id)
             if raise_on_error:
-                raise RuntimeError(f"✨🧠 Universal LLM API — {message}")
+                # from None: the chained original error would otherwise be
+                # printed in ComfyUI's traceback.
+                raise RuntimeError(f"✨🧠 Universal LLM API — {message}") from None
             return io.NodeOutput("", "", False, message,
                                  ui={"mnemic_llm": [{"ok": False, "error": message, "status": status}]})
 

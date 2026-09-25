@@ -20,6 +20,7 @@ import re
 import time
 from dataclasses import dataclass, field
 from io import BytesIO
+from urllib.parse import urlparse
 
 import requests
 
@@ -44,7 +45,9 @@ _RENAMES = {"max_tokens": "max_completion_tokens", "max_completion_tokens": "max
 
 class LLMError(Exception):
     def __init__(self, message, status="error"):
-        super().__init__(message)
+        # Redacted at the source, so no copy of the message (outputs, UI,
+        # routes, chained tracebacks) can carry a secret.
+        super().__init__(redact(str(message)))
         self.status = status
 
 
@@ -534,7 +537,7 @@ def run_chat(ep, req, *, timeout=300, max_retries=2, on_delta=None, check_interr
         if check_interrupt:
             check_interrupt()
         if log:
-            log(f"POST {url}\n{json.dumps(_loggable(body), indent=2, ensure_ascii=False)}")
+            log(f"POST {_strip_userinfo(url)}\n{json.dumps(_loggable(body), indent=2, ensure_ascii=False)}")
         response = None
         try:
             response = requests.post(url, headers=headers, json=body, stream=bool(body.get("stream")),
@@ -602,16 +605,37 @@ def run_chat(ep, req, *, timeout=300, max_retries=2, on_delta=None, check_interr
 
 
 def _short_exception(e):
+    """A fixed description of a transport error.
+
+    Never the exception's own text: requests puts the host, port, path and
+    sometimes the whole URL (credentials included) into its messages.
+    """
     if isinstance(e, requests.Timeout):
         return "timed out"
-    text = str(e)
-    match = re.search(r"\[Errno -?\d+\] ([^'\")]+)|Failed to establish a new connection: ([^'\")]+)", text)
-    if match:
-        return (match.group(1) or match.group(2)).strip()
-    match = re.search(r"Caused by (\w+)\('([^']+)'", text)
-    if match:
-        return f"{match.group(1)}: {match.group(2)}"
-    return text[:300]
+    if isinstance(e, requests.exceptions.SSLError):
+        return "TLS/certificate error"
+    if isinstance(e, requests.exceptions.ProxyError):
+        return "the proxy refused the connection"
+    if isinstance(e, (requests.exceptions.InvalidURL, requests.exceptions.MissingSchema,
+                      requests.exceptions.InvalidSchema, requests.exceptions.URLRequired)):
+        return "invalid base_url"
+    if isinstance(e, requests.exceptions.ChunkedEncodingError):
+        return "the connection dropped mid-reply"
+    if isinstance(e, requests.ConnectionError):
+        # OS error descriptions ("Connection refused", "Name or service not
+        # known") carry no address.
+        match = re.search(r"\[Errno -?\d+\] ([A-Za-z][A-Za-z ,'-]*)", str(e))
+        return match.group(1).strip() if match else "connection failed"
+    if isinstance(e, ValueError):
+        return "reply was not valid JSON"
+    return type(e).__name__
+
+
+def _strip_userinfo(url):
+    parsed = urlparse(url)
+    if not (parsed.username or parsed.password):
+        return url
+    return parsed._replace(netloc=parsed.netloc.rsplit("@", 1)[1]).geturl()
 
 
 def _loggable(body):
