@@ -16,6 +16,7 @@ CLI's environment so the subscription login is what gets used.
 
 import base64
 import json
+import re
 import os
 import queue
 import shutil
@@ -44,6 +45,11 @@ _CODEX_TOOL_FEATURES = (
     "computer_use", "apps", "image_generation", "plugins", "remote_plugin", "tool_suggest",
     "standalone_web_search", "web_search_request", "web_search_cached",
 )
+# Model names go on the command line. On Windows an npm-installed CLI is a
+# .cmd script run through cmd.exe, which Python can't quote safely, so a
+# model name from a (possibly shared) workflow is restricted to plain
+# characters.
+_SAFE_MODEL = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/@\[\]-]{0,127}$")
 _EFFORT = {"minimal": "low", "none": "low", "low": "low", "medium": "medium", "high": "high"}
 _codex_features_cache = {}
 
@@ -303,6 +309,8 @@ def run_codex(command, req, result, *, encoded_images, system, timeout, on_delta
 # --------------------------------------------------------------------------
 
 def run_cli_chat(provider, command, req, result, **kwargs):
+    if req.model and not _SAFE_MODEL.match(req.model):
+        raise CLIError("invalid model name: use letters, digits and . _ - : / @ only", status="invalid model")
     runner = run_claude if provider == CLAUDE else run_codex
     try:
         return runner(command, req, result, **kwargs)

@@ -146,7 +146,8 @@ only, in `nodes/llm/CustomEndpoints.local.json` (git-ignored, plain text). The
 workflow keeps just a random id in the `custom_endpoint` input, so a shared
 workflow or image never contains the address or key. The key is never sent
 back to the browser either: the panel only shows whether one is saved. Leave
-the key field empty when saving to keep the saved key.
+the key field empty when saving to keep the saved key; changing the address
+or protocol clears it, so a saved key can't be pointed at another server.
 
 **Risks — read before using it:**
 

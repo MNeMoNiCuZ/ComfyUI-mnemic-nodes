@@ -30,12 +30,10 @@ def _load():
 
 def _save(data):
     tmp = STORE_FILE + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
+    # Created private from the start (no window where others can read it).
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
-    try:
-        os.chmod(tmp, 0o600)
-    except OSError:
-        pass
     os.replace(tmp, STORE_FILE)
 
 
@@ -59,6 +57,10 @@ def save_custom(custom_id, provider, base_url, api_key):
             custom_id = secrets.token_urlsafe(18)
             data[custom_id] = {}
         entry = data[custom_id]
+        if api_key is None and (entry.get("base_url") != base_url or entry.get("provider") != provider):
+            # The id travels with every workflow and image; without this,
+            # anyone who has it could point a saved key at their own server.
+            entry.pop("api_key", None)
         entry["provider"] = provider
         entry["base_url"] = base_url
         if api_key is not None:

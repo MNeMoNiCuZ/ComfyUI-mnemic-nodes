@@ -461,7 +461,8 @@ class LLMPanel {
         if (data.ok) {
             this.customField("provider").value = data.provider;
             if (document.activeElement !== this.customField("url")) this.customField("url").value = data.base_url ?? "";
-            this.customField("key").placeholder = data.key_set ? "API key saved (type to replace)" : "API key (optional)";
+            this.customField("key").placeholder = data.key_set
+                ? "API key saved (changing the address clears it)" : "API key (optional)";
         }
     }
 
