@@ -1,41 +1,25 @@
-import os
 import json
 import random
 import numpy as np
 import torch
 from colorama import Fore, Style
-from groq import Groq
 
-from ..utils.api_utils import make_api_request, load_prompt_options, get_prompt_content
+from ..utils.api_utils import make_api_request, get_prompt_content
 from ..utils.env_manager import ensure_env_file, get_api_key
+from ..utils.prompt_presets import load_presets, VISION_PRESET_FILES
 from ..utils.image_utils import encode_image, tensor_to_pil
 
 from comfy_api.latest import io
 
-# Lazily-initialised API key and prompt options, shared by every instance of the
-# node. V3 nodes execute as classmethods, so this replaces the old __init__.
-_CONTEXT = None
-
 
 def _get_context():
-    """Return (api_key, prompt_options), initialising them on first use."""
-    global _CONTEXT
-    if _CONTEXT is None:
-        current_directory = os.path.dirname(os.path.realpath(__file__))
-        groq_directory = os.path.join(current_directory, 'groq')
+    """Return (api_key, prompt_options).
 
-        # Get API key from env file
-        ensure_env_file()
-        api_key = get_api_key()
-        Groq(api_key=api_key)
-
-        # Load prompt options
-        prompt_files = [
-            os.path.join(groq_directory, 'DefaultPrompts_VLM.json'),
-            os.path.join(groq_directory, 'UserPrompts_VLM.json')
-        ]
-        _CONTEXT = (api_key, load_prompt_options(prompt_files))
-    return _CONTEXT
+    Both are re-read on every run, so edits to .env and to the preset files
+    apply without restarting ComfyUI.
+    """
+    ensure_env_file()
+    return get_api_key(), load_presets(VISION_PRESET_FILES)
 
 
 class GroqAPIVLM(io.ComfyNode):
@@ -51,13 +35,7 @@ class GroqAPIVLM(io.ComfyNode):
     @classmethod
     def define_schema(cls) -> io.Schema:
         try:
-            current_directory = os.path.dirname(os.path.realpath(__file__))
-            groq_directory = os.path.join(current_directory, 'groq')
-            prompt_files = [
-                os.path.join(groq_directory, 'DefaultPrompts_VLM.json'),
-                os.path.join(groq_directory, 'UserPrompts_VLM.json')
-            ]
-            prompt_options = load_prompt_options(prompt_files)
+            prompt_options = load_presets(VISION_PRESET_FILES)
         except Exception as e:
             print(Fore.RED + f"Failed to load prompt options: {e}" + Style.RESET_ALL)
             prompt_options = {}

@@ -4,12 +4,15 @@ This repository hosts a collection of nodes developed for ComfyUI. It aims to sh
 
 # Installation instructions
 
-## Configuration (only needed for Groq nodes)
+## Configuration (only needed for the LLM nodes)
 
-1. Make a copy of `.env.example` and remove the `.example` from the name.
-2. The new file should now be named `.env` without a normal file name, just a .env extension.
-3. The file should be in the root of the node pack, so the same directory that the .example was in.
-4. Edit `.env` with a text editor and edit the API key value inside.
+API keys and private server addresses for the ✨ LLM nodes live in a `.env` file in the root of the node pack.
+
+1. Start ComfyUI once: `.env` is created for you from `.env.example`. (Or copy `.env.example` to `.env` yourself.)
+2. Edit `.env` with a text editor and fill in only the keys and addresses you use.
+3. Changes apply on the next run; no restart needed.
+
+`.env` is git-ignored and read only by the ComfyUI backend. Nothing in it is ever written into a workflow or an image's metadata, so sharing those is safe.
 
 # Nodes
 
@@ -137,6 +140,10 @@ Visual bounding-box for Ideogram 4 with added automatic string input for each re
 
 Automatically generates random Ideogram 4 json-structured compositions with dictionary-sourced descriptions.
 <img width="2162" height="580" alt="image" src="https://github.com/user-attachments/assets/72b2eeeb-8d12-4525-991b-b284fd13d60d" />
+
+## ✨🧠 [Universal LLM API](./README/llm_api.md)
+
+One node for every LLM: ChatGPT, Claude, Gemini, Grok, Groq, OpenRouter, Mistral, DeepSeek, and Ollama / LM Studio / any OpenAI-compatible server on your PC or your network. Model browser, live streaming preview, vision, reasoning control, and no keys or addresses in your shared workflows. Shares prompt presets with the Groq nodes.
 
 ## ✨💬 [Groq LLM API](./README/groq_api_llm.md)
 

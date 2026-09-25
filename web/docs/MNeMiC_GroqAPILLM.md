@@ -14,7 +14,8 @@ blank one on first run. Put your key from
 GROQ_API_KEY=your_key_here
 ```
 
-Restart ComfyUI after editing it.
+Changes apply on the next run; no restart needed. The same key is used by the
+✨🧠 Universal LLM API node's Groq endpoint.
 
 ## Inputs
 
@@ -48,7 +49,8 @@ Advanced:
 
 Presets come from `nodes/groq/DefaultPrompts.json` (shipped) and
 `nodes/groq/UserPrompts.json` (yours). Each entry is `{"name": ..., "content":
-...}`; the name shows in the dropdown. Restart ComfyUI after editing.
+...}`; the name shows in the dropdown. They are shared with the ✨🧠 Universal
+LLM API node. Press R in ComfyUI (refresh node definitions) after editing.
 
 ## Notes
 
