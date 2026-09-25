@@ -28,7 +28,7 @@ from urllib3.exceptions import LocationValueError
 from .env_manager import redact
 
 RETRY_STATUSES = {408, 409, 425, 429, 500, 502, 503, 504, 529}
-MAX_IMAGE_SIDE = 2048
+MAX_IMAGE_SIDE = 2000  # Claude's per-image cap once a request has more than 20 images
 ANTHROPIC_VERSION = "2023-06-01"
 ANTHROPIC_DEFAULT_MAX_TOKENS = 16000
 # Older Claude models (Haiku 4.5, 4.5 and earlier) take a fixed thinking
@@ -198,6 +198,29 @@ def _iter_sse(response):
 # Adapters
 # --------------------------------------------------------------------------
 
+def _split_content(content):
+    """(text, thinking) from an OpenAI-style message content.
+
+    Usually a string; Mistral's reasoning models send a list of typed parts,
+    with thinking as {"type": "thinking", "thinking": [{"type": "text", ...}]}.
+    """
+    if isinstance(content, str) or content is None:
+        return content or "", ""
+    text, thinking = [], []
+    for part in content if isinstance(content, list) else []:
+        if not isinstance(part, dict):
+            continue
+        if part.get("type") == "thinking":
+            inner = part.get("thinking")
+            if isinstance(inner, list):
+                thinking.extend(p.get("text", "") for p in inner if isinstance(p, dict))
+            elif isinstance(inner, str):
+                thinking.append(inner)
+        elif isinstance(part.get("text"), str):
+            text.append(part["text"])
+    return "".join(text), "".join(thinking)
+
+
 class OpenAIAdapter:
     name = "openai"
 
@@ -247,11 +270,9 @@ class OpenAIAdapter:
     def parse(self, data, result):
         choice = (data.get("choices") or [{}])[0]
         message = choice.get("message") or {}
-        content = message.get("content")
-        if isinstance(content, list):
-            content = "".join(part.get("text", "") for part in content if isinstance(part, dict))
-        result.text = content or ""
-        result.thinking = message.get("reasoning_content") or message.get("reasoning") or ""
+        text, inline_thinking = _split_content(message.get("content"))
+        result.text = text
+        result.thinking = message.get("reasoning_content") or message.get("reasoning") or inline_thinking
         result.finish_reason = choice.get("finish_reason") or ""
         result.model = data.get("model", "")
         usage = data.get("usage") or {}
@@ -272,16 +293,17 @@ class OpenAIAdapter:
                 result.output_tokens = usage.get("completion_tokens")
             for choice in chunk.get("choices") or []:
                 delta = choice.get("delta") or {}
-                thinking = delta.get("reasoning_content") or delta.get("reasoning")
+                text, inline_thinking = _split_content(delta.get("content"))
+                thinking = delta.get("reasoning_content") or delta.get("reasoning") or inline_thinking
                 if thinking:
                     yield "thinking", thinking
-                if delta.get("content"):
-                    yield "text", delta["content"]
+                if text:
+                    yield "text", text
                 if choice.get("finish_reason"):
                     result.finish_reason = choice["finish_reason"]
 
     def list_models(self, ep, timeout):
-        response = requests.get(f"{ep.base_url}/models", headers=self.headers(ep), timeout=timeout)
+        response = requests.get(f"{ep.base_url}/models", headers=self.headers(ep), timeout=timeout, allow_redirects=False)
         _raise_for_status(response)
         models = []
         for item in response.json().get("data", []):
@@ -437,7 +459,7 @@ class AnthropicAdapter:
                 break
 
     def list_models(self, ep, timeout):
-        response = requests.get(f"{ep.base_url}/models", params={"limit": 1000}, headers=self.headers(ep), timeout=timeout)
+        response = requests.get(f"{ep.base_url}/models", params={"limit": 1000}, headers=self.headers(ep), timeout=timeout, allow_redirects=False)
         _raise_for_status(response)
         return [{"id": m["id"], "detail": m.get("display_name", "")} for m in response.json().get("data", [])]
 
@@ -519,12 +541,12 @@ class OllamaAdapter:
 
     def list_models(self, ep, timeout):
         headers = self.headers(ep)
-        response = requests.get(f"{ep.base_url}/api/tags", headers=headers, timeout=timeout)
+        response = requests.get(f"{ep.base_url}/api/tags", headers=headers, timeout=timeout, allow_redirects=False)
         _raise_for_status(response)
         loaded = set()
         try:
-            ps = requests.get(f"{ep.base_url}/api/ps", headers=headers, timeout=timeout)
-            if ps.ok:
+            ps = requests.get(f"{ep.base_url}/api/ps", headers=headers, timeout=timeout, allow_redirects=False)
+            if ps.status_code == 200:
                 loaded = {m.get("name") for m in ps.json().get("models", [])}
         except requests.RequestException:
             pass
@@ -546,6 +568,11 @@ def get_adapter(provider):
 
 
 def _raise_for_status(response):
+    if 300 <= response.status_code < 400:
+        # Location is not echoed: it may name a private host.
+        raise LLMError(f"The server redirected the request (HTTP {response.status_code}). "
+                       "Set base_url to the final address; redirects aren't followed so keys can't leak.",
+                       status=f"{response.status_code} redirect")
     if not response.ok:
         raise LLMError(redact(f"{response.status_code} {response.reason}: {_error_text(response)}"),
                        status=f"{response.status_code} {response.reason}")
@@ -561,9 +588,11 @@ def _adjust_for_rejection(provider, body, error_text, already, budget_added=0):
     Returns None if nothing matched, else a note for the status line ("" when
     the change is not worth reporting).
     """
-    lowered = error_text.lower()
+    # Compared without underscores: xAI names parameters in camelCase
+    # ("reasoningEffort").
+    lowered = error_text.lower().replace("_", "")
     for key in _ADJUSTABLE.get(provider, []):
-        if key in body and key not in already and key in lowered:
+        if key in body and key not in already and key.replace("_", "") in lowered:
             already.add(key)
             renamed = _RENAMES.get(key)
             if renamed and renamed not in already:
@@ -622,7 +651,10 @@ def run_chat(ep, req, *, timeout=300, max_retries=2, on_delta=None, check_interr
             log(f"POST {_strip_userinfo(url)}\n{json.dumps(_loggable(body), indent=2, ensure_ascii=False)}")
         response = None
         try:
+            # No redirects: requests only strips Authorization on a cross-host
+            # redirect, so x-api-key and custom secret headers would follow.
             response = requests.post(url, headers=headers, json=body, stream=bool(body.get("stream")),
+                                     allow_redirects=False,
                                      timeout=(15, timeout))
         except (requests.RequestException, LocationValueError) as e:
             if isinstance(e, LocationValueError) or attempt >= max_retries:

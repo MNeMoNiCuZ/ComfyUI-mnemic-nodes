@@ -80,7 +80,7 @@ class ResolvedEndpoint:
             headers[key] = expanded
         # Whatever the source (.env, system environment, a URL), these must
         # never show up in outputs, errors or logs.
-        register_secret(api_key)
+        register_secret(api_key, partial=True)
         for key, value in headers.items():
             if "${" in str((ep.headers or {}).get(key, "")):
                 register_secret(value)

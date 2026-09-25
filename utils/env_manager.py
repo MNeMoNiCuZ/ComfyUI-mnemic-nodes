@@ -22,6 +22,10 @@ _ENV_CACHE = {"mtime": None, "values": {}}
 # Secrets resolved at run time (endpoint keys, header values, URL passwords),
 # whichever source they came from. Masked by redact() alongside .env values.
 _RUNTIME_SECRETS = set()
+# API keys, which keep a short prefix/suffix when masked so you can tell which
+# key a server complained about. Everything else (addresses, passwords,
+# ${VAR} values) is masked completely.
+_PARTIAL_MASK = set()
 
 # ${VAR} or ${VAR:-fallback}
 _VAR_PATTERN = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-([^}]*))?\}")
@@ -111,7 +115,7 @@ def expand_vars(text):
     return _VAR_PATTERN.sub(_sub, text), missing
 
 
-def register_secret(value, min_length=4):
+def register_secret(value, min_length=4, partial=False):
     """Mark a value as secret so redact() masks it wherever it appears.
 
     Keys and passwords are masked from 4 characters. General values (an
@@ -120,6 +124,8 @@ def register_secret(value, min_length=4):
     """
     if value and isinstance(value, str) and len(value.strip()) >= min_length and not is_placeholder(value):
         _RUNTIME_SECRETS.add(value.strip())
+        if partial:
+            _PARTIAL_MASK.add(value.strip())
 
 
 def _secret_values():
@@ -153,14 +159,15 @@ def redact(text, extra=()):
 def mask(secret):
     if not secret:
         return ""
-    if len(secret) <= 10:
-        return "•" * 6
-    return f"{secret[:4]}…{secret[-2:]}"
+    if secret in _PARTIAL_MASK and len(secret) > 10:
+        return f"{secret[:4]}…{secret[-2:]}"
+    return "•" * 6
 
 
 def get_api_key():
     """Get the Groq API key from environment variables."""
     api_key = get_secret('GROQ_API_KEY')
+    register_secret(api_key, partial=True)
     if not api_key:
         raise ValueError("Please set your GROQ_API_KEY in the .env file")
     return api_key
