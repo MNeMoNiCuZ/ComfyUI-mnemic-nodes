@@ -120,9 +120,10 @@ ChatGPT subscription and need no API key.
 - Install the CLI and sign in once in a terminal: run `claude`, or
   `codex login`. If the command isn't on your PATH, set `CLAUDE_CLI` or
   `CODEX_CLI` in `.env` to its full path.
-- Claude Code runs as `claude -p` with all tools and MCP servers turned off, so
-  it answers as a plain model. Codex runs as `codex exec` (Codex's own `-p` is
-  a profile flag, not print mode) with its tool features disabled, in a
+- Claude Code runs as `claude -p` with all tools, MCP servers and your
+  Claude Code settings (hooks) turned off, so it answers as a plain model. Codex runs as `codex exec` (Codex's own `-p` is
+  a profile flag, not print mode) with its tool features and your
+  `config.toml` (MCP servers, hooks) turned off, in a
   read-only sandbox in an empty temporary folder. If the node can't confirm
   Codex's shell tools are turned off, it refuses to run rather than risk a
   prompt making Codex read files on your machine.

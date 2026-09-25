@@ -404,6 +404,12 @@ class LLMPanel {
         this.custom = this.el.querySelector(".mnemic-llm-custom");
         this.customStatus = this.el.querySelector(".mnemic-llm-custom-status");
         this.customField = (f) => this.custom.querySelector(`[data-f="${f}"]`);
+        // Unsaved edits are never overwritten by a status refresh.
+        this.customDirty = false;
+        for (const f of ["provider", "url"]) {
+            this.customField(f).addEventListener("input", () => (this.customDirty = true));
+            this.customField(f).addEventListener("change", () => (this.customDirty = true));
+        }
         // Typing in these fields must not trigger ComfyUI shortcuts.
         for (const type of ["keydown", "keyup", "keypress", "pointerdown", "wheel"]) {
             this.custom.addEventListener(type, (e) => e.stopPropagation());
@@ -466,8 +472,14 @@ class LLMPanel {
         info.host = data.ok ? "custom endpoint" : "not saved yet";
         info.problems = data.ok ? [] : ["Enter the server's address (and key, if it needs one) and press Save."];
         if (data.ok) {
-            this.customField("provider").value = data.provider;
-            if (document.activeElement !== this.customField("url")) this.customField("url").value = data.base_url ?? "";
+            // Fill the fields from what is saved only for a newly shown id,
+            // or when the user hasn't started editing them.
+            if (this.customLoadedId !== id || !this.customDirty) {
+                this.customField("provider").value = data.provider;
+                this.customField("url").value = data.base_url ?? "";
+                this.customDirty = false;
+            }
+            this.customLoadedId = id;
             this.customField("key").placeholder = data.key_set
                 ? "API key saved (changing the address clears it)" : "API key (optional)";
         }
@@ -495,6 +507,7 @@ class LLMPanel {
             return;
         }
         this.customField("key").value = "";
+        this.customDirty = false;
         const w = this.widget("custom_endpoint");
         if (w && w.value !== data.id) {
             w.value = data.id;

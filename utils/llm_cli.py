@@ -4,11 +4,13 @@ Both run the CLI installed on this machine in non-interactive mode, signed in
 with your own subscription, so no API key is involved:
 
 - Claude Code: `claude -p` with stream-json input/output. All tools are
-  disabled (`--tools ""`), MCP servers aren't loaded and nothing is saved as
-  a session, so it answers as a plain model.
-- Codex: `codex exec --json`. Its tool features (shell, browser, computer
-  use, apps…) are disabled where this Codex version has them, and it runs in
-  a read-only sandbox in an empty temporary folder.
+  disabled (`--tools ""`), MCP servers and user/project settings (hooks)
+  aren't loaded and nothing is saved as a session, so it answers as a plain
+  model.
+- Codex: `codex exec --json --ignore-user-config`. Its tool features
+  (shell, browser, computer use, apps, hooks…) are disabled where this Codex
+  version has them, and it runs in a read-only sandbox in an empty temporary
+  folder. It refuses to run if the shell tools can't be confirmed off.
 
 API-key variables (ANTHROPIC_API_KEY, OPENAI_API_KEY…) are removed from the
 CLI's environment so the subscription login is what gets used.
@@ -46,6 +48,7 @@ _CODEX_TOOL_FEATURES = (
     "shell_tool", "unified_exec", "browser_use", "browser_use_external", "in_app_browser",
     "computer_use", "apps", "image_generation", "plugins", "remote_plugin", "tool_suggest",
     "standalone_web_search", "web_search_request", "web_search_cached",
+    "hooks", "multi_agent", "view_image", "goals",
 )
 # Model names go on the command line. On Windows an npm-installed CLI is a
 # .cmd script run through cmd.exe, which Python can't quote safely, so a
@@ -141,8 +144,10 @@ def _run(args, provider, cwd, stdin_bytes, on_line, timeout, check_interrupt):
     proc = _popen(args, provider, cwd)
     lines = queue.Queue()
     stderr_chunks = []
-    threading.Thread(target=_read_lines, args=(proc.stdout, lines), daemon=True).start()
-    threading.Thread(target=lambda: stderr_chunks.append(proc.stderr.read()), daemon=True).start()
+    stdout_reader = threading.Thread(target=_read_lines, args=(proc.stdout, lines), daemon=True)
+    stderr_reader = threading.Thread(target=lambda: stderr_chunks.append(proc.stderr.read()), daemon=True)
+    stdout_reader.start()
+    stderr_reader.start()
     try:
         proc.stdin.write(stdin_bytes)
         proc.stdin.close()
@@ -166,6 +171,10 @@ def _run(args, provider, cwd, stdin_bytes, on_line, timeout, check_interrupt):
             if line:
                 on_line(line)
         proc.wait(timeout=10)
+        # The error text (e.g. "not logged in") is only complete once the
+        # reader has finished.
+        stdout_reader.join(timeout=5)
+        stderr_reader.join(timeout=5)
     except BaseException:
         _terminate(proc)
         raise
@@ -197,7 +206,7 @@ def run_claude(command, req, result, *, encoded_images, system, timeout, on_delt
             f.write(system or DEFAULT_SYSTEM)
         args = [command, "-p", "--input-format", "stream-json", "--output-format", "stream-json",
                 "--verbose", "--include-partial-messages", "--tools", "", "--strict-mcp-config",
-                "--no-session-persistence", "--system-prompt-file", system_file]
+                "--no-session-persistence", "--setting-sources", "", "--system-prompt-file", system_file]
         if req.model:
             args += ["--model", req.model]
         if req.reasoning in _EFFORT:
@@ -287,7 +296,9 @@ def _codex_features(command, work):
 def run_codex(command, req, result, *, encoded_images, system, timeout, on_delta, check_interrupt, log):
     with _work_dir() as work:
         last_message = os.path.join(work, "last_message.txt")
-        args = [command, "exec", "--json", "--skip-git-repo-check", "--ephemeral",
+        # --ignore-user-config: MCP servers and hooks from config.toml would
+        # otherwise be offered as tools (sign-in still works).
+        args = [command, "exec", "--json", "--skip-git-repo-check", "--ephemeral", "--ignore-user-config",
                 "--sandbox", "read-only", "-C", work, "-o", last_message]
         known = _codex_features(command, work)
         for feature in _CODEX_TOOL_FEATURES:
@@ -307,6 +318,8 @@ def run_codex(command, req, result, *, encoded_images, system, timeout, on_delta
         args.append("-")
         # Codex has no separate system prompt in exec mode.
         prompt = f"{system}\n\n---\n\n{req.user}" if system and req.user else (system or req.user)
+        if not prompt and encoded_images:
+            prompt = "Describe the image(s)."  # codex exec refuses an empty prompt
         if log:
             log(f"Codex CLI: {' '.join(args[1:])}")
 

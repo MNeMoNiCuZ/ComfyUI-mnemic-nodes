@@ -103,7 +103,7 @@ class LLMAPI(io.ComfyNode):
                 io.Combo.Input("endpoint", options=names, default=names[0],
                                tooltip="Which server to talk to. Endpoints are defined in nodes/llm/*.json; keys and private addresses come from .env and are never saved in the workflow."),
                 io.String.Input("model", default="",
-                                tooltip="Model name as the endpoint knows it. Empty uses the endpoint's default model, or on a local/network server the first model it lists (for Ollama, one already in memory). Use 🔍 Models on the node to browse."),
+                                tooltip="Model name as the endpoint knows it. Empty uses the endpoint's default model, or on a local/network server the first model it lists (for Ollama, one already in memory). The Claude Code/Codex CLIs and some servers pick their own default. Use 🔍 Models on the node to browse."),
                 io.Combo.Input("preset", options=[DEFAULT_PROMPT] + presets, default=DEFAULT_PROMPT,
                                tooltip="A saved system prompt, shared with the Groq nodes. The first entry uses the system_message field instead."),
                 io.String.Input("system_message", multiline=True, default="",
