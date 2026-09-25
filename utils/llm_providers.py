@@ -582,17 +582,46 @@ def _raise_for_status(response):
 # Running a request
 # --------------------------------------------------------------------------
 
+def _names_param(error_text, key):
+    """Whether the error names this parameter as a whole word, in snake_case
+    or camelCase (xAI writes "reasoningEffort"). A plain substring test would
+    let "top_p" match "stopped"."""
+    parts = key.split("_")
+    camel = parts[0] + "".join(p.capitalize() for p in parts[1:])
+    names = {re.escape(key), re.escape(camel)}
+    return re.search(rf"(?<![A-Za-z0-9_])(?:{'|'.join(names)})(?![A-Za-z0-9_])", error_text, re.IGNORECASE) is not None
+
+
+_MAX_TOKENS_LIMIT = re.compile(r"max_tokens:?\s*(\d+)\s*>\s*(\d+)")
+
+
+def _clamp_max_tokens(body, error_text, already):
+    """Lower max_tokens to the limit the error names (older Claude models
+    cap output below our default), keeping any thinking budget inside it."""
+    match = _MAX_TOKENS_LIMIT.search(error_text)
+    if not match or "max_tokens_clamp" in already or "max_tokens" not in body:
+        return None
+    already.add("max_tokens_clamp")
+    limit = int(match.group(2))
+    body["max_tokens"] = limit
+    thinking = body.get("thinking")
+    if isinstance(thinking, dict) and thinking.get("budget_tokens"):
+        budget = min(thinking["budget_tokens"], limit - 1)
+        if budget >= 1024:
+            thinking["budget_tokens"] = budget
+        else:
+            body.pop("thinking")
+    return f"max_tokens lowered to {limit}"
+
+
 def _adjust_for_rejection(provider, body, error_text, already, budget_added=0):
     """Drop or rename the first parameter the error names.
 
     Returns None if nothing matched, else a note for the status line ("" when
     the change is not worth reporting).
     """
-    # Compared without underscores: xAI names parameters in camelCase
-    # ("reasoningEffort").
-    lowered = error_text.lower().replace("_", "")
     for key in _ADJUSTABLE.get(provider, []):
-        if key in body and key not in already and key.replace("_", "") in lowered:
+        if key in body and key not in already and _names_param(error_text, key):
             already.add(key)
             renamed = _RENAMES.get(key)
             if renamed and renamed not in already:
@@ -667,7 +696,9 @@ def run_chat(ep, req, *, timeout=300, max_retries=2, on_delta=None, check_interr
 
         if response.status_code in (400, 422):
             error_text = _error_text(response)
-            note = _adjust_for_rejection(ep.endpoint.provider, body, error_text, adjusted, budget_added)
+            note = _clamp_max_tokens(body, error_text, adjusted)
+            if note is None:
+                note = _adjust_for_rejection(ep.endpoint.provider, body, error_text, adjusted, budget_added)
             if note is not None:
                 response.close()
                 if note:

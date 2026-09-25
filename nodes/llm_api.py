@@ -1,4 +1,5 @@
 import asyncio
+import re
 import sys
 
 import numpy as np
@@ -15,6 +16,9 @@ from comfy_api.latest import io
 DEFAULT_PROMPT = "Use [system_message] and [user_input]"
 REASONING_LEVELS = ["default", "none", "minimal", "low", "medium", "high"]
 STREAM_EVENT = "mnemic.llm.stream"
+# Embedding/reranker models are listed alongside chat models by Ollama and
+# LM Studio but can't chat; never auto-pick one.
+_EMBEDDING_MODEL = re.compile(r"embed|bge|minilm|rerank|e5-|gte-", re.IGNORECASE)
 
 
 def _current_client_id():
@@ -179,14 +183,15 @@ class LLMAPI(io.ComfyNode):
         # Local and network servers (Ollama, LM Studio, llama.cpp…) usually
         # serve what's loaded: take the first model they list. A cloud
         # endpoint's list is too broad to guess from.
-        if not model and (ep_config.provider == "ollama" or ep.location() in ("local", "network")):
+        if not model and ep.location() in ("local", "network"):
             try:
                 available = await asyncio.to_thread(list_models, ep)
             except LLMError as e:
                 return fail(str(e), e.status)
             except Exception as e:
                 return fail(f"{endpoint}: unexpected {type(e).__name__} while listing models.")
-            model = available[0]["id"] if available else ""
+            chat_models = [m for m in available if not _EMBEDDING_MODEL.search(m["id"])]
+            model = chat_models[0]["id"] if chat_models else ""
         if not model:
             return fail(f"No model chosen for {endpoint}. Type one in, or click 🔍 Models on the node.")
 
