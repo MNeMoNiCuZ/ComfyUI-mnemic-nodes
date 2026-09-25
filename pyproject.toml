@@ -1,7 +1,7 @@
 [project]
 name = "comfyui-mnemic-nodes"
 description = "Made the temp image loader not complain about missing images, and accessing the input folder"
-version = "3.0.1"
+version = "3.0.2"
 license = { file = "LICENSE" }
 dependencies = ["configparser", "groq", "transformers", "torch", "tiktoken", "imageio", "tqdm", "piexif", "requests", "colorama", "opencv-python"]
 
