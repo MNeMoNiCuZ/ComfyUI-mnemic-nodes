@@ -12,6 +12,10 @@ Each adapter turns a ChatRequest into (url, headers, body), and turns the
 reply — whole or streamed — back into text. `run_chat` does the HTTP around it:
 retries, backoff, live streaming, interrupts, and dropping parameters an
 endpoint rejects.
+
+`athousandwords` is not a chat API (one multipart POST /caption per request,
+no streaming, images/video only) and bypasses the adapter's build/parse: see
+_run_athousandwords. Its adapter only serves list_models.
 """
 
 import base64
@@ -61,6 +65,7 @@ class ChatRequest:
     system: str = ""
     user: str = ""
     images: list = field(default_factory=list)      # PIL images
+    videos: list = field(default_factory=list)      # VIDEO inputs; A Thousand Words only
     temperature: float | None = None
     top_p: float | None = None
     max_tokens: int = 0
@@ -90,8 +95,8 @@ class ChatResult:
 # Helpers
 # --------------------------------------------------------------------------
 
-def encode_images(images):
-    """PIL images → list of (mime, base64). Large images are scaled down."""
+def _encode_image_bytes(images):
+    """PIL images → list of (mime, raw bytes). Large images are scaled down."""
     encoded = []
     for image in images:
         image = image.convert("RGB")
@@ -99,8 +104,26 @@ def encode_images(images):
             image.thumbnail((MAX_IMAGE_SIDE, MAX_IMAGE_SIDE))
         buffer = BytesIO()
         image.save(buffer, format="JPEG", quality=92)
-        encoded.append(("image/jpeg", base64.b64encode(buffer.getvalue()).decode("ascii")))
+        encoded.append(("image/jpeg", buffer.getvalue()))
     return encoded
+
+
+def encode_images(images):
+    """PIL images → list of (mime, base64). Large images are scaled down."""
+    return [(mime, base64.b64encode(data).decode("ascii")) for mime, data in _encode_image_bytes(images)]
+
+
+_VIDEO_MIME = {"mp4": "video/mp4", "avi": "video/x-msvideo", "mov": "video/quicktime",
+               "matroska": "video/x-matroska", "webm": "video/webm"}
+
+
+def encode_video(video):
+    """A ComfyUI VIDEO input → (filename, raw bytes, mime), without re-encoding."""
+    fmt = (video.get_container_format() or "mp4").lower()
+    ext, mime = next(((e, m) for e, m in _VIDEO_MIME.items() if e in fmt), ("mp4", "video/mp4"))
+    source = video.get_stream_source()
+    data = open(source, "rb").read() if isinstance(source, str) else source.getvalue()
+    return f"video.{ext}", data, mime
 
 
 _THINK_BLOCK = re.compile(r"<(think|thinking|reasoning)>(.*?)</\1>", re.DOTALL | re.IGNORECASE)
@@ -470,7 +493,10 @@ class AnthropicAdapter:
     def list_models(self, ep, timeout):
         response = requests.get(f"{ep.base_url}/models", params={"limit": 1000}, headers=self.headers(ep), timeout=timeout, allow_redirects=False)
         _raise_for_status(response)
-        return [{"id": m["id"], "detail": m.get("display_name", "")} for m in response.json().get("data", [])]
+        # Every model the Anthropic API lists is a current Claude model, and
+        # all of them accept image input.
+        return [{"id": m["id"], "detail": m.get("display_name", ""), "vision": True}
+                for m in response.json().get("data", [])]
 
 
 class OllamaAdapter:
@@ -565,11 +591,38 @@ class OllamaAdapter:
             detail = [d for d in (details.get("parameter_size"), details.get("quantization_level")) if d]
             if item.get("size"):
                 detail.append(f"{item['size'] / 1e9:.1f} GB")
-            models.append({"id": item["name"], "detail": " · ".join(detail), "loaded": item["name"] in loaded})
+            vision = "vision" in (item.get("capabilities") or [])
+            models.append({"id": item["name"], "detail": " · ".join(detail),
+                           "loaded": item["name"] in loaded, "vision": vision})
         return sorted(models, key=lambda m: (not m["loaded"], m["id"].lower()))
 
 
-ADAPTERS = {a.name: a for a in (OpenAIAdapter(), AnthropicAdapter(), OllamaAdapter())}
+class AThousandWordsAdapter:
+    """A Thousand Words is a captioning server, not a chat API: one POST
+    /caption per request, multipart/form-data, no streaming. run_chat sends
+    it through _run_athousandwords instead of this adapter's build/parse; it
+    only serves list_models here."""
+    name = "athousandwords"
+
+    def headers(self, ep):
+        return dict(ep.headers)
+
+    def list_models(self, ep, timeout):
+        response = requests.get(f"{ep.base_url}/models", headers=self.headers(ep), timeout=timeout, allow_redirects=False)
+        _raise_for_status(response)
+        data = response.json()
+        batch_sizes = data.get("batch_sizes") or {}
+        models = []
+        for model_id in data.get("models", []):
+            recommended = (batch_sizes.get(model_id) or {}).get("recommended")
+            # The server doesn't say which models take video; every model here
+            # accepts the same /caption call, images or video, so both are marked.
+            models.append({"id": model_id, "detail": f"batch {recommended}" if recommended else "",
+                           "vision": True, "video": True})
+        return sorted(models, key=lambda m: m["id"].lower())
+
+
+ADAPTERS = {a.name: a for a in (OpenAIAdapter(), AnthropicAdapter(), OllamaAdapter(), AThousandWordsAdapter())}
 # CLI providers (claude_cli, codex_cli) have no HTTP adapter: see llm_cli.
 
 
@@ -692,6 +745,8 @@ def run_chat(ep, req, *, timeout=300, max_retries=2, on_delta=None, check_interr
     """
     if ep.endpoint.is_cli:
         return _run_cli(ep, req, timeout, on_delta, check_interrupt, log)
+    if ep.endpoint.provider == "athousandwords":
+        return _run_athousandwords(ep, req, timeout, check_interrupt, log)
     adapter = get_adapter(ep.endpoint.provider)
     url = adapter.chat_url(ep)
     headers = adapter.headers(ep)
@@ -858,11 +913,48 @@ def _run_cli(ep, req, timeout, on_delta, check_interrupt, log):
     return result
 
 
+def _run_athousandwords(ep, req, timeout, check_interrupt, log):
+    """POST /caption: multipart/form-data, one reply per call, no streaming."""
+    result = ChatResult()
+    started = time.monotonic()
+    files = [("files", (f"image{i}.jpg", data, mime))
+             for i, (mime, data) in enumerate(_encode_image_bytes(req.images))]
+    files += [("files", encode_video(video)) for video in req.videos]
+
+    form = {"model": req.model}
+    task_prompt = "\n\n".join(t for t in (req.system, req.user) if t)
+    if task_prompt:
+        form["task_prompt"] = task_prompt
+    if req.max_tokens:
+        form["max_tokens"] = str(req.max_tokens)
+    if req.temperature is not None:
+        form["temperature"] = str(req.temperature)
+
+    url = f"{ep.base_url}/caption"
+    if check_interrupt:
+        check_interrupt()
+    if log:
+        log(f"POST {url}\n{json.dumps({**form, 'files': f'{len(files)} file(s)'}, indent=2)}")
+    try:
+        response = requests.post(url, headers=ep.headers, data=form, files=files,
+                                 allow_redirects=False, timeout=(15, timeout))
+    except (requests.RequestException, LocationValueError) as e:
+        raise LLMError(f"Could not reach {ep.endpoint.name}: {_short_exception(e)}", status="connection error")
+    _raise_for_status(response)
+    try:
+        data = response.json()
+        result.text = "\n\n".join(r.get("caption", "") for r in data.get("results", []))
+    except (ValueError, AttributeError) as e:
+        raise LLMError(f"Bad response from {ep.endpoint.name}: {_short_exception(e)}", status="bad response")
+    result.seconds = time.monotonic() - started
+    return result
+
+
 def list_models(ep, timeout=15):
     """Models the endpoint reports, falling back to the configured list."""
     if ep.endpoint.is_cli:
         from .llm_cli import list_cli_models
-        return list_cli_models(ep.endpoint.provider)
+        return list_cli_models(ep.endpoint.provider, ep.base_url)
     adapter = get_adapter(ep.endpoint.provider)
     try:
         return adapter.list_models(ep, timeout)

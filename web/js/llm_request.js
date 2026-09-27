@@ -1,7 +1,7 @@
 import { app } from "../../../scripts/app.js";
 import { api } from "../../../scripts/api.js";
 
-// ✨🧠 LLM Request — node UI.
+// ✨ LLM Request — node UI.
 //
 // Adds a panel to the node with the endpoint's status (where it runs, whether
 // its key/address is set), a searchable model browser, a connection test, a
@@ -28,10 +28,10 @@ function defaultOutHeight() {
 }
 
 const LOCATION_LABEL = {
-    local: ["🖥", "This PC"],
-    network: ["🏠", "Network"],
-    cloud: ["☁", "Cloud"],
-    unknown: ["❔", "Not set"],
+    local: "This PC",
+    network: "Network",
+    cloud: "Cloud",
+    unknown: "Not configured",
 };
 
 const panels = new Set();
@@ -97,32 +97,6 @@ function splitInlineThinking(text) {
     return [text.slice(m[0].length).trimStart(), m[2].trim()];
 }
 
-// navigator.clipboard only exists in secure contexts; ComfyUI opened over
-// http://<LAN IP> is not one, so fall back to the old selection copy.
-async function copyText(text) {
-    try {
-        if (navigator.clipboard?.writeText) {
-            await navigator.clipboard.writeText(text);
-            return true;
-        }
-    } catch {
-        // fall through to the fallback
-    }
-    const area = document.createElement("textarea");
-    area.value = text;
-    area.style.cssText = "position:fixed;left:-9999px;top:0;opacity:0";
-    document.body.appendChild(area);
-    area.select();
-    let ok = false;
-    try {
-        ok = document.execCommand("copy");
-    } catch {
-        ok = false;
-    }
-    area.remove();
-    return ok;
-}
-
 // --------------------------------------------------------------------------
 // Styles
 // --------------------------------------------------------------------------
@@ -142,7 +116,20 @@ function addStylesheet() {
         .mnemic-llm-chip { padding:1px 7px; border-radius:10px; background:var(--comfy-input-bg); border:1px solid var(--border-color);
             white-space:nowrap; font-size:11px; }
         .mnemic-llm-chip.bad { border-color:#d29922; color:#d29922; }
-        .mnemic-llm-host { opacity:.6; font-size:11px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; flex:1; }
+        .mnemic-llm-host { opacity:.6; font-size:11px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; }
+        .mnemic-llm-test { flex:0 0 auto; min-width:0; margin-left:auto; padding:2px 8px; }
+        .mnemic-llm-pickrow { display:flex; gap:6px; }
+        .mnemic-llm-pick { flex:1; min-width:0; display:flex; align-items:center; gap:4px; padding:3px 6px; border-radius:5px;
+            background:var(--comfy-input-bg); color:var(--fg-color); border:1px solid var(--border-color); cursor:pointer; }
+        .mnemic-llm-pick:hover { border-color:#58a6ff; }
+        .mnemic-llm-pick.mnemic-llm-pick-combo { padding:0; cursor:default; }
+        .mnemic-llm-pick-value { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:left; font-size:11.5px; }
+        .mnemic-llm-pick-input { flex:1; min-width:0; padding:3px 0 3px 6px; border:none; background:none; color:var(--fg-color); font-size:11.5px; }
+        .mnemic-llm-pick-input:focus { outline:none; }
+        .mnemic-llm-arrow { opacity:.6; font-size:10px; flex:0 0 auto; }
+        .mnemic-llm-arrow-btn { flex:0 0 auto; padding:3px 6px; border:none; border-left:1px solid var(--border-color);
+            background:none; color:var(--fg-color); cursor:pointer; }
+        .mnemic-llm-arrow-btn:hover .mnemic-llm-arrow { opacity:1; }
         .mnemic-llm-buttons { display:flex; gap:4px; flex-wrap:wrap; }
         .mnemic-llm-btn { flex:1; min-width:60px; padding:3px 6px; border-radius:5px; cursor:pointer; font-size:11.5px;
             background:var(--comfy-input-bg); color:var(--fg-color); border:1px solid var(--border-color); white-space:nowrap; }
@@ -182,9 +169,11 @@ function addStylesheet() {
         .mnemic-llm-item { display:flex; align-items:baseline; gap:8px; padding:4px 12px; cursor:pointer; }
         .mnemic-llm-item.active { background:#58a6ff33; }
         .mnemic-llm-item.current .mnemic-llm-item-id::before { content:"✓ "; color:#3fb950; }
-        .mnemic-llm-item-id { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-        .mnemic-llm-item-detail { opacity:.55; font-size:11px; white-space:nowrap; }
-        .mnemic-llm-loaded { color:#3fb950; font-size:10px; }
+        .mnemic-llm-item-id { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#9198a1; }
+        .mnemic-llm-item-tags { flex:0 0 auto; display:flex; gap:8px; font-size:11px; }
+        .mnemic-llm-loaded { color:#3fb950; }
+        .mnemic-llm-vision { color:#d29922; }
+        .mnemic-llm-video { color:#58a6ff; }
         .mnemic-llm-note { padding:6px 12px; opacity:.75; font-size:11.5px; }
         .mnemic-llm-note.err { color:#f85149; opacity:1; }
         .mnemic-llm-pop pre { margin:0; padding:10px 12px; overflow:auto; white-space:pre-wrap; word-break:break-word; font:12px/1.45 ui-monospace, monospace; }
@@ -234,17 +223,18 @@ function createPopup(anchor, title) {
 function showModelPicker(panel, anchor) {
     const endpoint = panel.widget("endpoint")?.value;
     const pop = createPopup(anchor, `Models · ${endpoint}`);
+    const headTitle = pop.querySelector(".mnemic-llm-pop-head span");
     const refresh = document.createElement("b");
     refresh.className = "mnemic-llm-pop-refresh";
-    refresh.title = "Ask the endpoint again";
+    refresh.title = "Refresh: ask the endpoint for its model list again, instead of using the last one fetched (cached for 1 minute)";
     refresh.textContent = "⟳";
     pop.querySelector(".mnemic-llm-pop-head").insertBefore(refresh, pop.querySelector(".mnemic-llm-pop-close"));
 
     const search = document.createElement("input");
-    search.placeholder = "Search, or type any model name and press Enter…";
+    search.placeholder = "Search…";
     const note = document.createElement("div");
     note.className = "mnemic-llm-note";
-    note.textContent = "Asking the endpoint…";
+    note.hidden = true;
     const list = document.createElement("div");
     list.className = "mnemic-llm-list";
     pop.append(search, note, list);
@@ -254,7 +244,6 @@ function showModelPicker(panel, anchor) {
     let shown = [];
     let active = 0;
     const current = panel.widget("model")?.value ?? "";
-    const info = endpointCache.byName.get(endpoint);
 
     const choose = (id) => {
         panel.setModel(id);
@@ -265,9 +254,9 @@ function showModelPicker(panel, anchor) {
         const q = search.value.trim().toLowerCase();
         const terms = q.split(/\s+/).filter(Boolean);
         shown = models.filter((m) => terms.every((t) => `${m.id} ${m.detail ?? ""}`.toLowerCase().includes(t)));
-        const items = [{ id: "", label: `Endpoint default${info?.default_model ? ` (${info.default_model})` : ""}`, detail: "" }, ...shown];
+        const items = [...shown];
         if (q && !models.some((m) => m.id.toLowerCase() === q)) {
-            items.push({ id: search.value.trim(), label: `Use “${search.value.trim()}”`, detail: "custom" });
+            items.push({ id: search.value.trim(), label: `Use “${search.value.trim()}”` });
         }
         shown = items;
         active = Math.min(active, items.length - 1);
@@ -276,24 +265,33 @@ function showModelPicker(panel, anchor) {
                 const row = document.createElement("div");
                 row.className = "mnemic-llm-item";
                 if (i === active) row.classList.add("active");
-                if (m.id === current && (m.id !== "" || current === "")) row.classList.add("current");
+                if (m.id === current) row.classList.add("current");
                 const id = document.createElement("span");
                 id.className = "mnemic-llm-item-id";
                 id.textContent = m.label ?? m.id;
                 id.title = m.id;
                 row.append(id);
+                const tags = document.createElement("span");
+                tags.className = "mnemic-llm-item-tags";
                 if (m.loaded) {
                     const loaded = document.createElement("span");
                     loaded.className = "mnemic-llm-loaded";
-                    loaded.textContent = "● in memory";
-                    row.append(loaded);
+                    loaded.textContent = "in memory";
+                    tags.append(loaded);
                 }
-                if (m.detail) {
-                    const detail = document.createElement("span");
-                    detail.className = "mnemic-llm-item-detail";
-                    detail.textContent = m.detail;
-                    row.append(detail);
+                if (m.vision) {
+                    const vision = document.createElement("span");
+                    vision.className = "mnemic-llm-vision";
+                    vision.textContent = "vision";
+                    tags.append(vision);
                 }
+                if (m.video) {
+                    const video = document.createElement("span");
+                    video.className = "mnemic-llm-video";
+                    video.textContent = "video";
+                    tags.append(video);
+                }
+                if (tags.childNodes.length) row.append(tags);
                 row.addEventListener("mousemove", () => {
                     if (active === i) return;
                     list.querySelector(".active")?.classList.remove("active");
@@ -307,14 +305,16 @@ function showModelPicker(panel, anchor) {
     };
 
     const load = async (force) => {
-        note.className = "mnemic-llm-note";
-        note.textContent = "Asking the endpoint…";
         const data = await getModels(endpoint, force, panel.customId());
         if (openPopup !== pop) return;
         models = data.models ?? [];
+        const isStatic = models.length > 0 && models.every((m) => m.static);
+        headTitle.textContent = `Models · ${endpoint}${isStatic ? " *" : ""} (${models.length})`;
+        headTitle.title = isStatic ? "* a fixed list built into this pack, not fetched live from the endpoint" : "";
         if (data.ok) {
-            note.textContent = `${models.length} model${models.length === 1 ? "" : "s"} · ${data.ms} ms`;
+            note.hidden = true;
         } else {
+            note.hidden = false;
             note.className = "mnemic-llm-note err";
             note.textContent = `${data.error}${models.length ? " Showing models from the config instead." : ""}`;
         }
@@ -322,7 +322,7 @@ function showModelPicker(panel, anchor) {
     };
 
     search.addEventListener("input", () => {
-        active = search.value ? 1 : 0;
+        active = 0;
         render();
     });
     search.addEventListener("keydown", (e) => {
@@ -344,16 +344,73 @@ function showModelPicker(panel, anchor) {
     load(false);
 }
 
-async function showPreset(panel, anchor) {
-    const name = panel.widget("preset")?.value;
-    const pop = createPopup(anchor, name === DEFAULT_PRESET ? "No preset selected" : name);
-    const pre = document.createElement("pre");
-    if (name === DEFAULT_PRESET) {
-        pre.textContent = "The node is using its own system_message field.\n\nPick a preset to replace it with a saved system prompt. Presets are shared with the Groq nodes: nodes/groq/UserPrompts.json and UserPrompts_VLM.json.";
-    } else {
-        pre.textContent = (await getPresets(name))[name] ?? "(preset not found: it may have been removed from the preset files)";
-    }
-    pop.append(pre);
+function showEndpointPicker(panel, anchor) {
+    const widget = panel.widget("endpoint");
+    const names = widget?.options?.values ?? [];
+    const current = widget?.value ?? "";
+    const pop = createPopup(anchor, "Endpoints");
+
+    const search = document.createElement("input");
+    search.placeholder = "Search…";
+    const list = document.createElement("div");
+    list.className = "mnemic-llm-list";
+    pop.append(search, list);
+    search.focus();
+
+    const choose = (name) => {
+        panel.setEndpoint(name);
+        closePopup();
+    };
+
+    let shown = [];
+    let active = 0;
+
+    const render = () => {
+        const q = search.value.trim().toLowerCase();
+        shown = names.filter((name) => !q || name.toLowerCase().includes(q));
+        active = Math.min(active, shown.length - 1);
+        list.replaceChildren(
+            ...shown.map((name, i) => {
+                const row = document.createElement("div");
+                row.className = "mnemic-llm-item";
+                if (i === active) row.classList.add("active");
+                if (name === current) row.classList.add("current");
+                const id = document.createElement("span");
+                id.className = "mnemic-llm-item-id";
+                id.textContent = name;
+                row.append(id);
+                row.addEventListener("mousemove", () => {
+                    if (active === i) return;
+                    list.querySelector(".active")?.classList.remove("active");
+                    row.classList.add("active");
+                    active = i;
+                });
+                row.addEventListener("click", () => choose(name));
+                return row;
+            })
+        );
+    };
+
+    search.addEventListener("input", () => {
+        active = 0;
+        render();
+    });
+    search.addEventListener("keydown", (e) => {
+        if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+            e.preventDefault();
+            active = (active + (e.key === "ArrowDown" ? 1 : -1) + shown.length) % shown.length;
+            render();
+            list.querySelector(".active")?.scrollIntoView({ block: "nearest" });
+        } else if (e.key === "Enter") {
+            e.preventDefault();
+            const pick = shown[active];
+            if (pick) choose(pick);
+        } else if (e.key === "Escape") {
+            closePopup();
+        }
+    });
+
+    render();
 }
 
 // --------------------------------------------------------------------------
@@ -372,16 +429,21 @@ class LLMPanel {
                 <span class="mnemic-llm-dot"></span>
                 <span class="mnemic-llm-chip" data-role="where"></span>
                 <span class="mnemic-llm-chip" data-role="key"></span>
-                <span class="mnemic-llm-host"></span>
+                <button class="mnemic-llm-btn mnemic-llm-test" data-act="test" title="Check that the endpoint answers">Test</button>
             </div>
-            <div class="mnemic-llm-buttons">
-                <button class="mnemic-llm-btn" data-act="models" title="Browse the models this endpoint offers">🔍 Models</button>
-                <button class="mnemic-llm-btn" data-act="test" title="Check that the endpoint answers">⚡ Test</button>
-                <button class="mnemic-llm-btn" data-act="preset" title="Show the selected preset's system prompt">📜 Preset</button>
-                <button class="mnemic-llm-btn" data-act="copy" title="Copy the last reply">📋 Copy</button>
+            <div class="mnemic-llm-host"></div>
+            <div class="mnemic-llm-pickrow">
+                <button class="mnemic-llm-pick" data-act="endpoints" title="Endpoint - click to choose">
+                    <span class="mnemic-llm-pick-value" data-role="endpoint-value"></span>
+                    <span class="mnemic-llm-arrow">▾</span>
+                </button>
+                <span class="mnemic-llm-pick mnemic-llm-pick-combo">
+                    <input class="mnemic-llm-pick-input" data-role="model-input" placeholder="Model" title="Model - type a name, or click ▾ to browse" spellcheck="false" autocomplete="off">
+                    <button class="mnemic-llm-arrow-btn" data-act="models" title="Browse the models this endpoint offers"><span class="mnemic-llm-arrow">▾</span></button>
+                </span>
             </div>
             <div class="mnemic-llm-custom" hidden>
-                <div class="mnemic-llm-warn"><b>⚠ Custom endpoint.</b> The address and key you enter are stored on this
+                <div class="mnemic-llm-warn"><b>Custom endpoint.</b> The address and key you enter are stored on this
                     ComfyUI machine only (nodes/llm/CustomEndpoints.local.json, plain text) and never in the workflow:
                     the workflow keeps just a random id, so shared workflows and images don't carry them.
                     Changing the address or protocol clears the saved key.
@@ -398,21 +460,21 @@ class LLMPanel {
                 </div>
                 <div class="mnemic-llm-row">
                     <input data-f="key" type="password" placeholder="API key (optional)" autocomplete="new-password">
-                    <button class="mnemic-llm-btn" data-act="custom-save" style="flex:0 0 auto">💾 Save</button>
+                    <button class="mnemic-llm-btn" data-act="custom-save" style="flex:0 0 auto">Save</button>
                 </div>
                 <div class="mnemic-llm-custom-status"></div>
             </div>
-            <div class="mnemic-llm-out empty">The reply will appear here.</div>
+            <div class="mnemic-llm-out empty">No reply yet.</div>
             <div class="mnemic-llm-stats"></div>
         `;
         this.dot = this.el.querySelector(".mnemic-llm-dot");
         this.where = this.el.querySelector('[data-role="where"]');
         this.key = this.el.querySelector('[data-role="key"]');
         this.host = this.el.querySelector(".mnemic-llm-host");
+        this.endpointValue = this.el.querySelector('[data-role="endpoint-value"]');
+        this.modelInput = this.el.querySelector('[data-role="model-input"]');
         this.out = this.el.querySelector(".mnemic-llm-out");
         this.stats = this.el.querySelector(".mnemic-llm-stats");
-        this.copyButton = this.el.querySelector('[data-act="copy"]');
-        this.copyButton.disabled = true;
         this.custom = this.el.querySelector(".mnemic-llm-custom");
         this.customStatus = this.el.querySelector(".mnemic-llm-custom-status");
         this.customField = (f) => this.custom.querySelector(`[data-f="${f}"]`);
@@ -425,10 +487,17 @@ class LLMPanel {
         // Typing in these fields must not trigger ComfyUI shortcuts.
         for (const type of ["keydown", "keyup", "keypress", "pointerdown", "wheel"]) {
             this.custom.addEventListener(type, (e) => e.stopPropagation());
+            this.modelInput.addEventListener(type, (e) => e.stopPropagation());
         }
+        this.modelInput.addEventListener("input", () => {
+            const w = this.widget("model");
+            if (!w) return;
+            w.value = this.modelInput.value;
+            w.callback?.(w.value);
+        });
 
         this.el.addEventListener("pointerdown", (e) => {
-            if (e.target.closest("button, .mnemic-llm-out")) e.stopPropagation();
+            if (e.target.closest("button, input, .mnemic-llm-out")) e.stopPropagation();
         });
         this.out.addEventListener("wheel", (e) => {
             if (this.out.scrollHeight > this.out.clientHeight) e.stopPropagation();
@@ -454,6 +523,10 @@ class LLMPanel {
         this.domWidget.computeLayoutSize = undefined;
         this.applyOutHeight();
 
+        this.hideRawWidgets();
+        this.syncEndpointValue();
+        this.syncModelInput();
+
         // Dragging the reply preview's resize handle persists the chosen
         // height on this node and resizes the node to match.
         new ResizeObserver(() => {
@@ -464,6 +537,31 @@ class LLMPanel {
                 this.fitNode();
             }
         }).observe(this.out);
+    }
+
+    // The endpoint and model widgets keep their value (workflows still store
+    // just the name/model string) but are never drawn: the pick button and
+    // the model input above are the only way to change them now.
+    hideRawWidgets() {
+        for (const name of ["endpoint", "model"]) {
+            const w = this.widget(name);
+            if (!w) continue;
+            w.hidden = true;
+            w.computeSize = () => [0, -4];
+            if (w.type !== "hidden") {
+                w.origType = w.origType || w.type;
+                w.type = "hidden";
+            }
+        }
+    }
+
+    syncEndpointValue() {
+        if (this.endpointValue) this.endpointValue.textContent = this.widget("endpoint")?.value ?? "";
+    }
+
+    syncModelInput() {
+        const w = this.widget("model");
+        if (w && this.modelInput && this.modelInput.value !== (w.value ?? "")) this.modelInput.value = w.value ?? "";
     }
 
     outHeight() {
@@ -581,20 +679,20 @@ class LLMPanel {
         }
         this.info = info;
         if (!info) {
-            this.setChip(this.where, "❔ Unknown endpoint", true);
+            this.setChip(this.where, "Unknown endpoint", true);
             this.setChip(this.key, "", false);
             this.host.textContent = "";
             if (this.state === "idle") this.setDot("warn");
             return;
         }
-        const [icon, label] = LOCATION_LABEL[info.location] ?? LOCATION_LABEL.unknown;
-        this.setChip(this.where, `${icon} ${label} · ${info.provider}`, info.location === "unknown");
+        const label = LOCATION_LABEL[info.location] ?? LOCATION_LABEL.unknown;
+        this.setChip(this.where, `${label} · ${info.provider}`, info.location === "unknown");
         if (info.is_custom) {
-            this.setChip(this.key, info.key_set ? "🔑 key saved" : "🔓 no key", false);
+            this.setChip(this.key, info.key_set ? "key saved" : "no key", false);
         } else if (info.key_env) {
-            this.setChip(this.key, info.key_set ? "🔑 key set" : info.key_optional ? "🔓 no key" : `🔑 ${info.key_env} missing`, !info.key_set && !info.key_optional);
+            this.setChip(this.key, info.key_set ? "key set" : info.key_optional ? "no key" : `${info.key_env} missing`, !info.key_set && !info.key_optional);
         } else {
-            this.setChip(this.key, "🔓 no key needed", false);
+            this.setChip(this.key, "no key needed", false);
         }
         this.host.title = [info.description, ...info.problems].filter(Boolean).join("\n\n");
         this.updateModelHint();
@@ -602,7 +700,7 @@ class LLMPanel {
             // Green once configured; ⚡ Test checks that it actually answers.
             this.setDot(info.ok ? "ok" : "warn");
             if (!info.ok && !this.result) this.showNote(info.problems.join(" "), false);
-            else if (info.ok && !this.result) this.showNote("The reply will appear here.", false);
+            else if (info.ok && !this.result) this.showNote("No reply yet.", false);
         }
     }
 
@@ -631,30 +729,47 @@ class LLMPanel {
                 : ["local", "network"].includes(this.info.location) ? "model: first the server lists"
                 : "no model chosen";
         }
-        this.host.textContent = [this.info.host, hint].filter(Boolean).join(" · ");
+        // The where-chip already names the CLI (e.g. "This PC · claude_cli");
+        // info.host would just repeat that in different words.
+        const hostPart = this.info.is_cli ? "" : this.info.host;
+        this.host.textContent = [hostPart, hint].filter(Boolean).join(" · ");
     }
 
     // ---- presets --------------------------------------------------------
 
-    async updatePresetState() {
-        const preset = this.widget("preset")?.value;
-        const presetButton = this.el.querySelector('[data-act="preset"]');
-        if (presetButton) presetButton.disabled = !preset || preset === DEFAULT_PRESET;
-        const system = this.widget("system_message");
-        const input = system?.inputEl;
-        if (!input) return;
-        if (preset && preset !== DEFAULT_PRESET) {
-            const text = (await getPresets(preset))[preset] ?? "";
-            if (this.widget("preset")?.value !== preset) return;
-            input.style.opacity = "0.45";
-            input.title = "Ignored while a preset is selected.";
-            input.dataset.mnemicPlaceholder ??= input.placeholder ?? "";
-            input.placeholder = `Preset “${preset}” is active:\n\n${text.slice(0, 600)}${text.length > 600 ? "…" : ""}`;
-        } else {
-            input.style.opacity = "";
-            input.title = "";
-            if (input.dataset.mnemicPlaceholder !== undefined) input.placeholder = input.dataset.mnemicPlaceholder;
+    // Picking a preset copies its text into system_message once, then resets
+    // the preset dropdown to default: a one-shot insert, not a persistent
+    // mode, so the field stays freely editable afterward.
+    async applyPreset() {
+        const w = this.widget("preset");
+        const name = w?.value;
+        if (!name || name === DEFAULT_PRESET) return;
+        const text = (await getPresets(name))[name] ?? "";
+        if (w.value !== name) return; // changed again while this was loading
+        const sys = this.widget("system_message");
+        const current = (sys?.value ?? "").trim();
+        if (current && current !== text.trim() && !window.confirm(`Replace the current system message with the "${name}" preset?`)) {
+            w.value = DEFAULT_PRESET;
+            w.callback?.(DEFAULT_PRESET);
+            return;
         }
+        if (sys) {
+            sys.value = text;
+            sys.callback?.(text);
+        }
+        w.value = DEFAULT_PRESET;
+        w.callback?.(DEFAULT_PRESET);
+        this.node.setDirtyCanvas(true, true);
+    }
+
+    // ---- endpoints --------------------------------------------------------
+
+    setEndpoint(name) {
+        const w = this.widget("endpoint");
+        if (!w || w.value === name) return;
+        w.value = name;
+        w.callback?.(name);
+        this.node.setDirtyCanvas(true, true);
     }
 
     // ---- models ---------------------------------------------------------
@@ -665,6 +780,7 @@ class LLMPanel {
         w.value = id;
         w.callback?.(id);
         this.rememberModel();
+        this.syncModelInput();
         this.node.setDirtyCanvas(true, true);
     }
 
@@ -688,9 +804,10 @@ class LLMPanel {
             w.value = remembered;
             this.node.setDirtyCanvas(true, true);
         }
+        this.syncEndpointValue();
+        this.syncModelInput();
         this.result = null;
         this.stats.textContent = "";
-        this.updateCopyState();
         this.refreshStatus();
     }
 
@@ -698,17 +815,8 @@ class LLMPanel {
 
     async onButton(act, button) {
         if (act === "custom-save") return this.saveCustom();
+        if (act === "endpoints") return showEndpointPicker(this, button);
         if (act === "models") return showModelPicker(this, button);
-        if (act === "preset") return showPreset(this, button);
-        if (act === "copy") {
-            // The reply on screen: the finished one, or what streamed in so far.
-            const text = this.result?.text ?? this.partial?.text ?? "";
-            if (!text) return;
-            const ok = await copyText(text);
-            button.textContent = ok ? "✓ Copied" : "Copy failed";
-            setTimeout(() => (button.textContent = "📋 Copy"), 1200);
-            return;
-        }
         if (act === "test") {
             button.disabled = true;
             const runId = this.runId;
@@ -734,10 +842,6 @@ class LLMPanel {
     showNote(text, isError) {
         this.out.className = `mnemic-llm-out empty${isError ? " err" : ""}`;
         this.out.textContent = text;
-    }
-
-    updateCopyState() {
-        this.copyButton.disabled = !(this.result?.text ?? this.partial?.text ?? "");
     }
 
     renderReply(text, thinking, streaming) {
@@ -788,7 +892,6 @@ class LLMPanel {
             this.showNote(msg.error, true);
             this.stats.textContent = "";
         }
-        this.updateCopyState();
     }
 
     onResult(summary) {
@@ -799,7 +902,6 @@ class LLMPanel {
             this.setDot("err");
             this.showNote(summary.error ?? summary.status, true);
             this.stats.textContent = "";
-            this.updateCopyState();
             return;
         }
         this.result = summary;
@@ -813,7 +915,6 @@ class LLMPanel {
         if (summary.output_tokens && summary.seconds > 0) parts.push(`${Math.round(summary.output_tokens / summary.seconds)} tok/s`);
         if (summary.status && summary.status !== "200 OK") parts.push(summary.status.replace(/^200 OK /, ""));
         this.stats.textContent = parts.join(" · ");
-        this.updateCopyState();
         // .env may have changed since the panel last looked (e.g. a key added).
         this.refreshStatus(true);
     }
@@ -825,7 +926,6 @@ class LLMPanel {
         // Keep what arrived, without the streaming caret.
         if (this.partial?.text || this.partial?.thinking) this.renderReply(this.partial.text, this.partial.thinking, false);
         this.stats.textContent = "interrupted";
-        this.updateCopyState();
     }
 }
 
@@ -854,7 +954,7 @@ function chainCallback(widget, fn) {
 }
 
 app.registerExtension({
-    name: "MNeMiC.LLMAPI",
+    name: "MNeMiC.LLMRequest",
 
     async beforeRegisterNodeDef(nodeType, nodeData) {
         if (nodeData.name !== NODE_ID) return;
@@ -866,18 +966,16 @@ app.registerExtension({
             this.mnemicLLM = panel;
 
             chainCallback(panel.widget("endpoint"), (_value, previous) => panel.onEndpointChanged(previous));
-            chainCallback(panel.widget("preset"), () => panel.updatePresetState());
+            chainCallback(panel.widget("preset"), () => panel.applyPreset());
             chainCallback(panel.widget("model"), () => {
                 panel.rememberModel();
+                panel.syncModelInput();
                 panel.updateModelHint();
             });
 
             const [w, h] = this.size;
             this.setSize([Math.max(w, 400), Math.max(h, this.computeSize()[1])]);
-            requestAnimationFrame(() => {
-                panel.refreshStatus();
-                panel.updatePresetState();
-            });
+            requestAnimationFrame(() => panel.refreshStatus());
             return r;
         };
 
@@ -890,6 +988,9 @@ app.registerExtension({
                     const w = panel.widget(name);
                     if (w) w._mnemicLast = w.value;
                 }
+                panel.hideRawWidgets();
+                panel.syncEndpointValue();
+                panel.syncModelInput();
                 requestAnimationFrame(() => {
                     // Undo/redo and tab switches rebuild the node, and
                     // onExecuted is not replayed: restore the last reply.
@@ -897,7 +998,6 @@ app.registerExtension({
                     const key = Object.keys(outputs).find((k) => panel.matches(k) && outputs[k]?.mnemic_llm?.[0]);
                     if (key && !panel.result) panel.onResult(outputs[key].mnemic_llm[0]);
                     panel.refreshStatus();
-                    panel.updatePresetState();
                     // A node saved before the reply box got a fixed height
                     // may carry a stale, oversized node height: correct it.
                     panel.fitNode();

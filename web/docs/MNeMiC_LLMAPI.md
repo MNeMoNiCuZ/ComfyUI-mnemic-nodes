@@ -1,10 +1,10 @@
-# ✨🧠 LLM Request
+# ✨ LLM Request
 
-Sends a prompt, and optionally images, to any language model and returns the
-reply. One node covers cloud APIs (ChatGPT, Claude, Gemini, Grok, Groq,
-OpenRouter, Mistral, DeepSeek) and local servers (Ollama and LM Studio on this
-PC, Ollama or any OpenAI-compatible server on your network). Presets are
-shared with the Groq nodes.
+Sends a prompt, and optionally images or a video, to any language model and
+returns the reply. One node covers cloud APIs (ChatGPT, Claude, Gemini, Grok,
+Groq, OpenRouter, Mistral, DeepSeek) and local servers (Ollama and LM Studio on
+this PC, Ollama or any OpenAI-compatible server on your network, A Thousand
+Words for image/video captioning). Presets are shared with the Groq nodes.
 
 ## Setup
 
@@ -27,22 +27,27 @@ and what is missing if not.
 
 ## Inputs
 
-- **endpoint** — Which server to call. The list comes from
-  `nodes/llm/DefaultEndpoints.json` and your `nodes/llm/UserEndpoints.json`.
-- **model** — Model name. Empty uses the endpoint's default model. Endpoints
-  on this PC or your network without one use the first chat model the
-  server lists, skipping embedding models (for Ollama, a model already in
-  memory if there is one, else the first installed one alphabetically);
-  cloud endpoints without one need a model chosen. Click **🔍 Models** to browse and search what the
-  endpoint offers; Ollama models already in memory are marked.
-- **preset** — A saved system prompt, or the first entry to use
-  `system_message`. Click **📜 Preset** to read the selected one.
-- **system_message** — The model's instructions. Ignored while a preset is
-  active; in the classic node view it is also greyed out and shows the
-  preset's text as a hint (📜 Preset shows it in either view).
+- **endpoint** — Which server to call. Click it (or the ▾) to browse and
+  search the list, in the order `nodes/llm/DefaultEndpoints.json` and your
+  `nodes/llm/UserEndpoints.json` define them.
+- **model** — Model name. Type one directly, or click the ▾ to browse and
+  search what the endpoint offers (Ollama models already in memory are
+  marked). Empty uses the endpoint's default model. Endpoints on this PC or
+  your network without one use the first chat model the server lists,
+  skipping embedding models (for Ollama, a model already in memory if there
+  is one, else the first installed one alphabetically); cloud endpoints
+  without one need a model chosen.
+- **preset** — A saved system prompt. Picking one copies its text into
+  `system_message` (asking first if that would overwrite something different)
+  and resets itself back to the first entry, so `system_message` stays a
+  plain, freely editable field afterward.
 - **user_input** — The request. May be empty: the system message (or preset)
   is then sent on its own as the request.
 - **images** — Optional. Every image in the batch is sent, for vision models.
+- **video** — Optional, A Thousand Words only. A single video to caption
+  instead of, or alongside, images. Sending it to any other endpoint fails:
+  no other protocol here accepts video. Which of the server's models actually
+  support video input is up to the server; it isn't in its model list.
 - **temperature** — Randomness. Dropped automatically for models that refuse
   anything but their default.
 
@@ -96,6 +101,7 @@ back in an error message is masked before it is shown or returned.
 | `ollama`     | Ollama's native API (for `keep_alive`, `num_ctx`, `think`)      |
 | `claude_cli` | The Claude Code CLI on this PC, with your Claude subscription   |
 | `codex_cli`  | The Codex CLI on this PC, with your ChatGPT subscription        |
+| `athousandwords` | A Thousand Words, a local image/video captioning server (not a chat API: one `POST /caption` per call, `system_message` and `user_input` are combined into its `task_prompt`, no streaming) |
 
 **Parameters that don't fit.** Models differ in what they accept: OpenAI's
 reasoning models refuse `temperature`, some servers don't know `seed`. For

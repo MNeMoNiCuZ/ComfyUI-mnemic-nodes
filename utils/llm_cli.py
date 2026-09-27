@@ -397,27 +397,99 @@ def run_cli_chat(provider, command, req, result, **kwargs):
         raise CLIError(f"could not start the CLI ({type(e).__name__})", status="cli error") from None
 
 
+# Every model here is current-generation and accepts image input, so all are
+# marked vision: True. static: True marks a fixed list, not fetched live, for
+# the picker's "*" indicator. Only the rolling alias is listed for each model
+# (not also its current pinned full name, e.g. claude-sonnet-5): both resolve
+# to the same model today, and the alias is the one that keeps working as
+# Anthropic ships new versions.
 CLAUDE_MODELS = [
-    {"id": "sonnet", "detail": "alias for claude-sonnet-5"},
-    {"id": "claude-sonnet-5", "detail": "Sonnet 5"},
-    {"id": "opus", "detail": "alias for claude-opus-5-5"},
-    {"id": "claude-opus-5-5", "detail": "Opus 5.5"},
-    {"id": "haiku", "detail": "alias for claude-haiku-4-5-20251001"},
-    {"id": "claude-haiku-4-5-20251001", "detail": "Haiku 4.5"},
-    {"id": "fable", "detail": "alias for claude-fable-5-1"},
-    {"id": "claude-fable-5-1", "detail": "Fable 5.1"},
+    {"id": "sonnet", "detail": "", "vision": True, "static": True},
+    {"id": "opus", "detail": "", "vision": True, "static": True},
+    {"id": "haiku", "detail": "", "vision": True, "static": True},
+    {"id": "fable", "detail": "", "vision": True, "static": True},
 ]
 # Codex has no equivalent of `claude` picking up new releases under a fixed
-# alias, and no command to list what a given install supports (openai/codex#8871
-# asks for exactly this); these are current model names, not a live list.
+# alias. Its app-server does expose a live model/list RPC (see
+# _codex_model_list_rpc below), so this is only the fallback when that can't
+# be reached (CLI not installed, too old to speak the protocol, timed out…).
+# Matched against codex-cli 0.157.0's own live catalog, not a guess.
 CODEX_MODELS = [
-    {"id": "gpt-5.2-codex", "detail": "current Codex model"},
-    {"id": "gpt-5.1-codex-max", "detail": "previous Codex model"},
-    {"id": "gpt-5.1-codex-mini", "detail": "smaller, faster"},
+    {"id": "gpt-6-astra", "detail": "", "vision": True, "static": True},
+    {"id": "gpt-6-sol", "detail": "", "vision": True, "static": True},
+    {"id": "gpt-6-luna", "detail": "", "vision": True, "static": True},
+    {"id": "gpt-5.6-sol", "detail": "", "vision": True, "static": True},
+    {"id": "gpt-5.6-terra", "detail": "", "vision": True, "static": True},
+    {"id": "gpt-5.6-luna", "detail": "", "vision": True, "static": True},
+    {"id": "gpt-5.5", "detail": "", "vision": True, "static": True},
 ]
 
 
-def list_cli_models(provider):
-    """Neither CLI can list what a given install actually supports; these are
-    known model names/aliases, not fetched live."""
-    return list(CLAUDE_MODELS) if provider == CLAUDE else list(CODEX_MODELS)
+def _codex_model_list_rpc(command, timeout=6):
+    """The live model catalog from Codex's own `app-server` JSON-RPC daemon
+    (method "model/list"), so the picker matches what this install actually
+    offers. None on any failure (not installed, too old to speak this
+    protocol, no reply in time…).
+    """
+    try:
+        with _work_dir() as cwd:
+            proc = _popen([command, "app-server"], CODEX, cwd)
+            lines = queue.Queue()
+            threading.Thread(target=_read_lines, args=(proc.stdout, lines), daemon=True).start()
+            try:
+                proc.stdin.write((json.dumps({
+                    "jsonrpc": "2.0", "id": 1, "method": "initialize",
+                    "params": {"clientInfo": {"name": "ComfyUI-mnemic-nodes", "version": "1.0"}},
+                }) + "\n").encode())
+                proc.stdin.write((json.dumps({
+                    "jsonrpc": "2.0", "id": 2, "method": "model/list", "params": {},
+                }) + "\n").encode())
+                proc.stdin.flush()
+
+                deadline = time.monotonic() + timeout
+                while time.monotonic() < deadline:
+                    try:
+                        raw = lines.get(timeout=0.25)
+                    except queue.Empty:
+                        continue
+                    if raw is None:
+                        return None
+                    try:
+                        msg = json.loads(raw.decode("utf-8", errors="replace"))
+                    except ValueError:
+                        continue
+                    if msg.get("id") == 2:
+                        return (msg.get("result") or {}).get("data")
+                return None
+            finally:
+                _terminate(proc)
+    except OSError:
+        return None
+
+
+def _codex_models_from_catalog(data):
+    models = []
+    for m in data or []:
+        if m.get("hidden"):
+            continue
+        model_id = m.get("id") or m.get("model")
+        if not model_id:
+            continue
+        vision = "image" in (m.get("inputModalities") or ["text", "image"])
+        models.append({"id": model_id, "detail": "", "vision": vision})
+    return models
+
+
+def list_cli_models(provider, command=""):
+    """Claude Code has no documented way to enumerate installed models, so
+    CLAUDE_MODELS is a fixed list of current aliases/names. Codex exposes a
+    live catalog through its own app-server; that is queried directly, and
+    CODEX_MODELS is only the fallback when it can't be reached.
+    """
+    if provider == CLAUDE:
+        return list(CLAUDE_MODELS)
+    if command:
+        models = _codex_models_from_catalog(_codex_model_list_rpc(command))
+        if models:
+            return models
+    return list(CODEX_MODELS)

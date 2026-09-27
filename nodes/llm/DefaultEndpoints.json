@@ -30,7 +30,7 @@
             "description": "Any OpenAI-compatible server: llama.cpp, vLLM, KoboldCpp, text-generation-webui, LocalAI, Jan… Set OPENAI_COMPATIBLE_URL in .env (usually ending in /v1)."
         },
         {
-            "name": "Local Claude Code Subscription",
+            "name": "Claude Code Subscription",
             "provider": "claude_cli",
             "command": "${CLAUDE_CLI:-claude}",
             "options": {
@@ -39,7 +39,7 @@
             "description": "Runs the Claude Code CLI on this PC (claude -p) with your Claude subscription. Install Claude Code and sign in once by running `claude` in a terminal. Empty model uses Claude Code's default."
         },
         {
-            "name": "Local Codex Subscription",
+            "name": "Codex Subscription",
             "provider": "codex_cli",
             "command": "${CODEX_CLI:-codex}",
             "options": {
@@ -116,6 +116,12 @@
             "api_key_env": "DEEPSEEK_API_KEY",
             "default_model": "deepseek-chat",
             "description": "DeepSeek's API. Key from platform.deepseek.com."
+        },
+        {
+            "name": "A Thousand Words",
+            "provider": "athousandwords",
+            "base_url": "${ATHOUSANDWORDS_URL:-http://127.0.0.1:8585}",
+            "description": "A Thousand Words running on this PC (server.bat). A dedicated image/video captioning server: requires images or a video. No key needed."
         },
         {
             "name": "Sanctum",

@@ -149,8 +149,8 @@ LLM_ENDPOINT_VISIBILITY_IDS = {
     "Ollama (network)": "MNeMiC.LLM.ShowEndpoint.OllamaNetwork",
     "LM Studio (this PC)": "MNeMiC.LLM.ShowEndpoint.LMStudio",
     "OpenAI-compatible server": "MNeMiC.LLM.ShowEndpoint.OpenAICompatible",
-    "Local Claude Code Subscription": "MNeMiC.LLM.ShowEndpoint.ClaudeCodeSubscription",
-    "Local Codex Subscription": "MNeMiC.LLM.ShowEndpoint.CodexSubscription",
+    "Claude Code Subscription": "MNeMiC.LLM.ShowEndpoint.ClaudeCodeSubscription",
+    "Codex Subscription": "MNeMiC.LLM.ShowEndpoint.CodexSubscription",
     "OpenAI (ChatGPT)": "MNeMiC.LLM.ShowEndpoint.OpenAI",
     "Anthropic (Claude)": "MNeMiC.LLM.ShowEndpoint.Anthropic",
     "Google (Gemini)": "MNeMiC.LLM.ShowEndpoint.Gemini",
@@ -159,6 +159,7 @@ LLM_ENDPOINT_VISIBILITY_IDS = {
     "OpenRouter": "MNeMiC.LLM.ShowEndpoint.OpenRouter",
     "Mistral": "MNeMiC.LLM.ShowEndpoint.Mistral",
     "DeepSeek": "MNeMiC.LLM.ShowEndpoint.DeepSeek",
+    "A Thousand Words": "MNeMiC.LLM.ShowEndpoint.AThousandWords",
     "Sanctum": "MNeMiC.LLM.ShowEndpoint.Sanctum",
     "Custom Endpoint - WARNING": "MNeMiC.LLM.ShowEndpoint.CustomEndpoint",
 }

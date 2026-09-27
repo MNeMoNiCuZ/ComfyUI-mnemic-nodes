@@ -244,8 +244,8 @@ app.registerExtension({
     },
     {
       id: "MNeMiC.LLM.ShowEndpoint.ClaudeCodeSubscription",
-      name: "Local Claude Code Subscription",
-      category: ["⚡MNeMiC Nodes", "LLM Request", "Show Endpoints", "Local Claude Code Subscription"],
+      name: "Claude Code Subscription",
+      category: ["⚡MNeMiC Nodes", "LLM Request", "Show Endpoints", "Claude Code Subscription"],
       tooltip: "Show this endpoint in the LLM Request node's endpoint dropdown.",
       type: "boolean",
       defaultValue: true,
@@ -253,8 +253,8 @@ app.registerExtension({
     },
     {
       id: "MNeMiC.LLM.ShowEndpoint.CodexSubscription",
-      name: "Local Codex Subscription",
-      category: ["⚡MNeMiC Nodes", "LLM Request", "Show Endpoints", "Local Codex Subscription"],
+      name: "Codex Subscription",
+      category: ["⚡MNeMiC Nodes", "LLM Request", "Show Endpoints", "Codex Subscription"],
       tooltip: "Show this endpoint in the LLM Request node's endpoint dropdown.",
       type: "boolean",
       defaultValue: true,
@@ -331,6 +331,15 @@ app.registerExtension({
       type: "boolean",
       defaultValue: true,
       sortOrder: -140,
+    },
+    {
+      id: "MNeMiC.LLM.ShowEndpoint.AThousandWords",
+      name: "A Thousand Words",
+      category: ["⚡MNeMiC Nodes", "LLM Request", "Show Endpoints", "A Thousand Words"],
+      tooltip: "Show this endpoint in the LLM Request node's endpoint dropdown.",
+      type: "boolean",
+      defaultValue: true,
+      sortOrder: -145,
     },
     {
       id: "MNeMiC.LLM.ShowEndpoint.Sanctum",

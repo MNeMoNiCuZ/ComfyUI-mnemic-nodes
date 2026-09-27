@@ -1,4 +1,4 @@
-"""HTTP routes behind the Universal LLM node's UI (web/js/llm_api.js).
+"""HTTP routes behind the Universal LLM node's UI (web/js/llm_request.js).
 
 Endpoints are addressed by name only; the browser never receives a key or a
 header value. Model listing happens here, server-side, because the key must

@@ -25,7 +25,7 @@ DEFAULT_ENDPOINTS_FILE = os.path.join(LLM_DIR, "DefaultEndpoints.json")
 USER_ENDPOINTS_FILE = os.path.join(LLM_DIR, "UserEndpoints.json")
 USER_ENDPOINTS_EXAMPLE = os.path.join(LLM_DIR, "UserEndpoints.example.json")
 
-PROVIDERS = ("openai", "anthropic", "ollama", "claude_cli", "codex_cli")
+PROVIDERS = ("openai", "anthropic", "ollama", "claude_cli", "codex_cli", "athousandwords")
 CLI_PROVIDERS = ("claude_cli", "codex_cli")
 CUSTOM_ENDPOINT_NAME = "Custom Endpoint - WARNING"
 

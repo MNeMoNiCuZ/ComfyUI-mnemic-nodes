@@ -101,12 +101,12 @@ class LLMAPI(io.ComfyNode):
 
         return io.Schema(
             node_id="MNeMiC_LLMAPI",
-            display_name="✨🧠 LLM Request",
+            display_name="✨ LLM Request",
             category="⚡ MNeMiC Nodes",
-            description="Sends a prompt, and optionally images, to any LLM: ChatGPT, Claude, Gemini, Grok, Groq, OpenRouter, or Ollama and LM Studio on this PC or your network.",
+            description="Sends a prompt, and optionally images or a video, to any LLM: ChatGPT, Claude, Gemini, Grok, Groq, OpenRouter, A Thousand Words, or Ollama and LM Studio on this PC or your network.",
             search_aliases=["llm", "chat", "ollama", "openai", "chatgpt", "gpt", "claude", "anthropic", "gemini",
                             "grok", "xai", "groq", "openrouter", "lm studio", "llama.cpp", "vllm", "vlm", "prompt generator",
-                            "universal llm api"],
+                            "universal llm api", "a thousand words", "caption", "video caption"],
             inputs=[
                 io.Combo.Input("endpoint", options=names, default=names[0],
                                tooltip="Which server to talk to. Endpoints are defined in nodes/llm/*.json; keys and private addresses come from .env and are never saved in the workflow."),
@@ -120,6 +120,8 @@ class LLMAPI(io.ComfyNode):
                                 tooltip="The request itself: what you want the model to write, rewrite or describe. May be empty: the system message or preset is then sent on its own."),
                 io.Image.Input("images", optional=True,
                                tooltip="Images to send along with the prompt, for vision models. Every image in the batch is sent."),
+                io.Video.Input("video", optional=True,
+                              tooltip="A Thousand Words only: a video to caption instead of, or alongside, images. Which models accept video depends on the server's own model list."),
                 io.Float.Input("temperature", default=0.8, min=0.0, max=2.0, step=0.05,
                                tooltip="Randomness. Low is focused and repeatable, high is varied and creative. Dropped automatically for models that only allow their default."),
                 io.Combo.Input("reasoning", options=REASONING_LEVELS, default="default", advanced=True,
@@ -167,7 +169,7 @@ class LLMAPI(io.ComfyNode):
     async def execute(cls, endpoint, model, preset, system_message, user_input, temperature,
                       reasoning="default", max_tokens=0, top_p=1.0, seed=42, stop="", json_mode=False,
                       unload_model_after=False, context_length=0, free_comfy_vram=False, max_retries=2,
-                      raise_on_error=True, custom_endpoint="", images=None) -> io.NodeOutput:
+                      raise_on_error=True, custom_endpoint="", images=None, video=None) -> io.NodeOutput:
         node_id = cls.hidden.unique_id if cls.hidden else None
         client_id = _current_client_id()
         console_log = is_llm_console_log_enabled()
@@ -180,7 +182,7 @@ class LLMAPI(io.ComfyNode):
             if raise_on_error:
                 # from None: the chained original error would otherwise be
                 # printed in ComfyUI's traceback.
-                raise RuntimeError(f"✨🧠 LLM Request — {message}") from None
+                raise RuntimeError(f"✨ LLM Request — {message}") from None
             return io.NodeOutput("", "", False, message,
                                  ui={"mnemic_llm": [{"ok": False, "error": message, "status": status}]})
 
@@ -196,6 +198,8 @@ class LLMAPI(io.ComfyNode):
         ep = ep_config.resolve()
         if not ep.ok:
             return fail(f"{endpoint}: {' '.join(ep.problems)}", "not configured")
+        if video is not None and ep_config.provider != "athousandwords":
+            return fail(f"{endpoint} can't take a video; only A Thousand Words can.")
 
         model = (model or "").strip() or ep_config.default_model
         # Local and network servers (Ollama, LM Studio, llama.cpp…) usually
@@ -231,7 +235,10 @@ class LLMAPI(io.ComfyNode):
             caption_block = "\n\n".join(f"[Image {i + 1} description]: {d}" for i, d in enumerate(descriptions) if d)
             user_input = f"{caption_block}\n\n{user_input}".strip() if user_input else caption_block
             pil_images = []
-        if not user_input and not pil_images:
+        has_media = bool(pil_images) or video is not None
+        if ep_config.provider == "athousandwords" and not has_media:
+            return fail("A Thousand Words requires at least one image or a video.")
+        if not user_input and not has_media:
             if not system_message:
                 return fail("There is nothing to send: system_message, user_input and images are all empty.")
             # Instructions alone are a valid request; most APIs need a user
@@ -243,6 +250,7 @@ class LLMAPI(io.ComfyNode):
             system=system_message,
             user=user_input,
             images=pil_images,
+            videos=[video] if video is not None else [],
             temperature=temperature,
             top_p=top_p,
             max_tokens=max_tokens,

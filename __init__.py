@@ -10,7 +10,7 @@ from .nodes.groq_api_llm import GroqAPILLM
 from .nodes.groq_api_vlm import GroqAPIVLM
 from .nodes.groq_api_alm_transcribe import GroqAPIALMTranscribe
 #from .nodes.groq_api_alm_translate import GroqAPIALMTranslate
-from .nodes.llm_api import LLMAPI
+from .nodes.llm_request import LLMAPI
 from .nodes.tiktoken_tokenizer import TiktokenTokenizer
 from .nodes.string_cleaning import StringCleaning
 from .nodes.generate_negative_prompt import GenerateNegativePrompt
