@@ -10,6 +10,7 @@ from .nodes.groq_api_llm import GroqAPILLM
 from .nodes.groq_api_vlm import GroqAPIVLM
 from .nodes.groq_api_alm_transcribe import GroqAPIALMTranscribe
 #from .nodes.groq_api_alm_translate import GroqAPIALMTranslate
+from .nodes.llm_api import LLMAPI
 from .nodes.tiktoken_tokenizer import TiktokenTokenizer
 from .nodes.string_cleaning import StringCleaning
 from .nodes.generate_negative_prompt import GenerateNegativePrompt
@@ -48,6 +49,8 @@ from .nodes.ideogram4_prompt_builder import Ideogram4PromptBuilder
 from .nodes.ideogram4_random_prompter import Ideogram4RandomPrompter
 from .nodes.image_save_with_metadata import ImageSaveWithMetadata
 from .utils.image_save_runtime_hook import install_runtime_hooks
+from .utils.llm_routes import register_llm_routes
+from .utils.env_manager import ensure_env_file
 
 
 _api = ComfyAPI()
@@ -160,6 +163,8 @@ def _build_replacement(old_node_id: str, node_cls: type[io.ComfyNode]) -> io.Nod
 class MnemicExtension(ComfyExtension):
     async def on_load(self) -> None:
         install_runtime_hooks("ImageSaveWithMetadata")
+        ensure_env_file()
+        register_llm_routes()
 
         by_new_id = {}
         for node_cls in await self.get_node_list():
@@ -179,6 +184,7 @@ class MnemicExtension(ComfyExtension):
             GroqAPIVLM,
             GroqAPIALMTranscribe,
             #GroqAPIALMTranslate,
+            LLMAPI,
             TiktokenTokenizer,
             StringCleaning,
             LoraTagLoader,

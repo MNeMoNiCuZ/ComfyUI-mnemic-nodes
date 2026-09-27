@@ -29,7 +29,7 @@ def load_prompt_options(prompt_files):
     prompt_options = {}
     for json_file in prompt_files:
         try:
-            with open(json_file, 'r') as file:
+            with open(json_file, 'r', encoding='utf-8') as file:
                 prompts = json.load(file)
                 prompt_options.update({prompt['name']: prompt['content'] for prompt in prompts})
         except Exception as e:
