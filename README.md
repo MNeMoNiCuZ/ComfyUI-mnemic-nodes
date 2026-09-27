@@ -58,8 +58,7 @@ Extracts the first occurrence of text between a pair of characters.
 
 ## 💾 [Save Text File With Path](./README/save_text_file.md)
 
-Save text file, and return the saved file's path.
-<img width="1650" height="415" alt="image" src="https://github.com/user-attachments/assets/f283be20-dc90-4139-958c-5db5e8a8250d" />
+Saves text with an automatic extension. Overwrite, keep or number existing files; returns the file's path, name and folder.
 
 ## 🖼️ [Download Image from URL](./README/download_image_from_url.md)
 
@@ -73,8 +72,11 @@ Returns token information about input text and lets you split it.
 
 ## 🧹 [String Cleaning](./README/string_cleaning.md)
 
-Cleans up text strings, strip leading/trailing spaces or collapse them, remove newlines and much more.
-<img width="1659" height="646" alt="image" src="https://github.com/user-attachments/assets/ffb05b11-a78c-468a-81ed-2aa38cce4549" />
+Cleans text with ordered operations for whitespace, lines, punctuation, delimiters and replacement. Case includes camelCase, PascalCase and other formats, with tooltip examples.
+
+## 🔄 [Find / Replace Text](./README/find_replace_text.md)
+
+Replaces every literal match in a string. Three single-line inputs: string, find and replace.
 
 ## 📅 [Format Date Time](./README/format_date_time.md)
 
@@ -108,8 +110,7 @@ Creates resolutions and a latent from presets, user presets, or input images.
 
 ## 🖼️ [Load Images From Path](./README/load_images_from_path.md)
 
-Load single images or iterate through image directories with mask support.
-<img width="2231" height="768" alt="image" src="https://github.com/user-attachments/assets/dddaaea0-aa43-40b6-ad87-9145196e5a74" />
+Loads an image or steps through a folder, with a mask and separate, configurable path or filename outputs.
 
 ## 🖼️ [Load Image Advanced](./README/load_image_advanced.md)
 

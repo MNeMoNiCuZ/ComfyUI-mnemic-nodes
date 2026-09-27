@@ -1,26 +1,47 @@
-# 🖼️ Load Images From Path
+# 📂 Load Images From Path
 
-A lightweight image loader that supports loading multiple images, one at a time from a folder.
-
-<img width="2240" height="775" alt="image" src="https://github.com/user-attachments/assets/71ef1566-7b4b-4030-afbd-3eef9eccf686" />
-
-
-## Usage
-> [!IMPORTANT]
-> To cycle through each input entry one by one in the list, you'll want to set the `seed` input to `increment`.
+Loads an image or steps through a folder, with a mask and separate path or filename outputs.
 
 ## Inputs
 
--   `seed`: The index of the image to load from the directory. The count wraps around, so if you provide a seed of 5 and there are only 5 images, it will load the first image (index 0).
--   `input_path`: The path to a folder containing images or to a single image file.
-    -   If the path is to a single file, it will be loaded directly.
-    -   If the path is to a directory, the node will iterate through all supported image files (`PNG`, `JPG`, `JPEG`, `WEBP`, `BMP`, `GIF`) within it.
-    -   Relative paths are resolved from ComfyUI's `input` directory. If the path is left empty, it defaults to the `input` directory.
+- **seed**: Image index, starting at 0 and wrapping at the file count. Defaults to increment.
+- **input_path**: Folder or image file. Relative paths start at ComfyUI's input folder; empty is an error.
+- **output1**, **output2**, ...: Format of each text output. The first defaults to **full path with ext**; hover for the selected format's tooltip.
+- **Add file/path output**: Add a text output and choose its format, up to 32 outputs.
+- **Remove last file/path output**: Remove the last additional output and its connections.
+
+For `C:/ComfyUI/input/portraits/photo.v2.png`, with `C:/ComfyUI/input` as the input folder:
+
+| Format | Output |
+| --- | --- |
+| full path with ext | `C:/ComfyUI/input/portraits/photo.v2.png` |
+| full path without ext | `C:/ComfyUI/input/portraits/photo.v2` |
+| folder path without trailing / | `C:/ComfyUI/input/portraits` |
+| folder path with trailing / | `C:/ComfyUI/input/portraits/` |
+| filename with ext | `photo.v2.png` |
+| filename without ext | `photo.v2` |
+| relative path with ext | `portraits/photo.v2.png` |
+| relative path without ext | `portraits/photo.v2` |
+| relative folder without trailing / | `portraits` |
+| relative folder with trailing / | `portraits/` |
 
 ## Outputs
 
--   `image`: The loaded image (IMAGE tensor).
--   `mask`: The alpha channel of the image as a MASK tensor. If the image has no alpha channel, a solid black mask is generated.
--   `image_path`: The full absolute path to the loaded image file (STRING).
--   `current_index`: The zero-based index of the currently loaded image from the directory (INT).
--   `total_count`: The total number of images found in the directory (INT).
+- **image**: Selected image.
+- **mask**: Alpha channel, or black if absent.
+- **current_index**: Image index used.
+- **total_count**: Number of images found.
+- **output1**, **output2**, ...: Separate strings below the counters, each with its own selected format.
+
+## Examples
+
+Choose **folder path with trailing /** for **output1** and **filename with ext**
+for **output2** to connect the folder and filename separately.
+
+## Notes
+
+- Supports PNG, JPG, JPEG, WEBP, BMP and GIF. Folders are read in filename order, without subfolders.
+- No usable images returns empty outputs and a count of 0.
+- Paths use your system's separators. Relative paths may contain `..`; relative folder output is `.` for the input folder itself.
+- Labels and paths use `\` on Windows and `/` elsewhere. Drive roots keep their required slash. File paths never end in a slash.
+- On Windows, relative formats require the image and input folder to share a drive.

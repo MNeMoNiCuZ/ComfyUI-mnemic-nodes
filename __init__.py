@@ -13,6 +13,7 @@ from .nodes.groq_api_alm_transcribe import GroqAPIALMTranscribe
 from .nodes.llm_request import LLMAPI
 from .nodes.tiktoken_tokenizer import TiktokenTokenizer
 from .nodes.string_cleaning import StringCleaning
+from .nodes.find_replace_text import FindReplaceText
 from .nodes.generate_negative_prompt import GenerateNegativePrompt
 from .nodes.lora_tag_loader import LoraTagLoader
 from .nodes.resolution_selector import ResolutionSelector
@@ -187,6 +188,7 @@ class MnemicExtension(ComfyExtension):
             LLMAPI,
             TiktokenTokenizer,
             StringCleaning,
+            FindReplaceText,
             LoraTagLoader,
             ResolutionSelector,
             WildcardProcessor,

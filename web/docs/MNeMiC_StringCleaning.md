@@ -1,54 +1,89 @@
 # 🧹 String Cleaning
 
-Runs a chain of clean-up passes over text: trimming whitespace, stripping
-punctuation and tags, removing chunks between markers, and find/replace.
-Everything is off by default, so the node passes text through untouched until
-you enable something.
+Cleans text with operations applied from top to bottom. Each step shows only its own fields.
 
 ## Inputs
 
-Whitespace:
+- **input_string**: Text to clean.
+- **Operation**: First step; defaults to **Collapse Spaces**.
+- **Add Operation**: Append another step and choose its operation.
+- **Remove Last Operation**: Remove the last added step.
 
-- **collapse_sequential_spaces** — Several spaces in a row become one.
-- **strip_leading_spaces** / **strip_trailing_spaces** — Trim each line.
-- **strip_empty_lines** — Drop lines that are empty or whitespace only.
+Every operation and field has an example in its tooltip.
 
-Symbols, newlines and text removal:
+| Operation | Settings | Input | Output |
+| --- | --- | --- | --- |
+| **Whitespace** | | | |
+| Collapse Spaces | None | `"red   fox"` | `"red fox"` |
+| Trim Whitespace | None | `"  red fox  "` | `"red fox"` |
+| Trim Each Line | None | `"  red  \n  fox  "` | `"red\nfox"` |
+| Trim Line Starts | None | `"  red fox"` | `"red fox"` |
+| Trim Line Ends | None | `"red fox  "` | `"red fox"` |
+| Normalize Whitespace | None | `"  red\t fox\n "` | `"red fox"` |
+| Remove All Spaces | None | `"red fox"` | `"redfox"` |
+| **Lines** | | | |
+| Normalize Line Breaks | None | `"red\r\nfox\rcat"` | `"red\nfox\ncat"` |
+| Remove Empty Lines | None | `"red\n\nfox"` | `"red\nfox"` |
+| Remove Duplicate Lines | None | `"red\nfox\nred"` | `"red\nfox"` |
+| Remove Line Breaks | None | `"red\nfox"` | `"redfox"` |
+| Line Breaks to Sentences | None | `"Hello\nWorld"` | `"Hello. World"` |
+| **Punctuation** | | | |
+| Remove Leading Punctuation | None | `"...Hello"` | `"Hello"` |
+| Remove Trailing Punctuation | None | `"Hello!!!"` | `"Hello"` |
+| **Text removal** | | | |
+| Remove Line Prefix | Text: `"Chapter "` | `"Chapter 1: Hello"` | `"1: Hello"` |
+| Remove Line Suffix | Text: `" END"` | `"Hello END"` | `"Hello"` |
+| Remove Text | Text: `cat` | `"cat and cat"` | `" and "` |
+| Remove Before Marker | Markers: `<START>` | `"Header<START>Hello"` | `"Hello"` |
+| Remove After Marker | Markers: `<END>` | `"Hello<END>Footer"` | `"Hello"` |
+| Remove From Start Until | Delimiter: `/` | `"folder/sub/file.txt"` | `"sub/file.txt"` |
+| Remove From End Until | Delimiter: `.` | `"photo.v2.png"` | `"photo.v2"` |
+| Remove Bracketed Content | Character Pairs: `()` | `"Hello (draft)world"` | `"Hello world"` |
+| Remove Between Tags | Opening: `<think>`, Closing: `</think>` | `"<think>draft</think>Hello"` | `"Hello"` |
+| **Replacement and case** | | | |
+| Find and Replace | Find: `cat`, Replace With: `dog` | `"a cat"` | `"a dog"` |
+| Case | Format: `camelCase` | `"red fox"` | `"redFox"` |
 
-- **strip_leading_symbols** / **strip_trailing_symbols** — Trim `, . ! ? : ;`
-  from the ends of each line.
-- **strip_newlines** — Remove every line break.
-- **replace_newlines_with_period_space** — Turn runs of line breaks into `". "`.
-- **strip_inside_tags** — One character *pair* per line, e.g. `()`. Content
-  between them, and the brackets, are removed.
-- **strip_between_start** / **strip_between_end** — Opening and closing markers,
-  one per line. Both fields must have the same number of lines. Everything
-  between a pair is removed.
-- **strip_leading_custom** / **strip_trailing_custom** — Text to strip from the
-  start / end of each line, one entry per line.
-- **strip_all_custom** — Text to remove wherever it appears.
-- **remove_text_before** / **remove_text_after** — Markers; everything before
-  (or after) the marker, including the marker itself, is removed.
-- **multiline_find** / **multiline_replace** — Line-for-line find/replace pairs.
-  The two fields must have the same number of lines.
+Quotes show spaces; do not enter the quotes. `\t` is a tab, `\r` is CR, and `\n` is LF (a line break).
+
+### Case formats
+
+| Format | Input | Output |
+| --- | --- | --- |
+| lowercase | `Red FOX` | `red fox` |
+| UPPERCASE | `Red fox` | `RED FOX` |
+| Title Case | `the red fox` | `The Red Fox` |
+| Sentence case | `HELLO. GOODBYE!` | `Hello. Goodbye!` |
+| camelCase | `red fox` | `redFox` |
+| PascalCase | `red fox` | `RedFox` |
+| snake_case | `RedFox` | `red_fox` |
+| CONSTANT_CASE | `red fox` | `RED_FOX` |
+| kebab-case | `red fox` | `red-fox` |
+| Train-Case | `red fox` | `Red-Fox` |
+| dot.case | `red fox` | `red.fox` |
+| tOGGLE cASE | `Red FOX` | `rED fox` |
+
+Joined formats split words at whitespace, punctuation and case boundaries:
+`HTTPServer` becomes `http_server` with snake_case. Other case formats keep
+punctuation and spacing. Sentence case treats `.`, `!`, `?` and line breaks as sentence boundaries.
 
 ## Outputs
 
-- **cleaned_string** — The text after every enabled pass.
-
-## Notes
-
-Mismatched line counts in the paired fields (`strip_between_*`,
-`multiline_find`/`multiline_replace`) stop the run with an error rather than
-silently guessing. A `strip_inside_tags` line that is not exactly two
-characters does the same.
+- **cleaned_string**: Text after all operations.
 
 ## Examples
 
-```
-strip_between_start: <think>
-strip_between_end:   </think>
+1. **Remove Line Prefix**, Text `"Chapter "`: `"Chapter  red   fox"` becomes `" red   fox"`.
+2. **Trim Line Starts**: becomes `"red   fox"`.
+3. **Collapse Spaces**: becomes `"red fox"`.
 
-Input:  <think>Hmm, the user wants...</think> The answer is 24
-Output: The answer is 24
-```
+## Notes
+
+- Text fields take one entry per line, applied in order. Matching is case-sensitive.
+- Prefix/suffix removal repeats at the selected end of each line. Spaces are significant except around marker entries.
+- Remove All Spaces removes ordinary spaces, keeping tabs and line breaks.
+- Normalize Whitespace also replaces tabs and line breaks with spaces. Remove Duplicate Lines keeps the first exact match; trim lines first to ignore surrounding whitespace.
+- Remove From Start/End Until uses the first/last delimiter in the whole string. Empty or missing delimiters leave text unchanged. **Keep Delimiter** retains it: `photo.v2.png` becomes `photo.v2.` when trimming from the end with `.`.
+- Character Pairs needs two characters per nonempty line. Opening/Closing Tags need equal nonempty line counts.
+- Brackets and tags match across lines to the nearest closing delimiter; nesting is not supported.
+- Find and Replace needs equal line counts. Empty Find lines are skipped; empty replacements delete matches.

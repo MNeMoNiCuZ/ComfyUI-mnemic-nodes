@@ -8,6 +8,7 @@ from .groq_api_alm_transcribe import GroqAPIALMTranscribe
 from .llm_request import LLMAPI
 from .tiktoken_tokenizer import TiktokenTokenizer
 from .string_cleaning import StringCleaning
+from .find_replace_text import FindReplaceText
 from .lora_tag_loader import LoraTagLoader
 from .resolution_selector import ResolutionSelector
 from .wildcard_processor import WildcardProcessor
@@ -52,6 +53,7 @@ __all__ = [
     "LLMAPI",
     "TiktokenTokenizer",
     "StringCleaning",
+    "FindReplaceText",
     "GenerateNegativePrompt",
     "LoraTagLoader",
     "ResolutionSelector",
