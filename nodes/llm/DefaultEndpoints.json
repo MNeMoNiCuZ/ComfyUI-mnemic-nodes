@@ -126,7 +126,8 @@
                 "ensure_path": "/v1",
                 "model_optional": true,
                 "keep_order": true,
-                "pin_last": true
+                "pin_last": true,
+                "sanctum_tools": true
             },
             "description": "Set SANCTUM_URL and SANCTUM_API_KEY in the .env file."
         }

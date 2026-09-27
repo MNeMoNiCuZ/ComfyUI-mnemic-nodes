@@ -1,4 +1,4 @@
-# ✨🧠 Universal LLM API
+# ✨🧠 LLM Request
 
 One node for every language model: ChatGPT, Claude, Gemini, Grok, Groq,
 OpenRouter, Mistral, DeepSeek, local servers like Ollama and LM Studio (on

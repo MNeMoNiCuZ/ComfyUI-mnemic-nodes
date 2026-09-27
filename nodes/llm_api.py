@@ -5,12 +5,13 @@ import sys
 import numpy as np
 from PIL import Image
 
-from ..utils.env_manager import redact
+from ..utils.env_manager import get_secret, redact
 from ..utils.llm_custom import CUSTOM_ENDPOINT_NAME, custom_endpoint as load_custom_endpoint
 from ..utils.llm_endpoints import endpoint_names, load_endpoints
-from ..utils.llm_providers import ChatRequest, LLMError, list_models, run_chat
+from ..utils.llm_providers import ChatRequest, LLMError, list_models, run_chat, sanctum_describe_image
 from ..utils.prompt_presets import load_llm_presets
-from ..utils.settings_utils import get_llm_request_timeout, is_llm_console_log_enabled, is_llm_live_preview_enabled
+from ..utils.settings_utils import (get_llm_request_timeout, is_llm_console_log_enabled,
+                                    is_llm_endpoint_visible, is_llm_live_preview_enabled)
 
 from comfy_api.latest import io
 
@@ -20,6 +21,10 @@ STREAM_EVENT = "mnemic.llm.stream"
 # Embedding/reranker models are listed alongside chat models by Ollama and
 # LM Studio but can't chat; never auto-pick one.
 _EMBEDDING_MODEL = re.compile(r"embed|bge|minilm|rerank|e5-|gte-", re.IGNORECASE)
+
+
+def _sanctum_tool_use_enabled():
+    return (get_secret("SANCTUM_TOOL_USE", "false") or "false").strip().lower() in ("1", "true", "yes", "on")
 
 
 def _current_client_id():
@@ -85,7 +90,9 @@ _FAILURES = {}
 class LLMAPI(io.ComfyNode):
     @classmethod
     def define_schema(cls) -> io.Schema:
-        names = endpoint_names()
+        names = [n for n in endpoint_names() if is_llm_endpoint_visible(n)]
+        if not names:
+            names = [CUSTOM_ENDPOINT_NAME]
         try:
             presets = list(load_llm_presets().keys())
         except Exception as e:
@@ -94,11 +101,12 @@ class LLMAPI(io.ComfyNode):
 
         return io.Schema(
             node_id="MNeMiC_LLMAPI",
-            display_name="✨🧠 Universal LLM API",
+            display_name="✨🧠 LLM Request",
             category="⚡ MNeMiC Nodes",
             description="Sends a prompt, and optionally images, to any LLM: ChatGPT, Claude, Gemini, Grok, Groq, OpenRouter, or Ollama and LM Studio on this PC or your network.",
             search_aliases=["llm", "chat", "ollama", "openai", "chatgpt", "gpt", "claude", "anthropic", "gemini",
-                            "grok", "xai", "groq", "openrouter", "lm studio", "llama.cpp", "vllm", "vlm", "prompt generator"],
+                            "grok", "xai", "groq", "openrouter", "lm studio", "llama.cpp", "vllm", "vlm", "prompt generator",
+                            "universal llm api"],
             inputs=[
                 io.Combo.Input("endpoint", options=names, default=names[0],
                                tooltip="Which server to talk to. Endpoints are defined in nodes/llm/*.json; keys and private addresses come from .env and are never saved in the workflow."),
@@ -120,9 +128,9 @@ class LLMAPI(io.ComfyNode):
                              tooltip="Maximum length of the reply in tokens. 0 leaves it to the server (Claude, which needs a value, gets 16000)."),
                 io.Float.Input("top_p", default=1.0, min=0.0, max=1.0, step=0.01, advanced=True,
                                tooltip="Nucleus sampling: only consider the most likely words adding up to this probability. 1.0 disables it and is not sent."),
-                io.Int.Input("seed", default=42, min=0, max=0xffffffff, advanced=True,
-                             control_after_generate=io.ControlAfterGenerate.fixed,
-                             tooltip="Sent to the endpoint for repeatable replies where supported. Changing it also forces a fresh reply instead of the cached one."),
+                io.Int.Input("seed", default=42, min=0, max=0xffffffff,
+                             control_after_generate=io.ControlAfterGenerate.randomize,
+                             tooltip="Sent to the endpoint for repeatable replies where supported. Randomized after each run; set control_after_generate to fixed to reuse the same reply."),
                 io.String.Input("stop", default="", advanced=True, placeholder="###|</answer>",
                                 tooltip="Stop generating when this text appears. Separate several with |. Empty sends none."),
                 io.Boolean.Input("json_mode", default=False, advanced=True,
@@ -172,7 +180,7 @@ class LLMAPI(io.ComfyNode):
             if raise_on_error:
                 # from None: the chained original error would otherwise be
                 # printed in ComfyUI's traceback.
-                raise RuntimeError(f"✨🧠 Universal LLM API — {message}") from None
+                raise RuntimeError(f"✨🧠 LLM Request — {message}") from None
             return io.NodeOutput("", "", False, message,
                                  ui={"mnemic_llm": [{"ok": False, "error": message, "status": status}]})
 
@@ -210,6 +218,19 @@ class LLMAPI(io.ComfyNode):
 
         system_message, user_input = (system_message or "").strip(), (user_input or "").strip()
         pil_images = _tensor_to_pil_list(images)
+        if pil_images and ep_config.options.get("sanctum_tools"):
+            # Sanctum rejects image content on chat endpoints; describe each
+            # image through its vision endpoint and send that as plain text.
+            try:
+                descriptions = await asyncio.to_thread(
+                    lambda: [sanctum_describe_image(ep, image, timeout=get_llm_request_timeout()) for image in pil_images])
+            except LLMError as e:
+                return fail(str(e), e.status)
+            except Exception as e:
+                return fail(f"{endpoint}: unexpected {type(e).__name__} while describing an image.")
+            caption_block = "\n\n".join(f"[Image {i + 1} description]: {d}" for i, d in enumerate(descriptions) if d)
+            user_input = f"{caption_block}\n\n{user_input}".strip() if user_input else caption_block
+            pil_images = []
         if not user_input and not pil_images:
             if not system_message:
                 return fail("There is nothing to send: system_message, user_input and images are all empty.")
@@ -232,6 +253,7 @@ class LLMAPI(io.ComfyNode):
             keep_alive=0 if unload_model_after else None,
             context_length=context_length,
             stream=is_llm_live_preview_enabled() and node_id is not None and client_id is not None,
+            extra_body={"enable_tools": True} if ep_config.options.get("sanctum_tools") and _sanctum_tool_use_enabled() else {},
         )
 
         if free_comfy_vram:

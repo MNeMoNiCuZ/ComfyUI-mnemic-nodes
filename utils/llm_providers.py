@@ -71,6 +71,7 @@ class ChatRequest:
     keep_alive: str | None = None                   # Ollama only
     context_length: int = 0                         # Ollama only
     stream: bool = True
+    extra_body: dict = field(default_factory=dict)  # merged in on top of the endpoint's own extra_body
 
 
 @dataclass
@@ -576,6 +577,25 @@ def get_adapter(provider):
     return ADAPTERS[provider]
 
 
+def sanctum_describe_image(ep, image, timeout=60):
+    """Caption one image through Sanctum's `/v1/images/describe`.
+
+    Sanctum's chat endpoints reject image content outright (see
+    docs/api_sanctum.md), so a Sanctum call with images runs each one through
+    this endpoint first and sends the descriptions back as plain text.
+    """
+    _mime, data = encode_images([image])[0]
+    headers = {"Content-Type": "application/json"}
+    if ep.api_key:
+        headers["Authorization"] = f"Bearer {ep.api_key}"
+    headers |= ep.headers
+    response = requests.post(f"{ep.base_url}/images/describe", headers=headers,
+                             json={"image_base64": data, "filename": "image.jpg"},
+                             allow_redirects=False, timeout=(15, timeout))
+    _raise_for_status(response)
+    return response.json().get("description", "")
+
+
 def _raise_for_status(response):
     if 300 <= response.status_code < 400:
         # Location is not echoed: it may name a private host.
@@ -678,6 +698,7 @@ def run_chat(ep, req, *, timeout=300, max_retries=2, on_delta=None, check_interr
     body = adapter.build(ep, req)
     budget_added = body.pop("_budget_added", 0)
     body.update(ep.endpoint.extra_body or {})
+    body.update(req.extra_body or {})
 
     result = ChatResult()
     adjusted = set()

@@ -15,7 +15,7 @@ GROQ_API_KEY=your_key_here
 ```
 
 Changes apply on the next run; no restart needed. The same key is used by the
-✨🧠 Universal LLM API node's Groq endpoint.
+✨🧠 LLM Request node's Groq endpoint.
 
 ## Inputs
 

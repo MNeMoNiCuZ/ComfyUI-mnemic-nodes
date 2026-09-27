@@ -139,3 +139,34 @@ def get_llm_request_timeout():
 
 def is_llm_live_preview_enabled():
     return bool(get_comfy_setting(LLM_STREAM_SETTING_ID, True))
+
+
+# One toggle per built-in endpoint, so users can declutter the dropdown
+# without editing DefaultEndpoints.json. Endpoints added in UserEndpoints.json
+# have no entry here and are always shown.
+LLM_ENDPOINT_VISIBILITY_IDS = {
+    "Ollama (this PC)": "MNeMiC.LLM.ShowEndpoint.OllamaLocal",
+    "Ollama (network)": "MNeMiC.LLM.ShowEndpoint.OllamaNetwork",
+    "LM Studio (this PC)": "MNeMiC.LLM.ShowEndpoint.LMStudio",
+    "OpenAI-compatible server": "MNeMiC.LLM.ShowEndpoint.OpenAICompatible",
+    "Local Claude Code Subscription": "MNeMiC.LLM.ShowEndpoint.ClaudeCodeSubscription",
+    "Local Codex Subscription": "MNeMiC.LLM.ShowEndpoint.CodexSubscription",
+    "OpenAI (ChatGPT)": "MNeMiC.LLM.ShowEndpoint.OpenAI",
+    "Anthropic (Claude)": "MNeMiC.LLM.ShowEndpoint.Anthropic",
+    "Google (Gemini)": "MNeMiC.LLM.ShowEndpoint.Gemini",
+    "xAI (Grok)": "MNeMiC.LLM.ShowEndpoint.Grok",
+    "Groq": "MNeMiC.LLM.ShowEndpoint.Groq",
+    "OpenRouter": "MNeMiC.LLM.ShowEndpoint.OpenRouter",
+    "Mistral": "MNeMiC.LLM.ShowEndpoint.Mistral",
+    "DeepSeek": "MNeMiC.LLM.ShowEndpoint.DeepSeek",
+    "Sanctum": "MNeMiC.LLM.ShowEndpoint.Sanctum",
+    "Custom Endpoint - WARNING": "MNeMiC.LLM.ShowEndpoint.CustomEndpoint",
+}
+LLM_ENDPOINT_HIDDEN_BY_DEFAULT = {"Sanctum"}
+
+
+def is_llm_endpoint_visible(name):
+    setting_id = LLM_ENDPOINT_VISIBILITY_IDS.get(name)
+    if setting_id is None:
+        return True
+    return bool(get_comfy_setting(setting_id, name not in LLM_ENDPOINT_HIDDEN_BY_DEFAULT))

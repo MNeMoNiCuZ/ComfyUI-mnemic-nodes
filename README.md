@@ -141,9 +141,9 @@ Visual bounding-box for Ideogram 4 with added automatic string input for each re
 Automatically generates random Ideogram 4 json-structured compositions with dictionary-sourced descriptions.
 <img width="2162" height="580" alt="image" src="https://github.com/user-attachments/assets/72b2eeeb-8d12-4525-991b-b284fd13d60d" />
 
-## ✨🧠 [Universal LLM API](./README/llm_api.md)
+## ✨🧠 [LLM Request](./README/llm_api.md)
 
-One node for every LLM: ChatGPT, Claude, Gemini, Grok, Groq, OpenRouter, Mistral, DeepSeek, Ollama / LM Studio / any OpenAI-compatible server on your PC or your network, and your Claude Code or Codex subscription. Model browser, live streaming preview, vision, reasoning control, and no keys or addresses in your shared workflows. Shares prompt presets with the Groq nodes.
+One node for every LLM: ChatGPT, Claude, Gemini, Grok, Groq, OpenRouter, Mistral, DeepSeek, Ollama / LM Studio / any OpenAI-compatible server on your PC or your network, and your Claude Code or Codex subscription. Model browser, live streaming preview, vision, reasoning control, and live config support.
 
 ## ✨💬 [Groq LLM API](./README/groq_api_llm.md)
 

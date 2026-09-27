@@ -1,7 +1,7 @@
 import { app } from "../../../scripts/app.js";
 import { api } from "../../../scripts/api.js";
 
-// ✨🧠 Universal LLM API — node UI.
+// ✨🧠 LLM Request — node UI.
 //
 // Adds a panel to the node with the endpoint's status (where it runs, whether
 // its key/address is set), a searchable model browser, a connection test, a
@@ -16,6 +16,16 @@ const NODE_ID = "MNeMiC_LLMAPI";
 const DEFAULT_PRESET = "Use [system_message] and [user_input]";
 const STREAM_EVENT = "mnemic.llm.stream";
 const MODEL_MEMORY = "mnemic_llm_models";
+const OUT_HEIGHT_PROPERTY = "mnemic_llm_out_height";
+const OUT_HEIGHT_SETTING = "MNeMiC.LLM.PreviewHeight";
+const FALLBACK_OUT_HEIGHT = 240;
+
+// The default height for a node that hasn't been resized yet, from Settings
+// → ⚡MNeMiC Nodes → LLM Request → Preview Height.
+function defaultOutHeight() {
+    const value = app.extensionManager?.setting?.get?.(OUT_HEIGHT_SETTING) ?? app.ui?.settings?.getSettingValue?.(OUT_HEIGHT_SETTING);
+    return value ?? FALLBACK_OUT_HEIGHT;
+}
 
 const LOCATION_LABEL = {
     local: ["🖥", "This PC"],
@@ -149,7 +159,7 @@ function addStylesheet() {
         .mnemic-llm-row select { flex:0 0 auto; }
         .mnemic-llm-custom-status { font-size:11px; opacity:.8; }
         .mnemic-llm-custom-status.err { color:#f85149; opacity:1; }
-        .mnemic-llm-out { flex:1; min-height:40px; overflow:auto; padding:6px 8px; border-radius:6px; white-space:pre-wrap; word-break:break-word;
+        .mnemic-llm-out { flex:none; box-sizing:border-box; min-height:40px; resize:vertical; overflow:auto; padding:6px 8px; border-radius:6px; white-space:pre-wrap; word-break:break-word;
             background:var(--comfy-input-bg); border:1px solid var(--border-color); user-select:text; cursor:text; }
         .mnemic-llm-out.empty { opacity:.5; font-style:italic; }
         .mnemic-llm-out.err { color:#f85149; }
@@ -401,6 +411,8 @@ class LLMPanel {
         this.host = this.el.querySelector(".mnemic-llm-host");
         this.out = this.el.querySelector(".mnemic-llm-out");
         this.stats = this.el.querySelector(".mnemic-llm-stats");
+        this.copyButton = this.el.querySelector('[data-act="copy"]');
+        this.copyButton.disabled = true;
         this.custom = this.el.querySelector(".mnemic-llm-custom");
         this.customStatus = this.el.querySelector(".mnemic-llm-custom-status");
         this.customField = (f) => this.custom.querySelector(`[data-f="${f}"]`);
@@ -426,14 +438,48 @@ class LLMPanel {
             this.onButton(b.dataset.act, b);
         }));
 
+        const contentHeight = () => this.el.scrollHeight || 150;
         this.domWidget = node.addDOMWidget("llm_panel", "mnemic_llm_panel", this.el, {
             serialize: false,
             hideOnZoom: false,
-            getMinHeight: () => 150 + (this.custom && !this.custom.hidden ? this.custom.offsetHeight + 8 : 0),
+            getMinHeight: contentHeight,
             getValue: () => "",
             setValue: () => {},
         });
         this.domWidget.serialize = false;
+        // The panel is exactly as tall as its content: without this it is
+        // treated as a widget that claims any spare node height, and the
+        // fixed-height reply box then leaves that space empty below it.
+        this.domWidget.computeSize = (width) => [width ?? this.node.size[0], contentHeight()];
+        this.domWidget.computeLayoutSize = undefined;
+        this.applyOutHeight();
+
+        // Dragging the reply preview's resize handle persists the chosen
+        // height on this node and resizes the node to match.
+        new ResizeObserver(() => {
+            if (!this.out.isConnected) return;
+            if (this.out.offsetHeight && this.out.offsetHeight !== this.outHeight()) {
+                this.node.properties ??= {};
+                this.node.properties[OUT_HEIGHT_PROPERTY] = this.out.offsetHeight;
+                this.fitNode();
+            }
+        }).observe(this.out);
+    }
+
+    outHeight() {
+        return this.node.properties?.[OUT_HEIGHT_PROPERTY] ?? defaultOutHeight();
+    }
+
+    applyOutHeight() {
+        this.out.style.height = `${this.outHeight()}px`;
+    }
+
+    // Snaps the node to exactly the height its widgets need, shrinking away
+    // any stale extra space as well as growing for a taller reply box.
+    fitNode() {
+        const [w] = this.node.size;
+        this.node.setSize([w, this.node.computeSize()[1]]);
+        this.node.setDirtyCanvas(true, true);
     }
 
     widget(name) {
@@ -448,14 +494,8 @@ class LLMPanel {
         if (this.custom.hidden === !visible) return;
         this.custom.hidden = !visible;
         // Height depends on the section's rendered size: measure after layout.
-        requestAnimationFrame(() => {
-            const [w2, h2] = this.node.size;
-            this.node.setSize([w2, Math.max(h2, this.node.computeSize()[1])]);
-            this.node.setDirtyCanvas(true, true);
-        });
-        const [w, h] = this.node.size;
-        this.node.setSize([w, Math.max(h, this.node.computeSize()[1])]);
-        this.node.setDirtyCanvas(true, true);
+        requestAnimationFrame(() => this.fitNode());
+        this.fitNode();
     }
 
     // The custom endpoint's status comes from what is stored on this
@@ -598,6 +638,8 @@ class LLMPanel {
 
     async updatePresetState() {
         const preset = this.widget("preset")?.value;
+        const presetButton = this.el.querySelector('[data-act="preset"]');
+        if (presetButton) presetButton.disabled = !preset || preset === DEFAULT_PRESET;
         const system = this.widget("system_message");
         const input = system?.inputEl;
         if (!input) return;
@@ -648,6 +690,7 @@ class LLMPanel {
         }
         this.result = null;
         this.stats.textContent = "";
+        this.updateCopyState();
         this.refreshStatus();
     }
 
@@ -691,6 +734,10 @@ class LLMPanel {
     showNote(text, isError) {
         this.out.className = `mnemic-llm-out empty${isError ? " err" : ""}`;
         this.out.textContent = text;
+    }
+
+    updateCopyState() {
+        this.copyButton.disabled = !(this.result?.text ?? this.partial?.text ?? "");
     }
 
     renderReply(text, thinking, streaming) {
@@ -741,6 +788,7 @@ class LLMPanel {
             this.showNote(msg.error, true);
             this.stats.textContent = "";
         }
+        this.updateCopyState();
     }
 
     onResult(summary) {
@@ -751,6 +799,7 @@ class LLMPanel {
             this.setDot("err");
             this.showNote(summary.error ?? summary.status, true);
             this.stats.textContent = "";
+            this.updateCopyState();
             return;
         }
         this.result = summary;
@@ -764,6 +813,7 @@ class LLMPanel {
         if (summary.output_tokens && summary.seconds > 0) parts.push(`${Math.round(summary.output_tokens / summary.seconds)} tok/s`);
         if (summary.status && summary.status !== "200 OK") parts.push(summary.status.replace(/^200 OK /, ""));
         this.stats.textContent = parts.join(" · ");
+        this.updateCopyState();
         // .env may have changed since the panel last looked (e.g. a key added).
         this.refreshStatus(true);
     }
@@ -775,6 +825,7 @@ class LLMPanel {
         // Keep what arrived, without the streaming caret.
         if (this.partial?.text || this.partial?.thinking) this.renderReply(this.partial.text, this.partial.thinking, false);
         this.stats.textContent = "interrupted";
+        this.updateCopyState();
     }
 }
 
@@ -847,6 +898,9 @@ app.registerExtension({
                     if (key && !panel.result) panel.onResult(outputs[key].mnemic_llm[0]);
                     panel.refreshStatus();
                     panel.updatePresetState();
+                    // A node saved before the reply box got a fixed height
+                    // may carry a stale, oversized node height: correct it.
+                    panel.fitNode();
                 });
             }
             return r;

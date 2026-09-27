@@ -36,6 +36,19 @@ CLAUDE = "claude_cli"
 CODEX = "codex_cli"
 CLI_PROVIDERS = (CLAUDE, CODEX)
 
+# Other subscription CLIs considered and not added here:
+# - xAI/Grok: no official CLI with subscription-based auth comparable to
+#   Claude Code or Codex was found.
+# - Google Gemini CLI (google-gemini/gemini-cli) has subscription auth, but
+#   its own --output-format json is reported broken/unreliable upstream:
+#   https://github.com/google-gemini/gemini-cli/issues/9009
+#   https://github.com/google-gemini/gemini-cli/issues/8022
+#   A local proxy such as https://github.com/router-for-me/CLIProxyAPI wraps
+#   Gemini CLI, Grok, Claude Code and Codex logins behind a normal
+#   OpenAI-compatible /v1/chat/completions server; that already works with
+#   this pack's generic "openai" provider (add it in UserEndpoints.json, see
+#   the "CLI Proxy API" example) without a bespoke subprocess adapter here.
+
 # Only as a fallback when nothing else is given; Claude Code's own default
 # system prompt is a coding agent's.
 DEFAULT_SYSTEM = "You are a helpful assistant."
@@ -385,13 +398,26 @@ def run_cli_chat(provider, command, req, result, **kwargs):
 
 
 CLAUDE_MODELS = [
-    {"id": "sonnet", "detail": "latest Sonnet"},
-    {"id": "opus", "detail": "latest Opus"},
-    {"id": "haiku", "detail": "latest Haiku"},
-    {"id": "fable", "detail": "latest Fable"},
+    {"id": "sonnet", "detail": "alias for claude-sonnet-5"},
+    {"id": "claude-sonnet-5", "detail": "Sonnet 5"},
+    {"id": "opus", "detail": "alias for claude-opus-5-5"},
+    {"id": "claude-opus-5-5", "detail": "Opus 5.5"},
+    {"id": "haiku", "detail": "alias for claude-haiku-4-5-20251001"},
+    {"id": "claude-haiku-4-5-20251001", "detail": "Haiku 4.5"},
+    {"id": "fable", "detail": "alias for claude-fable-5-1"},
+    {"id": "claude-fable-5-1", "detail": "Fable 5.1"},
+]
+# Codex has no equivalent of `claude` picking up new releases under a fixed
+# alias, and no command to list what a given install supports (openai/codex#8871
+# asks for exactly this); these are current model names, not a live list.
+CODEX_MODELS = [
+    {"id": "gpt-5.2-codex", "detail": "current Codex model"},
+    {"id": "gpt-5.1-codex-max", "detail": "previous Codex model"},
+    {"id": "gpt-5.1-codex-mini", "detail": "smaller, faster"},
 ]
 
 
 def list_cli_models(provider):
-    """The CLIs can't list models; these are the aliases they accept."""
-    return list(CLAUDE_MODELS) if provider == CLAUDE else []
+    """Neither CLI can list what a given install actually supports; these are
+    known model names/aliases, not fetched live."""
+    return list(CLAUDE_MODELS) if provider == CLAUDE else list(CODEX_MODELS)

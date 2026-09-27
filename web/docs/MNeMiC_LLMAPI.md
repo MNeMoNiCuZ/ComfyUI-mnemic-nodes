@@ -1,4 +1,4 @@
-# ✨🧠 Universal LLM API
+# ✨🧠 LLM Request
 
 Sends a prompt, and optionally images, to any language model and returns the
 reply. One node covers cloud APIs (ChatGPT, Claude, Gemini, Grok, Groq,
@@ -108,8 +108,16 @@ parameter by name, the node drops it (or renames `max_tokens` ↔
 **Live preview.** Replies stream onto the node as they are written, with
 reasoning in a collapsible 💭 section, then show token counts and speed.
 Cancelling the queue stops a streaming request. Turn it off under
-**Settings → ⚡MNeMiC Nodes → Universal LLM API** if an endpoint can't stream.
+**Settings → ⚡MNeMiC Nodes → LLM Request** if an endpoint can't stream.
 The console log and the request timeout (default 300 s) are there too.
+
+**Show Endpoints.** Each built-in endpoint has its own on/off toggle under
+**Settings → ⚡MNeMiC Nodes → LLM Request → Show Endpoints**, so you can hide
+ones you never use from the dropdown. All are on by default; Sanctum is off
+by default. This only hides an endpoint from the list - a workflow that
+already uses a hidden endpoint keeps working. Endpoints you add yourself in
+`UserEndpoints.json` always show; use that file's own `enabled: false` to hide
+those instead.
 
 ## Local subscriptions (Claude Code, Codex)
 
@@ -129,8 +137,13 @@ ChatGPT subscription and need no API key.
   prompt making Codex read files on your machine.
 - API-key variables (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`…) are removed from
   the CLI's environment, so your subscription login is what gets used.
-- **model** is optional: empty uses the CLI's default. Claude Code accepts
-  aliases like `sonnet`, `opus`, `haiku`, `fable`; 🔍 Models lists them.
+- **model** is optional: empty uses the CLI's default. Neither CLI has a
+  command to list what a given install actually supports, so 🔍 Models shows a
+  fixed list of currently known names instead of a live one: for Claude Code,
+  aliases (`sonnet`, `opus`, `haiku`, `fable`) alongside the dated model id
+  each currently resolves to; for Codex, current model names such as
+  `gpt-5.2-codex`. Type any other model name the CLI accepts if it's not
+  listed.
 - **images** work with both. **reasoning** sets the effort level.
   `temperature`, `top_p`, `seed`, `max_tokens` and `stop` are not supported
   by the CLIs and are ignored.
@@ -212,6 +225,14 @@ OFFICE_VLLM_KEY=...
 | `enabled`          | `false` hides the endpoint, including a built-in one of that name.   |
 
 An entry with the same name as a built-in replaces it.
+
+**Other subscriptions, through a local proxy.** Besides Claude Code and
+Codex, a local [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI)
+instance wraps subscription logins for Gemini, Grok, Claude Code and Codex
+behind a normal OpenAI-compatible server, which this node already speaks -
+see the disabled "CLI Proxy API" example in `UserEndpoints.example.json`. It's
+a third-party tool that holds those account credentials; only run it on a
+machine you trust.
 
 ## Notes
 
