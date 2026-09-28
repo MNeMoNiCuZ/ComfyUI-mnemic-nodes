@@ -33,7 +33,7 @@ from .nodes.prompt_property_extractor import PromptPropertyExtractor
 
 from .nodes.colorful_starting_image import ColorfulStartingImage
 from .nodes.load_random_checkpoint import LoadRandomCheckpoint
-from .nodes.load_images import LoadImagesFromPath
+from .nodes.load_images import LoadImagesFromPath, register_load_images_routes
 from .nodes.random_int_in_range import RandomIntInRange
 from .nodes.random_float_in_range import RandomFloatInRange
 from .nodes.random_bool import RandomBool
@@ -132,6 +132,9 @@ def _build_replacement(old_node_id: str, node_cls: type[io.ComfyNode]) -> io.Nod
     values in a saved workflow JSON are matched back to input ids.
     """
     schema = node_cls.GET_SCHEMA()
+    old_input_ids = {"input_path": "folder_path"} if schema.node_id in (
+        "MNeMiC_LoadTextImagePairSingle", "MNeMiC_LoadTextImagePairsList"
+    ) else {}
     input_ids = []
     widget_ids = []
     for node_input in schema.inputs:
@@ -142,7 +145,7 @@ def _build_replacement(old_node_id: str, node_cls: type[io.ComfyNode]) -> io.Nod
         is_widget = isinstance(node_input, io.WidgetInput) and not getattr(node_input, "force_input", False)
         if not is_widget:
             continue  # sockets are not in widgets_values
-        widget_ids.append(input_id)
+        widget_ids.append(old_input_ids.get(input_id, input_id))
         if _has_control_after_generate(node_input, input_id):
             # The frontend attaches a linked "control after generate" widget to
             # these, and it takes its own slot in the saved widgets_values
@@ -156,7 +159,7 @@ def _build_replacement(old_node_id: str, node_cls: type[io.ComfyNode]) -> io.Nod
         new_node_id=schema.node_id,
         old_node_id=old_node_id,
         old_widget_ids=widget_ids,
-        input_mapping=[{"new_id": i, "old_id": i} for i in input_ids],
+        input_mapping=[{"new_id": i, "old_id": old_input_ids.get(i, i)} for i in input_ids],
         output_mapping=[{"new_idx": i, "old_idx": i} for i in range(len(schema.outputs))],
     )
 
@@ -166,6 +169,7 @@ class MnemicExtension(ComfyExtension):
         install_runtime_hooks("ImageSaveWithMetadata")
         ensure_env_file()
         register_llm_routes()
+        register_load_images_routes()
 
         by_new_id = {}
         for node_cls in await self.get_node_list():

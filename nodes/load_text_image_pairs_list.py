@@ -3,9 +3,9 @@ import torch
 import numpy as np
 from PIL import Image
 import torchvision.transforms.functional as F
-from comfy_api.latest import io
+from comfy_api.latest import io, ui
 
-from ..utils.file_utils import find_image_text_pairs
+from ..utils.file_utils import find_image_text_pairs, resolve_image_pair_path
 
 # Cache kept at module level: V3 nodes execute as classmethods on a per-run class
 # clone and cannot hold instance state between executions.
@@ -30,10 +30,10 @@ class LoadTextImagePairsList(io.ComfyNode):
                     tooltip="Index of the first pair to load, starting at 0. Increments every run by default to step through the folder.",
                 ),
                 io.String.Input(
-                    "folder_path",
+                    "input_path",
                     multiline=False,
                     default="",
-                    tooltip="Path to a folder containing image and text files with matching basenames. This is used only if image_input and text_input are not connected.",
+                    tooltip="Folder containing images and optional matching text files. Relative paths start in ComfyUI's input folder.",
                 ),
                 io.Boolean.Input(
                     "force_reload",
@@ -43,13 +43,13 @@ class LoadTextImagePairsList(io.ComfyNode):
                 io.Image.Input(
                     "image_input",
                     optional=True,
-                    tooltip="A single image or a list/batch of images. This input has priority over the folder_path.",
+                    tooltip="A single image or a list/batch of images. This input has priority over input_path.",
                 ),
                 io.String.Input(
                     "text_input",
                     optional=True,
                     force_input=True,
-                    tooltip="A single text string or a list of strings. This input has priority over the folder_path.",
+                    tooltip="A single text string or a list of strings. This input has priority over input_path.",
                 ),
                 io.Int.Input(
                     "limit_count",
@@ -97,7 +97,7 @@ class LoadTextImagePairsList(io.ComfyNode):
         return cropped_tensor.permute(1, 2, 0)
 
     @classmethod
-    def execute(cls, seed, folder_path, force_reload=False, limit_count=0, text_format_extension="txt", image_input=None, text_input=None) -> io.NodeOutput:
+    def execute(cls, seed, input_path=None, force_reload=False, limit_count=0, text_format_extension="txt", image_input=None, text_input=None, folder_path=None) -> io.NodeOutput:
         global _CACHED_DATA, _CACHED_FOLDER_PATH
 
         if image_input is not None and text_input is not None:
@@ -152,35 +152,40 @@ class LoadTextImagePairsList(io.ComfyNode):
                 final_basenames = rotated_basenames
                 final_images = torch.cat((batched_images[current_index:], batched_images[:current_index]), dim=0)
 
-            return io.NodeOutput(final_images, final_texts, final_paths, final_basenames, total_count)
+            return io.NodeOutput(final_images, final_texts, final_paths, final_basenames, total_count,
+                                 ui={**ui.PreviewImage(final_images[:1], cls=cls).as_dict(), "pair_text": [final_texts[0]]} if len(final_images) else {"images": []})
 
-        if not force_reload and _CACHED_FOLDER_PATH == folder_path and _CACHED_DATA:
+        input_path = resolve_image_pair_path(input_path if input_path is not None else folder_path)
+        if not force_reload and _CACHED_FOLDER_PATH == input_path and _CACHED_DATA:
             print("LoadTextImagePairsList: Using cached data.")
             all_images, all_texts, all_paths, all_basenames, batched_images = _CACHED_DATA
         else:
-            if not folder_path or not os.path.isdir(folder_path):
-                return io.NodeOutput(None, "", "", "", 0)
+            if not input_path or not os.path.isdir(input_path):
+                return io.NodeOutput(None, "", "", "", 0, ui={"images": []})
             
             print("LoadTextImagePairsList: Loading new data from disk.")
-            pairs = find_image_text_pairs(folder_path, text_format_extension)
+            pairs = find_image_text_pairs(input_path, text_format_extension)
             if not pairs:
-                return io.NodeOutput(None, "", "", "", 0)
+                return io.NodeOutput(None, "", "", "", 0, ui={"images": []})
 
             all_images, all_texts, all_paths, all_basenames = [], [], [], []
             for image_path, text_path, basename in pairs:
                 try:
                     i = Image.open(image_path).convert("RGB")
                     image = np.array(i).astype(np.float32) / 255.0
+                    text = ""
+                    if text_path:
+                        with open(text_path, 'r', encoding='utf-8') as f:
+                            text = f.read()
                     all_images.append(torch.from_numpy(image)[None,])
-                    with open(text_path, 'r', encoding='utf-8') as f:
-                        all_texts.append(f.read())
+                    all_texts.append(text)
                     all_paths.append(image_path)
                     all_basenames.append(basename)
                 except Exception as e:
                     print(f"Error loading pair {basename}: {e}")
             
             if not all_images:
-                return io.NodeOutput(None, "", "", "", 0)
+                return io.NodeOutput(None, "", "", "", 0, ui={"images": []})
 
             first_img_h, first_img_w = all_images[0].shape[1], all_images[0].shape[2]
             processed_images = []
@@ -194,7 +199,7 @@ class LoadTextImagePairsList(io.ComfyNode):
             batched_images = torch.cat(processed_images, dim=0)
 
             _CACHED_DATA = (all_images, all_texts, all_paths, all_basenames, batched_images)
-            _CACHED_FOLDER_PATH = folder_path
+            _CACHED_FOLDER_PATH = input_path
 
         total_count = len(all_texts)
         current_index = seed % total_count
@@ -217,4 +222,5 @@ class LoadTextImagePairsList(io.ComfyNode):
             final_basenames = rotated_basenames
             final_images = torch.cat((batched_images[current_index:], batched_images[:current_index]), dim=0)
 
-        return io.NodeOutput(final_images, final_texts, final_paths, final_basenames, total_count)
+        return io.NodeOutput(final_images, final_texts, final_paths, final_basenames, total_count,
+                             ui={**ui.PreviewImage(final_images[:1], cls=cls).as_dict(), "pair_text": [final_texts[0]]})

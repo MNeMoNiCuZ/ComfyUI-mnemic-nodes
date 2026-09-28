@@ -7,7 +7,8 @@ training datasets, where `photo_01.png` sits next to `photo_01.txt`.
 
 - **seed** — Which pair to load. Set its control to **increment** to walk the
   dataset.
-- **folder_path** — Folder holding the images and text files. Used only when
+- **input_path**: Folder holding the images and text files. Relative paths start
+  in ComfyUI's input folder. Used only when
   the two direct inputs below are not connected.
 - **image_input** *(optional)* — An image already in the workflow.
 - **text_input** *(optional)* — Text already in the workflow. When both direct
@@ -25,7 +26,11 @@ training datasets, where `photo_01.png` sits next to `photo_01.txt`.
 
 ## Notes
 
-Pairing is by matching basename. An image with no caption file is not a pair
-and is skipped. A missing folder returns empty outputs with a `total_count` of
+The image and text previews update when input_path, seed or caption extension
+changes. Missing captions leave the text preview blank. Connected inputs show
+the first output image and text after execution.
+
+Pairing is by matching basename. Images without caption files return empty text.
+A missing folder returns empty outputs with a `total_count` of
 0. When using the direct inputs, the path and filename outputs are empty
 because there is no file behind them.

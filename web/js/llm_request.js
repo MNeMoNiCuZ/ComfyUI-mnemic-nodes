@@ -106,7 +106,7 @@ function addStylesheet() {
     style.textContent = `
         .mnemic-llm { display:flex; flex-direction:column; gap:6px; width:100%; height:100%; box-sizing:border-box;
             padding:6px 8px 8px; font:12px/1.4 system-ui, sans-serif; color:var(--fg-color); overflow:hidden; }
-        .mnemic-llm-status { display:flex; align-items:center; gap:6px; flex-wrap:wrap; min-height:20px; }
+        .mnemic-llm-status { display:flex; align-items:center; gap:6px; min-height:20px; }
         .mnemic-llm-dot { width:9px; height:9px; border-radius:50%; flex-shrink:0; background:#888; }
         .mnemic-llm-dot.ok { background:#3fb950; box-shadow:0 0 6px #3fb95088; }
         .mnemic-llm-dot.warn { background:#d29922; }
@@ -116,12 +116,13 @@ function addStylesheet() {
         .mnemic-llm-chip { padding:1px 7px; border-radius:10px; background:var(--comfy-input-bg); border:1px solid var(--border-color);
             white-space:nowrap; font-size:11px; }
         .mnemic-llm-chip.bad { border-color:#d29922; color:#d29922; }
-        .mnemic-llm-host { opacity:.6; font-size:11px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; }
-        .mnemic-llm-test { flex:0 0 auto; min-width:0; margin-left:auto; padding:2px 8px; }
+        .mnemic-llm-host { flex:1; opacity:.6; font-size:11px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; }
+        .mnemic-llm-btn.mnemic-llm-test { flex:0 0 auto; min-width:0; margin-left:auto; padding:2px 8px; }
         .mnemic-llm-pickrow { display:flex; gap:6px; }
         .mnemic-llm-pick { flex:1; min-width:0; display:flex; align-items:center; gap:4px; padding:3px 6px; border-radius:5px;
             background:var(--comfy-input-bg); color:var(--fg-color); border:1px solid var(--border-color); cursor:pointer; }
         .mnemic-llm-pick:hover { border-color:#58a6ff; }
+        .mnemic-llm-pickrow > [data-act="endpoints"] { flex:0 0 calc((100% - 6px) / 3); box-sizing:border-box; }
         .mnemic-llm-pick.mnemic-llm-pick-combo { padding:0; cursor:default; }
         .mnemic-llm-pick-value { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:left; font-size:11.5px; }
         .mnemic-llm-pick-input { flex:1; min-width:0; padding:3px 0 3px 6px; border:none; background:none; color:var(--fg-color); font-size:11.5px; }
@@ -429,9 +430,9 @@ class LLMPanel {
                 <span class="mnemic-llm-dot"></span>
                 <span class="mnemic-llm-chip" data-role="where"></span>
                 <span class="mnemic-llm-chip" data-role="key"></span>
+                <span class="mnemic-llm-host"></span>
                 <button class="mnemic-llm-btn mnemic-llm-test" data-act="test" title="Check that the endpoint answers">Test</button>
             </div>
-            <div class="mnemic-llm-host"></div>
             <div class="mnemic-llm-pickrow">
                 <button class="mnemic-llm-pick" data-act="endpoints" title="Endpoint - click to choose">
                     <span class="mnemic-llm-pick-value" data-role="endpoint-value"></span>

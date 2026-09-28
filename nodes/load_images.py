@@ -1,5 +1,8 @@
 import os
 import json
+import asyncio
+import base64
+from io import BytesIO
 import torch
 import numpy as np
 from PIL import Image
@@ -9,6 +12,18 @@ from comfy_api.latest import io
 
 MAX_PATH_OUTPUTS = 32
 PATH_FORMAT_LABELS = {
+    "path only": "path",
+    "path only with trailing separator": "path/",
+    "filename without extension": "file",
+    "filename only": "file.ext",
+    "full file path without extension": "path/file",
+    "full file path": "path/file.ext",
+    "relative path only": "relative_path",
+    "relative path only with trailing separator": "relative_path/",
+    "relative file path without extension": "relative_path/file",
+    "relative file path": "relative_path/file.ext",
+}
+LEGACY_PATH_FORMAT_LABELS = {
     "full file path": "full path with ext",
     "full file path without extension": "full path without ext",
     "path only": f"folder path without trailing {os.sep}",
@@ -23,22 +38,131 @@ PATH_FORMAT_LABELS = {
 PATH_FORMATS = list(PATH_FORMAT_LABELS.values())
 PATH_FORMAT_ALIASES = dict(PATH_FORMAT_LABELS)
 # Normalize saved labels when a workflow moves between Windows and Unix.
-for label in PATH_FORMATS:
+for key, label in LEGACY_PATH_FORMAT_LABELS.items():
+    PATH_FORMAT_ALIASES[label] = PATH_FORMAT_LABELS[key]
     if "trailing " in label:
         for separator in ("/", "\\"):
-            PATH_FORMAT_ALIASES[label[:-1] + separator] = label
+            PATH_FORMAT_ALIASES[label[:-1] + separator] = PATH_FORMAT_LABELS[key]
 PATH_FORMAT_TOOLTIPS = dict(zip(PATH_FORMATS, [
-    "Absolute folder path and filename, including the extension.",
-    "Absolute folder path and filename, with the final extension removed.",
     "Absolute containing folder, without a final slash. Drive roots keep their required slash.",
     f"Absolute containing folder, ending in {os.sep}.",
-    "Filename including its extension, without the folder path.",
     "Filename with the final extension removed, without the folder path.",
-    "Folder path and filename relative to ComfyUI's input folder, including the extension.",
-    "Folder path and filename relative to ComfyUI's input folder, with the final extension removed.",
+    "Filename including its extension, without the folder path.",
+    "Absolute folder path and filename, with the final extension removed.",
+    "Absolute folder path and filename, including the extension.",
     "Containing folder relative to ComfyUI's input folder, without a final slash. The input folder itself is a dot.",
     f"Containing folder relative to ComfyUI's input folder, ending in {os.sep}.",
+    "Folder path and filename relative to ComfyUI's input folder, with the final extension removed.",
+    "Folder path and filename relative to ComfyUI's input folder, including the extension.",
 ]))
+PATH_FORMAT_EXAMPLES = [
+    "C:/",
+    "C:/",
+    "image",
+    "image.png",
+    "C:/image",
+    "C:/image.png",
+    ".",
+    "./",
+    "image",
+    "image.png",
+]
+for label, example in zip(PATH_FORMATS, PATH_FORMAT_EXAMPLES):
+    PATH_FORMAT_TOOLTIPS[label] += (
+        "\nExample: " + example.replace("/", os.sep)
+    )
+
+
+def _find_images(input_path, include_subfolders=False, supported_exts=None):
+    if supported_exts is None:
+        supported_exts = ['.png', '.jpg', '.jpeg', '.webp', '.bmp', '.gif']
+    if not input_path:
+        return []
+    if not os.path.isabs(input_path):
+        from folder_paths import get_input_directory
+        input_dir = get_input_directory()
+        if not input_dir or not os.path.isdir(input_dir):
+            return []
+        input_path = os.path.join(input_dir, input_path)
+    if os.path.isdir(input_path):
+        if include_subfolders:
+            return sorted(
+                os.path.join(root, filename)
+                for root, _, filenames in os.walk(input_path)
+                for filename in filenames
+                if os.path.splitext(filename)[1].lower() in supported_exts
+            )
+        return [os.path.join(input_path, name) for name in sorted(os.listdir(input_path))
+                if os.path.splitext(name)[1].lower() in supported_exts]
+    if os.path.isfile(input_path) and os.path.splitext(input_path)[1].lower() in supported_exts:
+        return [input_path]
+    return []
+
+
+def register_load_images_routes():
+    from aiohttp import web
+    from server import PromptServer
+
+    def thumbnail(input_path, seed, include_subfolders, kind, text_extension, force_reload):
+        text = ""
+        if kind in ("pair_single", "pair_list"):
+            from ..utils.file_utils import find_image_text_pairs, resolve_image_pair_path
+            input_path = resolve_image_pair_path(input_path)
+            if kind == "pair_list" and not force_reload:
+                from . import load_text_image_pairs_list as pairs_module
+                cached = pairs_module._CACHED_DATA
+                if cached and pairs_module._CACHED_FOLDER_PATH == input_path:
+                    batch = cached[4]
+                    if len(batch):
+                        pixels = batch[seed % len(batch)].cpu().numpy()
+                        image = Image.fromarray(np.clip(pixels * 255, 0, 255).astype(np.uint8))
+                        image.thumbnail((512, 512))
+                        buffer = BytesIO()
+                        image.save(buffer, format="PNG")
+                        return buffer.getvalue(), cached[1][seed % len(batch)]
+            pairs = find_image_text_pairs(input_path, text_extension)
+            files = [pair[0] for pair in pairs]
+            if pairs:
+                text_path = pairs[seed % len(pairs)][1]
+                if text_path:
+                    with open(text_path, "r", encoding="utf-8") as caption:
+                        text = caption.read()
+        elif kind in ("metadata_single", "metadata_list"):
+            from .metadata_extractor_single import METADATA_IMAGE_EXTENSIONS
+            files = _find_images(input_path, supported_exts=METADATA_IMAGE_EXTENSIONS)
+        elif kind == "images":
+            files = _find_images(input_path, include_subfolders)
+        else:
+            raise ValueError("Unknown preview source.")
+        if not files:
+            return None, ""
+        with Image.open(files[seed % len(files)]) as source:
+            image = source.convert("RGB")
+            image.thumbnail((512, 512))
+            buffer = BytesIO()
+            image.save(buffer, format="PNG")
+            return buffer.getvalue(), text
+
+    @PromptServer.instance.routes.get("/mnemic/load-images/preview")
+    async def preview(request):
+        try:
+            body, text = await asyncio.to_thread(
+                thumbnail, request.query.get("input_path", ""),
+                int(request.query.get("seed", "0")),
+                request.query.get("include_subfolders") == "true",
+                request.query.get("kind", "images"),
+                request.query.get("text_format_extension", "txt"),
+                request.query.get("force_reload") == "true",
+            )
+        except (OSError, ValueError):
+            return web.Response(status=400)
+        if request.query.get("kind") in ("pair_single", "pair_list"):
+            return web.json_response({
+                "image": "data:image/png;base64," + base64.b64encode(body).decode("ascii") if body else None,
+                "text": text,
+            }, headers={"Cache-Control": "no-store"})
+        return web.Response(body=body, status=200 if body else 404,
+                            content_type="image/png", headers={"Cache-Control": "no-store"})
 
 
 def _format_path(image_path, path_format):
@@ -88,6 +212,11 @@ class LoadImagesFromPath(io.ComfyNode):
             category="⚡ MNeMiC Nodes",
             description="Loads a single image from a directory, allowing sequential iteration through the folder.",
             inputs=[
+                io.Boolean.Input(
+                    "include_subfolders",
+                    default=False,
+                    tooltip="Include images from all subfolders of the selected folder.",
+                ),
                 io.Int.Input(
                     "seed",
                     default=0,
@@ -129,7 +258,7 @@ class LoadImagesFromPath(io.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, seed: int, input_path: str, path_format: str = "full file path", extra_path_formats: str = "[]") -> io.NodeOutput:
+    def execute(cls, seed: int, input_path: str, path_format: str = "full file path", extra_path_formats: str = "[]", include_subfolders: bool = False) -> io.NodeOutput:
         try:
             extra_formats = json.loads(extra_path_formats)
         except (TypeError, ValueError) as error:
@@ -142,21 +271,7 @@ class LoadImagesFromPath(io.ComfyNode):
         if not input_path:
             raise ValueError("Input path cannot be empty.")
 
-        if not os.path.isabs(input_path):
-            from folder_paths import get_input_directory
-            input_dir = get_input_directory()
-            if not input_dir or not os.path.isdir(input_dir):
-                return _node_output(None, None, [], 0, 0)
-            input_path = os.path.join(input_dir, input_path)
-
-        supported_exts = ['.png', '.jpg', '.jpeg', '.webp', '.bmp', '.gif']
-
-        if os.path.isdir(input_path):
-            files_found = [os.path.join(input_path, f) for f in sorted(os.listdir(input_path)) if os.path.splitext(f)[1].lower() in supported_exts]
-        elif os.path.isfile(input_path) and os.path.splitext(input_path)[1].lower() in supported_exts:
-            files_found = [input_path]
-        else:
-            files_found = []
+        files_found = _find_images(input_path, include_subfolders)
 
         if not files_found:
             return _node_output(None, None, [], 0, 0)

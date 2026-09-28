@@ -27,6 +27,9 @@ the raw block as it was stored.
 
 ## Notes
 
+The preview updates when the path or seed changes. Connected inputs show the
+selected output image after execution. Empty results clear the preview.
+
 Reads png, jpg, jpeg, tiff and tif. Files with no metadata return empty
 strings and `{}` rather than failing. Keys absent from the file come back as
 empty lines in `filtered_params_list`, so the line positions stay aligned with

@@ -6,7 +6,8 @@ dataset as parallel lists, rotated so the seed picks the starting point.
 ## Inputs
 
 - **seed** — Where the lists start. Set its control to **increment** to rotate.
-- **folder_path** — Folder holding the images and caption files.
+- **input_path**: Folder holding the images and caption files. Relative paths
+  start in ComfyUI's input folder.
 - **force_reload** — Re-read from disk instead of using the cache. Turn it on
   after changing files on disk, then off again.
 - **image_input** / **text_input** *(optional)* — Data already in the workflow.
@@ -27,6 +28,12 @@ All in the same order, one entry per pair:
 - **total_count** — How many pairs the dataset holds.
 
 ## Notes
+
+The preview shows only the first selected image and its text, and updates when
+input_path, seed or caption extension changes. Missing captions leave the text
+preview blank. Images without captions remain in the output with empty text.
+The preview uses the cached batch when available. Connected inputs show only
+the first output image and text after execution.
 
 The folder is read once and cached per path; `force_reload` clears it. Images
 whose dimensions differ from the first are resized and centre-cropped so the

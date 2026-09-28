@@ -197,12 +197,20 @@ def find_best_match(search_term, file_list, log=False, wildcard_paths=None, fuzz
     
     return matches[0][1] if matches else None
 
+def resolve_image_pair_path(input_path):
+    if input_path and not os.path.isabs(input_path):
+        from folder_paths import get_input_directory
+        input_path = os.path.join(get_input_directory(), input_path)
+    return input_path
+
+
 def find_image_text_pairs(folder_path, text_format_extension="txt"):
     """
-    Finds pairs of image and text files with matching basenames in a folder.
+    Finds images and optional text files with matching basenames in a folder.
     Returns a sorted list of tuples, where each tuple contains (image_path, text_path, basename).
     """
-    if not os.path.isdir(folder_path):
+    folder_path = resolve_image_pair_path(folder_path)
+    if not folder_path or not os.path.isdir(folder_path):
         return []
 
     image_files = {}
@@ -219,7 +227,6 @@ def find_image_text_pairs(folder_path, text_format_extension="txt"):
 
     pairs = []
     for basename in sorted(image_files.keys()):
-        if basename in text_files:
-            pairs.append((image_files[basename], text_files[basename], basename))
+        pairs.append((image_files[basename], text_files.get(basename), basename))
             
     return pairs

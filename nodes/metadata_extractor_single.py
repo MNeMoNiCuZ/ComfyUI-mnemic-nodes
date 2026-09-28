@@ -4,10 +4,11 @@ import torch
 import numpy as np
 from PIL import Image
 
-from comfy_api.latest import io
+from comfy_api.latest import io, ui
 
 from ..utils.metadata_utils import extract_metadata_from_file
 
+METADATA_IMAGE_EXTENSIONS = ('.png', '.jpg', '.jpeg', '.tiff', '.tif')
 
 class MetadataExtractorSingle(io.ComfyNode):
     @classmethod
@@ -72,11 +73,11 @@ class MetadataExtractorSingle(io.ComfyNode):
                 from folder_paths import get_input_directory
                 input_dir = get_input_directory()
                 if not input_dir or not os.path.isdir(input_dir):
-                    return io.NodeOutput(*((None,) * 6))
+                    return io.NodeOutput(*((None,) * 6), ui={"images": []})
                 input_path = os.path.join(input_dir, input_path)
 
             file_to_process = None
-            supported_exts = ['.png', '.jpg', '.jpeg', '.tiff', '.tif']
+            supported_exts = METADATA_IMAGE_EXTENSIONS
 
             if os.path.isfile(input_path) and os.path.splitext(input_path)[1].lower() in supported_exts:
                 file_to_process = input_path
@@ -99,7 +100,7 @@ class MetadataExtractorSingle(io.ComfyNode):
                     print(f"Error processing file {file_to_process}: {e}")
 
         if image_tensor is None or metadata is None:
-            return io.NodeOutput(torch.zeros((1, 64, 64, 3)), "", "", "{}", "", "{}")
+            return io.NodeOutput(torch.zeros((1, 64, 64, 3)), "", "", "{}", "", "{}", ui={"images": []})
 
         filter_keys = [k.strip().lower() for k in filter_params.split(',') if k.strip()]
 
@@ -113,4 +114,5 @@ class MetadataExtractorSingle(io.ComfyNode):
         raw_meta_json = json.dumps(metadata.get('metadata', {}), indent=4, default=str)
         parsed_params_json = json.dumps(parsed_params, indent=4, default=str)
 
-        return io.NodeOutput(image_tensor, pos_prompt, neg_prompt, parsed_params_json, filtered_params_list, raw_meta_json)
+        return io.NodeOutput(image_tensor, pos_prompt, neg_prompt, parsed_params_json, filtered_params_list, raw_meta_json,
+                             ui=ui.PreviewImage(image_tensor[:1], cls=cls))

@@ -30,6 +30,9 @@ All outputs are lists in the same order, one entry per image:
 
 ## Notes
 
+The preview shows only the first selected image and updates when the path or
+seed changes. Connected inputs show only the first output image after execution.
+
 Files are sorted by name before rotating, so the order is stable. Images whose
 dimensions differ from the first one are resized and centre-cropped to match,
 because a batch has to be uniform — a console warning says when this happens.

@@ -6,9 +6,10 @@ from PIL import Image
 from typing import List
 import itertools
 
-from comfy_api.latest import io
+from comfy_api.latest import io, ui
 
 from ..utils.metadata_utils import extract_metadata_from_file, resize_and_crop_image
+from .metadata_extractor_single import METADATA_IMAGE_EXTENSIONS
 
 
 class MetadataExtractorList(io.ComfyNode):
@@ -89,10 +90,10 @@ class MetadataExtractorList(io.ComfyNode):
             if not os.path.isabs(input_path):
                 from folder_paths import get_input_directory
                 input_dir = get_input_directory()
-                if not input_dir or not os.path.isdir(input_dir): return io.NodeOutput(torch.zeros((0, 64, 64, 3)), [], [], [], [], [])
+                if not input_dir or not os.path.isdir(input_dir): return io.NodeOutput(torch.zeros((0, 64, 64, 3)), [], [], [], [], [], ui={"images": []})
                 input_path = os.path.join(input_dir, input_path)
 
-            supported_exts = ['.png', '.jpg', '.jpeg', '.tiff', '.tif']
+            supported_exts = METADATA_IMAGE_EXTENSIONS
             files_found = []
             if os.path.isdir(input_path):
                 # Get the initial list of files, sorted for deterministic order.
@@ -100,7 +101,7 @@ class MetadataExtractorList(io.ComfyNode):
             elif os.path.isfile(input_path) and os.path.splitext(input_path)[1].lower() in supported_exts:
                 files_found = [input_path]
 
-            if not files_found: return io.NodeOutput(torch.zeros((0, 64, 64, 3)), [], [], [], [], [])
+            if not files_found: return io.NodeOutput(torch.zeros((0, 64, 64, 3)), [], [], [], [], [], ui={"images": []})
 
             total_files = len(files_found)
             start_index = seed % total_files
@@ -122,7 +123,7 @@ class MetadataExtractorList(io.ComfyNode):
                     print(f"Skipping file {file_path}: {e}")
 
         if not final_images:
-            return io.NodeOutput(torch.zeros((0, 64, 64, 3)), [], [], [], [], [])
+            return io.NodeOutput(torch.zeros((0, 64, 64, 3)), [], [], [], [], [], ui={"images": []})
 
         first_image_height, first_image_width = final_images[0].shape[0], final_images[0].shape[1]
 
@@ -143,4 +144,5 @@ class MetadataExtractorList(io.ComfyNode):
         filtered_params_list_grouped = ["\n".join(get_filtered_values(m.get('parsed_params', {}))) for m in final_metadata]
         raw_meta_list_json = [json.dumps(m.get('metadata', {}), indent=4, default=str) for m in final_metadata]
 
-        return io.NodeOutput(image_list, pos_prompt_list, neg_prompt_list, parsed_params_list_json, filtered_params_list_grouped, raw_meta_list_json)
+        return io.NodeOutput(image_list, pos_prompt_list, neg_prompt_list, parsed_params_list_json, filtered_params_list_grouped, raw_meta_list_json,
+                             ui=ui.PreviewImage(image_list[:1], cls=cls))
