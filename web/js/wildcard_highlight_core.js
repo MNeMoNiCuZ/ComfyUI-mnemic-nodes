@@ -235,7 +235,7 @@ export function parseWildcardText(text) {
         // start points at "${". Returns null when this is not a variable,
         // in which case the "$" is treated as plain text.
         let j = start + 2;
-        while (j < n && text[j] !== "}" && text[j] !== "{" && text[j] !== "\n" && !(text[j] === "=" && text[j + 1] === "!")) j++;
+        while (j < n && text[j] !== "}" && text[j] !== "{" && text[j] !== "\n" && text[j] !== "=") j++;
         if (j >= n || text[j] === "{" || text[j] === "\n") return null;
 
         const rawName = text.slice(start + 2, j);
@@ -250,14 +250,15 @@ export function parseWildcardText(text) {
             };
         }
 
-        // Definition: ${name=!value}
+        // Definition: ${name=!value}, also ${name=value} and ${!name=value}
+        const valueStart = text[j + 1] === "!" ? j + 2 : j + 1;
         const head = [
             delim(start, start + 2, "var"),
             { type: "varname", start: start + 2, end: j, children: [] },
-            delim(j, j + 2, "var"),
+            delim(j, valueStart, "var"),
         ];
-        const node = { type: "vardef", name: rawName.trim(), start, end: n, children: [...head] };
-        const seq = parseSequence(j + 2, "value");
+        const node = { type: "vardef", name: rawName.trim().replace(/^!+/, ""), start, end: n, children: [...head] };
+        const seq = parseSequence(valueStart, "value");
         if (text[seq.end] === "}") {
             node.children.push(...seq.children, delim(seq.end, seq.end + 1, "var"));
             node.end = seq.end + 1;
@@ -267,8 +268,8 @@ export function parseWildcardText(text) {
         // Unbalanced value. The processor then ends the definition at the
         // first "}" on the same line (and still defines the variable), so
         // show it that way, flagged. With no such "}" it is left as text.
-        const close = text.indexOf("}", j + 2);
-        const lineEnd = text.indexOf("\n", j + 2);
+        const close = text.indexOf("}", valueStart);
+        const lineEnd = text.indexOf("\n", valueStart);
         if (close !== -1 && (lineEnd === -1 || close < lineEnd)) {
             node.children = [...head, delim(close, close + 1, "var")];
             node.end = close + 1;
