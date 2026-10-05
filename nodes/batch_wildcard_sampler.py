@@ -303,7 +303,7 @@ class BatchWildcardSampler(io.ComfyNode):
             # LoRAs applied and the prompt cleaned of its tags for CLIP encoding.
             # Its single-LoRA cache lives at module level, so it persists across images.
             model_i, clip_i, clean_positive = LoraTagLoader.execute(
-                model, clip, positive_prompts[i]
+                MODEL=model, STRING=positive_prompts[i], CLIP=clip
             ).result
             final_model, final_clip = model_i, clip_i
             # The negative prompt is not used to load LoRAs, but strip any tags so
