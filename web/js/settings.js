@@ -72,6 +72,16 @@ app.registerExtension({
       defaultValue: 10,
     },
     {
+      id: "MNeMiC.WildcardProcessing.HoverTooltips",
+      name: "Show hover tooltips",
+      category: [...WILDCARD_CATEGORY, "Hover Tooltips"],
+      sortOrder: 201,
+      tooltip: "Show tooltips when hovering Wildcard Processor, Wildcard Processor Advanced, and Batch Wildcard Upscale Sampler nodes and their inputs, including both sampler prompts. Disabled by default. Full documentation on the ? button stays available either way.",
+      type: "boolean",
+      defaultValue: false,
+      onChange: () => window.dispatchEvent(new Event("mnemic-wildcard-tooltips-changed")),
+    },
+    {
       id: "MNeMiC.WildcardHighlight.Enabled",
       name: "Enable wildcard highlighting",
       category: [...WILDCARD_CATEGORY, "Enabled"],

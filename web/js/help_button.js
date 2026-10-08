@@ -9,16 +9,26 @@ const CATEGORY = "⚡ MNeMiC Nodes";
 const DOCS_URL = "/extensions/ComfyUI-mnemic-nodes/docs/";
 const ICON_SIZE = 16;
 const ICON_MARGIN = 6;
+const WILDCARD_IDS = new Set(["MNeMiC_WildcardProcessor", "MNeMiC_WildcardProcessorAdvanced"]);
 
 const helpNodeIds = new Set();
 const pageCache = new Map();
 let panel = null;
 let panelNodeId = null;
+let helpTooltip = null;
+let hoverNode = null;
+let hoverTimer = null;
+let hideTimer = null;
 
 async function fetchPage(nodeId) {
     if (!pageCache.has(nodeId)) {
         const res = await fetch(api.fileURL(`${DOCS_URL}${nodeId}.md`));
-        pageCache.set(nodeId, res.ok ? await res.text() : `No help page found for \`${nodeId}\`.`);
+        let markdown = res.ok ? await res.text() : `No help page found for \`${nodeId}\`.`;
+        if (res.ok && WILDCARD_IDS.has(nodeId)) {
+            const reference = await fetch(api.fileURL(`${DOCS_URL}wildcard_reference.md`));
+            if (reference.ok) markdown += `\n\n${await reference.text()}`;
+        }
+        pageCache.set(nodeId, markdown);
     }
     return pageCache.get(nodeId);
 }
@@ -104,6 +114,27 @@ function addStylesheet() {
             line-height: 1;
             user-select: none;
         }
+        .mnemic-help-tooltip {
+            position: fixed;
+            box-sizing: border-box;
+            width: 600px;
+            max-width: calc(100vw - 24px);
+            max-height: min(75vh, 760px);
+            overflow: auto;
+            background: var(--comfy-menu-bg, #222);
+            color: var(--fg-color, #ddd);
+            border: 1px solid var(--border-color, #555);
+            border-radius: 8px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+            z-index: 1001;
+        }
+        .mnemic-help-tooltip h1 { font-size: 20px; }
+        .mnemic-help-tooltip h2 { font-size: 17px; margin-top: 20px; }
+        .mnemic-help-tooltip h3 { font-size: 14px; margin-top: 16px; }
+        .mnemic-help-tooltip p, .mnemic-help-tooltip li { overflow-wrap: anywhere; }
+        .mnemic-help-tooltip table { width: 100%; }
+        body[data-mnemic-help-hover] .node-tooltip,
+        body[data-mnemic-help-hover] .p-tooltip { display: none !important; }
     `;
     document.head.appendChild(style);
 }
@@ -114,7 +145,60 @@ function closePanel() {
     panelNodeId = null;
 }
 
+function closeHelpTooltip() {
+    clearTimeout(hoverTimer);
+    clearTimeout(hideTimer);
+    hoverNode = null;
+    helpTooltip?.remove();
+    helpTooltip = null;
+    document.body.removeAttribute("data-mnemic-help-hover");
+}
+
+function leaveHelpButton() {
+    if (!helpTooltip) {
+        closeHelpTooltip();
+        return;
+    }
+    clearTimeout(hoverTimer);
+    clearTimeout(hideTimer);
+    // Give the pointer time to travel from the button into the scrollable help.
+    hideTimer = setTimeout(closeHelpTooltip, 250);
+}
+
+function scheduleHelpTooltip(node, clientX, clientY) {
+    clearTimeout(hideTimer);
+    if (hoverNode === node) return;
+    closeHelpTooltip();
+    hoverNode = node;
+    document.body.setAttribute("data-mnemic-help-hover", "");
+    hoverTimer = setTimeout(async () => {
+        helpTooltip = document.createElement("div");
+        helpTooltip.className = "mnemic-help-tooltip mnemic-help-panel-body";
+        helpTooltip.setAttribute("role", "tooltip");
+        helpTooltip.textContent = "Loading…";
+        helpTooltip.addEventListener("pointerenter", () => clearTimeout(hideTimer));
+        helpTooltip.addEventListener("pointerleave", leaveHelpButton);
+        document.body.appendChild(helpTooltip);
+        const tooltip = helpTooltip;
+        const position = () => {
+            tooltip.style.left = `${Math.max(12, Math.min(clientX + 12, window.innerWidth - tooltip.offsetWidth - 12))}px`;
+            tooltip.style.top = `${Math.max(12, Math.min(clientY + 12, window.innerHeight - tooltip.offsetHeight - 12))}px`;
+        };
+        position();
+        try {
+            const markdown = await fetchPage(node.comfyClass);
+            if (helpTooltip !== tooltip) return;
+            tooltip.innerHTML = app.extensionManager.renderMarkdownToHtml(markdown, api.fileURL(DOCS_URL));
+        } catch {
+            if (helpTooltip !== tooltip) return;
+            tooltip.textContent = "Could not load help. Click ? to try again.";
+        }
+        position();
+    }, 400);
+}
+
 async function toggleHelp(node) {
+    closeHelpTooltip();
     const nodeId = node.comfyClass;
     if (panel && panelNodeId === nodeId) {
         closePanel();
@@ -190,7 +274,27 @@ function injectVueButton(header) {
     const button = document.createElement("span");
     button.className = "mnemic-help-btn";
     button.textContent = "?";
-    button.title = "Show help";
+    if (WILDCARD_IDS.has(node.comfyClass)) {
+        button.tabIndex = 0;
+        button.setAttribute("role", "button");
+        button.setAttribute("aria-label", "Wildcard documentation");
+        button.addEventListener("pointerenter", (e) => scheduleHelpTooltip(node, e.clientX, e.clientY));
+        button.addEventListener("pointerleave", leaveHelpButton);
+        button.addEventListener("focus", () => {
+            const bounds = button.getBoundingClientRect();
+            scheduleHelpTooltip(node, bounds.right, bounds.bottom);
+        });
+        button.addEventListener("blur", leaveHelpButton);
+        button.addEventListener("keydown", (e) => {
+            if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                e.stopPropagation();
+                toggleHelp(node);
+            }
+        });
+    } else {
+        button.title = "Show help";
+    }
     button.addEventListener("pointerdown", (e) => e.stopPropagation());
     button.addEventListener("click", (e) => {
         e.stopPropagation();
@@ -223,8 +327,28 @@ app.registerExtension({
     setup() {
         addStylesheet();
         observeVueHeaders();
+        window.addEventListener("pointermove", (e) => {
+            if (e.target.closest?.(".mnemic-help-tooltip, .mnemic-help-btn")) return;
+            if (e.target === app.canvas?.canvas) {
+                const node = app.canvas.node_over;
+                if (WILDCARD_IDS.has(node?.comfyClass) && !node.flags.collapsed) {
+                    const pos = app.canvas.convertEventToCanvasOffset(e);
+                    const x = node.pos[0] + node.size[0] - ICON_SIZE - ICON_MARGIN;
+                    const y = node.pos[1] - (LiteGraph.NODE_TITLE_HEIGHT + ICON_SIZE) / 2;
+                    if (pos[0] >= x && pos[0] <= x + ICON_SIZE && pos[1] >= y && pos[1] <= y + ICON_SIZE) {
+                        scheduleHelpTooltip(node, e.clientX, e.clientY);
+                        return;
+                    }
+                }
+            }
+            if (hoverNode) leaveHelpButton();
+        }, { passive: true });
+        window.addEventListener("blur", closeHelpTooltip);
         document.addEventListener("keydown", (e) => {
-            if (e.key === "Escape" && panel) closePanel();
+            if (e.key === "Escape") {
+                closeHelpTooltip();
+                closePanel();
+            }
         });
     },
 });

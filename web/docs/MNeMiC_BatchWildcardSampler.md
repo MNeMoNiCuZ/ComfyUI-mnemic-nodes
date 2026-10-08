@@ -70,6 +70,11 @@ so saved files get the prompt that actually made them rather than the template.
 
 ## Notes
 
+**Settings → ⚡MNeMiC Nodes → Wildcard Processing → Show hover tooltips**
+controls hover tooltips for this node (including both prompt inputs) and both
+Wildcard Processor variants. It defaults to off. Click **?** to read the help
+page regardless of this setting.
+
 This node patches the sampler at runtime to inject noise for the upscale pass.
 It is the most involved node in the pack; if a workflow behaves oddly, try it
 with `upscale` off first.

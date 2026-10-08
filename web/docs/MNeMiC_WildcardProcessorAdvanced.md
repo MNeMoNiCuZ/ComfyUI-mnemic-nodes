@@ -2,12 +2,13 @@
 
 The same wildcard engine as **📝 Wildcard Processor**, with control over the
 multi-pick separator and extra outputs for the seed and for extracted tags.
-See that node's help page for the full syntax reference.
+The full syntax reference is included below.
 
 ## Inputs
 
 - **wildcard_string** — The template to resolve.
-- **seed** — Same seed plus same template always gives the same result.
+- **seed** — Random selection seed. The same template, seed, settings, and
+  wildcard file contents produce the same result.
 - **multiple_separator** — What joins the picks when a block selects more than
   one item, e.g. `{2$$red|green|blue}`. A per-block separator written into the
   template overrides this.
@@ -21,20 +22,9 @@ See that node's help page for the full syntax reference.
   image and the prompt share one seed.
 - **extracted_tags_string** — Resolved tag content, joined with `|`.
 - **extracted_tags_list** — The same content as a list, one entry per tag.
-- **raw_tags_string** — The tags as they were written, delimiters included.
+- **raw_tags_string** — Resolved tag content with delimiters included.
 - **raw_tags_list** — The same, as a list.
-
-## Notes
 
 Tag extraction is currently inactive in the UI (the delimiter input is
 disabled), so the four tag outputs are empty in normal use. They stay on the
 node so existing workflows keep their wiring.
-
-## Examples
-
-```
-multiple_separator: ", "
-wildcard_string:    {2$$red|green|blue}
-
-processed_text: "red, blue"
-```

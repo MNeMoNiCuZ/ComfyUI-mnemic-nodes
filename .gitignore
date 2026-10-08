@@ -19,4 +19,5 @@ nodes/llm/UserEndpoints.json
 nodes/llm/CustomEndpoints.local.json
 nodes/llm/CustomEndpoints.local.json.tmp
 docs*
+!web/docs/
 tests/

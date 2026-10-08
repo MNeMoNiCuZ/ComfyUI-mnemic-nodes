@@ -19,8 +19,18 @@ import { app } from "../../../scripts/app.js";
 
 const MARKER_ATTR = "data-mnemic-tooltip";
 const MAX_WIDTH = "min(540px, 70vw)";
+const HIDE_ATTR = "data-mnemic-hide-wildcard-tooltips";
+const WILDCARD_IDS = new Set([
+  "MNeMiC_WildcardProcessor",
+  "MNeMiC_WildcardProcessorAdvanced",
+  "MNeMiC_BatchWildcardSampler",
+]);
 
 const TOOLTIP_CSS = `
+  body[${HIDE_ATTR}] .node-tooltip,
+  body[${HIDE_ATTR}] .p-tooltip {
+    display: none !important;
+  }
   body[${MARKER_ATTR}] .node-tooltip {
     width: max-content !important;
     max-width: ${MAX_WIDTH} !important;
@@ -49,23 +59,39 @@ function isMnemicNode(node) {
   return typeof category === "string" && category.includes("MNeMiC");
 }
 
-// Vue nodes are real DOM: the node root is .lg-node[data-node-id].
+// Vue nodes have a DOM root. Classic multiline widgets float above the canvas
+// without that root, so resolve those through the widget's actual element.
 function nodeFromDom(target) {
   const nodeEl = target?.closest?.(".lg-node[data-node-id]");
   const id = nodeEl?.dataset?.nodeId;
-  if (id == null) return null;
   const graph = app.canvas?.graph ?? app.graph;
-  return graph?.getNodeById?.(Number(id)) ?? graph?.getNodeById?.(id) ?? null;
+  if (id != null) {
+    return graph?.getNodeById?.(Number(id)) ?? graph?.getNodeById?.(id) ?? null;
+  }
+  if (!(target instanceof HTMLTextAreaElement)) return null;
+  return graph?._nodes?.find((node) => isMnemicNode(node) && node.widgets?.some((widget) =>
+    [widget.inputEl, widget.element].some((element) => element === target || element?.contains?.(target))
+  )) ?? null;
 }
 
 let markerActive = false;
+let hoveredNode = null;
+
+function updateHoverVisibility() {
+  const id = "MNeMiC.WildcardProcessing.HoverTooltips";
+  const enabled = app.extensionManager?.setting?.get?.(id)
+    ?? app.ui?.settings?.getSettingValue?.(id) ?? false;
+  document.body.toggleAttribute(HIDE_ATTR, WILDCARD_IDS.has(hoveredNode?.comfyClass) && !enabled);
+}
 
 function onPointerMove(event) {
   // Over the canvas litegraph tracks the hovered node itself; anywhere else the
-  // only meaningful hover is a Vue node's DOM. Never fall back to node_over off
+  // meaningful hover is a Vue node or a classic DOM widget. Never use node_over off
   // the canvas, or a stale value would widen unrelated UI tooltips.
   const overCanvas = event.target instanceof HTMLCanvasElement;
   const node = overCanvas ? app.canvas?.node_over : nodeFromDom(event.target);
+  hoveredNode = node;
+  updateHoverVisibility();
   const wanted = isMnemicNode(node);
 
   if (wanted === markerActive) return;
@@ -87,5 +113,18 @@ app.registerExtension({
 
     // Capture phase so the marker is up to date before either tooltip renders.
     window.addEventListener("pointermove", onPointerMove, { capture: true, passive: true });
+    window.addEventListener("mnemic-wildcard-tooltips-changed", updateHoverVisibility);
+    document.documentElement.addEventListener("pointerleave", () => {
+      hoveredNode = null;
+      updateHoverVisibility();
+      markerActive = false;
+      document.body.removeAttribute(MARKER_ATTR);
+    });
+    window.addEventListener("blur", () => {
+      hoveredNode = null;
+      updateHoverVisibility();
+      markerActive = false;
+      document.body.removeAttribute(MARKER_ATTR);
+    });
   },
 });

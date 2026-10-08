@@ -13,6 +13,14 @@ This node adds powerful dynamic capabilities to your prompts. Wildcards are gene
 
 ## Syntax Highlighting
 
+**Settings → ⚡MNeMiC Nodes → Wildcard Processing → Show hover tooltips** controls
+ordinary hover tooltips for both Wildcard Processor variants and Batch Wildcard
+Upscale Sampler, including its positive and negative prompts. It defaults to off.
+Hovering the **?**
+button always shows the full documentation with headings, tables, and examples,
+even when ordinary tooltips are disabled. Move into the documentation to scroll,
+or click **?** to open the resizable help panel.
+
 The prompt boxes of the Wildcard Processor, Wildcard Processor Advanced, Batch Wildcard Upscale Sampler (positive and negative) and Prompt Property Extractor color the wildcard syntax as you type, so it is easy to see which text belongs to which block:
 
 - Every `{a|b|c}` block gets its own color, including nested blocks. The braces and `|` separators, weights (`5::`), counts (`2$$`, `1-3$$`) and custom separators get a stronger shade of the block's color.
