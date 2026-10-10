@@ -3,12 +3,12 @@ Batch Wildcard Sampler — per-batch-index prompt variation for ComfyUI.
 
 The defining feature: wildcards are resolved independently for every image in the
 batch, so a single run produces a different prompt (and therefore a different
-image) per batch index. Each prompt is encoded through CLIP and sampled on its
-own, then the results are combined into one output batch.
+image) per batch index.
 
-This works around ComfyUI's limitation where conditioning tensors must have
-batch dim 1 — instead of stacking conditionings, we loop internally: resolve
-wildcard -> encode CLIP -> sample with batch_size=1 -> collect.
+This is true batching: every prompt is encoded through CLIP, the conditionings
+are stacked along the batch dimension (one entry per image), and the whole batch
+is sampled in a single sampler call. ComfyUI hands conditioning entry n to latent
+n when the conditioning batch matches the latent batch.
 
 Wildcard resolution is delegated to the WildcardProcessor so the full syntax
 (file wildcards, glob patterns, inline choices, weighted choices, multiple
@@ -17,22 +17,28 @@ selections, ranged selections, variables, and nesting) is supported.
 LoRAs can be loaded directly from <lora:name:strength> tags in the prompt — the
 same mechanism as the LoRA Loader Prompt Tags node — so no separate loader is
 needed. Tags are kept in the resolved prompt (for metadata) and stripped before
-the text is sent to CLIP.
+the text is sent to CLIP. Differing LoRAs use per-image additive adapters inside
+the same model forward pass; each prompt is encoded with its own CLIP patches.
 """
 
 import re
+import folder_paths
 
 import torch
+import torch.nn.functional as F
 
 import comfy.sample
+import comfy.lora
+import comfy.lora_convert
+import comfy.conds
 import comfy.samplers
 import comfy.model_management
 import comfy.utils
 
 from .wildcard_processor import WildcardProcessor
-from .lora_tag_loader import LoraTagLoader
+from .lora_tag_loader import LoraTagLoader, TAG_PATTERN, parse_lora_tag, load_lora_file
 from ..utils.batch_wildcard_runtime import set_batch_prompts
-from ..utils.settings_utils import is_wildcard_console_log_enabled
+from ..utils.settings_utils import is_wildcard_console_log_enabled, is_lora_console_log_enabled
 
 from comfy_api.latest import io
 
@@ -60,9 +66,9 @@ _WILDCARD_SYNTAX_HELP = (
 
 class BatchWildcardSampler(io.ComfyNode):
     """
-    Resolves a fresh set of wildcards for every image in the batch, then encodes
-    and samples each one individually so a single run yields a different prompt
-    per image. Wildcard resolution is delegated to the WildcardProcessor.
+    Resolves a fresh set of wildcards for every image in the batch, encodes each
+    prompt, and samples the whole batch at once with one conditioning entry per
+    image. Wildcard resolution is delegated to the WildcardProcessor.
     """
 
     @classmethod
@@ -71,11 +77,8 @@ class BatchWildcardSampler(io.ComfyNode):
             node_id="MNeMiC_BatchWildcardSampler",
             display_name="🔀 Batch Wildcard Upscale Sampler",
             category="⚡ MNeMiC Nodes",
-            description=("Resolves wildcards independently for every image, but processes them sequentially "
-                         "inside the node rather than as a true sampler batch. This still gives per-image "
-                         "prompt variation with some workflow speed-ups from staying inside one node. LoRAs can "
-                         "be loaded per image via <lora:name:strength> tags in the prompt. Connect model and "
-                         "clip to sample, or leave them off to just preview the resolved prompts."),
+            description=("Resolves wildcards independently for every image, then samples them together as a true "
+                         "batch with per-image prompts and LoRA weights. Leave model and clip disconnected to preview prompts."),
             inputs=[
                 io.String.Input(
                     "text",
@@ -86,7 +89,7 @@ class BatchWildcardSampler(io.ComfyNode):
                         "How this node uses it:\n"
                         "- Each image resolves this prompt independently.\n"
                         "- Each image can end up with a different final prompt.\n"
-                        "- Images are processed sequentially inside the node, not as a true sampler batch.\n\n"
+                        "- All images are sampled together as one batch, each with its own prompt.\n\n"
                         "Use the same seed to reproduce the same sequence of resolved prompts.\n\n"
                         + _WILDCARD_SYNTAX_HELP
                     ),
@@ -100,8 +103,7 @@ class BatchWildcardSampler(io.ComfyNode):
                         "Negative prompt.\n\n"
                         "Supports the exact same wildcard syntax as the positive prompt.\n\n"
                         "How this node uses it:\n"
-                        "- Each image resolves its own negative prompt independently.\n"
-                        "- Negative prompt wildcards follow the same per-image sequential flow as the positive prompt."
+                        "- Each image resolves its own negative prompt independently."
                     ),
                     placeholder="negative",
                 ),
@@ -112,16 +114,16 @@ class BatchWildcardSampler(io.ComfyNode):
                             "- Image 1 uses seed + 0\n"
                             "- Image 2 uses seed + 1\n"
                             "- Image 3 uses seed + 2\n\n"
-                            "Using the same seed and the same prompts reproduces the same sequential run.",
+                            "Using the same seed and the same prompts reproduces the same batch.",
                 ),
                 io.Int.Input(
                     "batch_size", default=4, min=1, max=64, step=1,
                     tooltip="How many images to generate.\n\n"
-                            "Important:\n"
-                            "- This is not a true sampler batch.\n"
-                            "- The node runs one image at a time internally.\n"
-                            "- For each item, it resolves wildcards, encodes prompts, samples, and optionally upscales.\n\n"
-                            "The final outputs are then combined into one batch-shaped result for downstream nodes.",
+                            "This is a true sampler batch: every image gets its own resolved prompt, and the "
+                            "whole batch is sampled (and optionally upscaled) at once. VRAM use grows with the "
+                            "batch size.\n\n"
+                            "Different LoRA tags and weights use per-image adapters in the same batch; "
+                            "see the help page for supported adapter formats.",
                 ),
                 io.Int.Input("width", default=1024, min=64, max=16384, step=8, tooltip="Width of each generated image, in pixels."),
                 io.Int.Input("height", default=1024, min=64, max=16384, step=8, tooltip="Height of each generated image, in pixels."),
@@ -216,11 +218,11 @@ class BatchWildcardSampler(io.ComfyNode):
                 io.UpscaleModel.Input("upscale_model", optional=True, tooltip="Optional. Connect a 'Load Upscale Model' (e.g. an ESRGAN/4x model) to use AI super-resolution for the hi-res upscale instead of plain Lanczos."),
             ],
             outputs=[
-                io.Model.Output(display_name="model", tooltip="The model after LoRA patches from the last batch item have been applied."),
-                io.Clip.Output(display_name="clip", tooltip="The CLIP after LoRA patches from the last batch item have been applied."),
+                io.Model.Output(display_name="model", tooltip="Model with shared and per-image LoRAs. Reuse with the same latent batch size and image order."),
+                io.Clip.Output(display_name="clip", tooltip="CLIP with shared leading LoRA tags. Per-image CLIP patches are already baked into the conditioning outputs."),
                 io.Vae.Output(display_name="vae", tooltip="The VAE input passed through for downstream use, including hi-res workflows."),
-                io.Conditioning.Output(display_name="positive", tooltip="The positive conditioning encoded from the last batch item's prompt."),
-                io.Conditioning.Output(display_name="negative", tooltip="The negative conditioning encoded from the last batch item's prompt."),
+                io.Conditioning.Output(display_name="positive", tooltip="The batched positive conditioning: one entry per image, in batch order, matching the latent output."),
+                io.Conditioning.Output(display_name="negative", tooltip="The batched negative conditioning: one entry per image, in batch order, matching the latent output."),
                 io.Latent.Output(display_name="latent", tooltip="The combined batch of sampled latents (empty when sampling is skipped)."),
                 io.String.Output(display_name="prompt", tooltip="The resolved positive prompt for each image, as a list with one entry per batch item."),
             ],
@@ -287,149 +289,172 @@ class BatchWildcardSampler(io.ComfyNode):
             empty_latent = torch.zeros([batch_size, 4, height // 8, width // 8])
             return io.NodeOutput(model, clip, vae, None, None, {"samples": empty_latent}, positive_prompts)
 
-        # --- Generate each image individually ---
-        all_samples = []
-        final_model = model
-        final_clip = clip
-        final_positive = None
-        final_negative = None
+        if upscale and upscale_rate > 1.0 and vae is None:
+            print("  [Batch Wildcard Sampler] No VAE connected; skipping upscale.")
 
-        # Get the latent format from the model
-        latent_format = model.get_model_object("latent_format") if hasattr(model, "get_model_object") else None
+        final_model, final_clip, all_positive, all_negative = cls._prepare_batch(
+            model, clip, positive_prompts, negative_prompts, strip_prompt_weights,
+        )
+        positive = cls._batch_conditioning(all_positive)
+        negative_cond = cls._batch_conditioning(all_negative)
+        seeds = [(seed + i) % (1 << 64) for i in range(batch_size)]
 
-        for i in range(batch_size):
-            # Apply any <lora:...> tags from this image's positive prompt to fresh
-            # clones of the model/clip. LoraTagLoader returns the model/clip with the
-            # LoRAs applied and the prompt cleaned of its tags for CLIP encoding.
-            # Its single-LoRA cache lives at module level, so it persists across images.
-            model_i, clip_i, clean_positive = LoraTagLoader.execute(
-                MODEL=model, STRING=positive_prompts[i], CLIP=clip
-            ).result
-            final_model, final_clip = model_i, clip_i
-            # The negative prompt is not used to load LoRAs, but strip any tags so
-            # they are never sent to CLIP as text.
-            clean_negative = _LORA_TAG_RE.sub("", negative_prompts[i])
+        latent_image = torch.zeros([batch_size, 4, height // 8, width // 8],
+                                   device=comfy.model_management.intermediate_device(),
+                                   dtype=comfy.model_management.intermediate_dtype())
+        latent_image = comfy.sample.fix_empty_latent_channels(final_model, latent_image, 8)
 
-            if strip_prompt_weights:
-                clean_positive = cls._strip_weight_syntax(clean_positive)
-                clean_negative = cls._strip_weight_syntax(clean_negative)
-
-            # Encode this image's positive and negative prompts through the (LoRA-applied) CLIP
-            positive = cls._encode(clip_i, clean_positive)
-            negative_cond = cls._encode(clip_i, clean_negative)
-            # Exposed on the outputs (from the last batch item, like model/clip).
-            final_positive, final_negative = positive, negative_cond
-
-            # Create empty latent for this single image
-            if latent_format is not None:
-                latent_image = torch.zeros([1, latent_format.latent_channels, height // 8, width // 8], device="cpu")
-            else:
-                latent_image = torch.zeros([1, 4, height // 8, width // 8], device="cpu")
-
-            latent_image = comfy.sample.fix_empty_latent_channels(model_i, latent_image)
-
-            # Generate noise with unique seed per image
-            image_seed = seed + i
-            noise = comfy.sample.prepare_noise(latent_image, image_seed)
-
-            # Sample with the (LoRA-applied) model
-            if console_log:
-                print(f"  [Batch Wildcard Sampler] Sampling image {i + 1}/{batch_size}: seed={image_seed}")
-            samples = comfy.sample.sample(
-                model_i, noise, steps, cfg,
-                sampler_name, scheduler,
-                positive, negative_cond,
-                latent_image,
-                denoise=denoise,
-                seed=image_seed,
-            )
-
-            # --- Optional upscale second pass ---
-            # When upscale is on (and the rate is above 1), upscale this image's
-            # latent and sample it again at the larger resolution. The upscale pass
-            # uses its own denoise, and optionally its own steps/cfg/sampler/scheduler
-            # (each falls back to the first-pass value when left at its default).
-            if upscale and upscale_rate > 1.0 and vae is None:
-                print("  [Batch Wildcard Sampler] upscale is on but no VAE is connected — "
-                      "the upscale pass needs a VAE to upscale in pixel space. Skipping the upscale pass.")
-
-            if upscale and upscale_rate > 1.0 and vae is not None:
-                upscale_width = (int(round(width * upscale_rate)) // 8) * 8
-                upscale_height = (int(round(height * upscale_rate)) // 8) * 8
-
-                eff_steps = upscale_steps
-                eff_cfg = upscale_cfg if upscale_cfg > 0 else cfg
-                eff_sampler = sampler_name if upscale_sampler_name == "(same as first pass)" else upscale_sampler_name
-                eff_scheduler = scheduler if upscale_scheduler == "(same as first pass)" else upscale_scheduler
-
-                if console_log:
-                    print(f"  [Batch Wildcard Sampler] Upscale pass {i + 1}/{batch_size}: "
-                          f"{width}x{height} -> {upscale_width}x{upscale_height} "
-                          f"(rate={upscale_rate}, denoise={upscale_denoise}, steps={eff_steps}, cfg={eff_cfg}, "
-                          f"sampler={eff_sampler}, scheduler={eff_scheduler})")
-
-                upscaled = cls._run_upscale(
-                    samples, upscale_width, upscale_height, vae, upscale_model, model_i,
-                )
-
-                # Noise is injected exactly as in the first pass: unit Gaussian noise
-                # from prepare_noise(), with the sampler scaling it by the starting
-                # sigma implied by upscale_denoise. Same seed as the first pass.
-                upscale_noise = comfy.sample.prepare_noise(upscaled, image_seed)
-
-                # Build per-step noise injection callback. When strength > 0 the
-                # callback fires at every denoising step and adds noise × σ_i ×
-                # strength, so injection is heaviest early and tapers to near-zero
-                # as the sampler converges. None means no extra noise.
-                noise_inject_cb = None
-                if upscale_noise_inject_strength > 0.0:
-                    noise_inject_cb = cls._make_noise_inject_callback(
-                        upscale_noise_inject_strength,
-                        upscale_denoise, eff_scheduler, eff_steps,
-                        model_i, image_seed, console_log,
-                    )
-
-                # The upscale pass uses the SAME positive/negative conditioning that
-                # was encoded from this image's resolved prompt above — identical to
-                # what drove the first pass. This is intentional: the upscale is a
-                # guided hi-res refinement, not an unconditional diffusion step.
-                samples = comfy.sample.sample(
-                    model_i, upscale_noise, eff_steps, eff_cfg,
-                    eff_sampler, eff_scheduler,
-                    positive, negative_cond,
-                    upscaled,
-                    denoise=upscale_denoise,
-                    seed=image_seed,
-                    callback=noise_inject_cb,
-                )
-
-            all_samples.append(samples)
-
-            # --- Clean model state between batch items ---
-            # When this item loaded a LoRA, load_lora returned a *clone* of the
-            # base model that shares the same underlying weights. ComfyUI patches
-            # those shared weights in place and keeps the model resident, so the
-            # next item's clone can end up patching on top of weights that were
-            # never cleanly reverted — they drift into NaNs and the image decodes
-            # as pure black (randomly, depending on VRAM/offload timing). Fully
-            # unloading here forces the next item to re-patch from clean base
-            # weights. Only done when a clone was actually created, so the
-            # no-LoRA path keeps reusing the same model with no reload cost.
-            if model_i is not model or clip_i is not clip:
-                comfy.model_management.unload_all_models()
-
-        # --- Combine all results into one batch ---
-        combined = torch.cat(all_samples, dim=0)
+        # Noise is generated per image from seed + index, so every image starts
+        # from the same noise it would get if sampled on its own. The sampler's
+        # own seed (used by ancestral/SDE samplers) is the batch's first seed.
+        noise = torch.cat([comfy.sample.prepare_noise(latent_image[j:j + 1], s) for j, s in enumerate(seeds)])
 
         if console_log:
-            print(f"\n  [Batch Wildcard Sampler] Batch complete — {batch_size} images generated.")
-            print(f"{'='*60}\n")
+            print(f"  [Batch Wildcard Sampler] Sampling batch of {batch_size}: seeds={seeds}")
+        samples = comfy.sample.sample(
+            final_model, noise, steps, cfg,
+            sampler_name, scheduler,
+            positive, negative_cond,
+            latent_image,
+            denoise=denoise,
+            seed=seeds[0],
+        )
 
-        return io.NodeOutput(final_model, final_clip, vae, final_positive, final_negative,
-                {"samples": combined}, positive_prompts)
+        # --- Optional upscale second pass ---
+        # When upscale is on (and the rate is above 1), upscale the batch's
+        # latents and sample them again at the larger resolution. The upscale
+        # pass uses its own denoise, and optionally its own steps/cfg/sampler/
+        # scheduler (each falls back to the first-pass value when left at its default).
+        if upscale and upscale_rate > 1.0 and vae is not None:
+            upscale_width = (int(round(width * upscale_rate)) // 8) * 8
+            upscale_height = (int(round(height * upscale_rate)) // 8) * 8
+
+            eff_steps = upscale_steps
+            eff_cfg = upscale_cfg if upscale_cfg > 0 else cfg
+            eff_sampler = sampler_name if upscale_sampler_name == "(same as first pass)" else upscale_sampler_name
+            eff_scheduler = scheduler if upscale_scheduler == "(same as first pass)" else upscale_scheduler
+
+            if console_log:
+                print(f"  [Batch Wildcard Sampler] Upscale pass, batch of {batch_size}: "
+                      f"{width}x{height} -> {upscale_width}x{upscale_height} "
+                      f"(rate={upscale_rate}, denoise={upscale_denoise}, steps={eff_steps}, cfg={eff_cfg}, "
+                      f"sampler={eff_sampler}, scheduler={eff_scheduler})")
+
+            upscaled = cls._run_upscale(
+                samples, upscale_width, upscale_height, vae, upscale_model, final_model,
+            )
+
+            # Noise is injected exactly as in the first pass: unit Gaussian noise
+            # from prepare_noise(), with the sampler scaling it by the starting
+            # sigma implied by upscale_denoise. Same per-image seeds as the first pass.
+            upscale_noise = torch.cat([comfy.sample.prepare_noise(upscaled[j:j + 1], s) for j, s in enumerate(seeds)])
+
+            # Build per-step noise injection callback. When strength > 0 the
+            # callback fires at every denoising step and adds noise × σ_i ×
+            # strength, so injection is heaviest early and tapers to near-zero
+            # as the sampler converges. None means no extra noise.
+            noise_inject_cb = None
+            if upscale_noise_inject_strength > 0.0:
+                noise_inject_cb = cls._make_noise_inject_callback(
+                    upscale_noise_inject_strength,
+                    upscale_denoise, eff_scheduler, eff_steps,
+                    final_model, seeds, console_log,
+                )
+
+            # The upscale pass uses the SAME batched positive/negative conditioning
+            # that drove the first pass. This is intentional: the upscale is a
+            # guided hi-res refinement, not an unconditional diffusion step.
+            samples = comfy.sample.sample(
+                final_model, upscale_noise, eff_steps, eff_cfg,
+                eff_sampler, eff_scheduler,
+                positive, negative_cond,
+                upscaled,
+                denoise=upscale_denoise,
+                seed=seeds[0],
+                callback=noise_inject_cb,
+            )
+
+        if console_log:
+            print(f"  [Batch Wildcard Sampler] Complete: {batch_size} images in one batch per pass.")
+
+        return io.NodeOutput(final_model, final_clip, vae, positive, negative_cond,
+                             {"samples": samples}, positive_prompts)
+
+    @classmethod
+    def _prepare_batch(cls, model, clip, positives, negatives, strip_weights):
+        """Encode each image with its own CLIP and build one per-image LoRA model."""
+        files = folder_paths.get_filename_list("loras")
+        log = is_lora_console_log_enabled()
+        tags = [re.findall(TAG_PATTERN, prompt) for prompt in positives]
+        parsed = [[(tag, spec) for tag in row
+                   if (spec := parse_lora_tag(tag, True, files, log)) is not None]
+                  for row in tags]
+        # Merge the identical leading tags normally, preserving adapter ordering.
+        # This also keeps the existing loader path for uniform DoRA/time tags.
+        common = 0
+        for entries in zip(*parsed):
+            if not all(entry[1] == entries[0][1] for entry in entries):
+                break
+            common += 1
+        if common:
+            model, clip, _ = LoraTagLoader.execute(
+                MODEL=model, CLIP=clip, STRING=" ".join(tag for tag, _ in parsed[0][:common]),
+            ).result
+
+        loaded = {}
+        key_map = None
+        model_keys = None
+        slots = {}
+        positive_conds, negative_conds = [], []
+        for i, row in enumerate(parsed):
+            image_clip = clip
+            for _, spec in row[common:]:
+                name, model_strength, clip_strength, ranges, scheduled, time_options = spec
+                if model_strength != 0 and time_options is not None:
+                    raise ValueError("Batch Wildcard Sampler: differing video time=/blend= LoRAs are not supported. "
+                                     "Use identical leading time tags for all images.")
+                if name not in loaded:
+                    if key_map is None:
+                        key_map = comfy.lora.model_lora_keys_unet(model.model, {})
+                        key_map = comfy.lora.model_lora_keys_clip(clip.cond_stage_model, key_map)
+                        model_keys = set(model.model.state_dict())
+                    # Resolve both targets together once, as the standard loader
+                    # does. Separate CLIP-only/model-only parsing reports the
+                    # other target's valid keys as "not loaded" on every image.
+                    loaded[name] = comfy.lora.load_lora(
+                        comfy.lora_convert.convert_lora(load_lora_file(name)), key_map,
+                    )
+                patches = loaded[name]
+                if clip_strength != 0:
+                    image_clip = image_clip.clone()
+                    image_clip.add_patches(patches, clip_strength)
+                if model_strength != 0:
+                    key = (name, ranges if scheduled else None)
+                    if key not in slots:
+                        slots[key] = [0.0] * len(positives)
+                    slots[key][i] += model_strength
+            pos = re.sub(TAG_PATTERN, "", positives[i])
+            neg = _LORA_TAG_RE.sub("", negatives[i])
+            if strip_weights:
+                pos, neg = cls._strip_weight_syntax(pos), cls._strip_weight_syntax(neg)
+            positive_conds.append(cls._encode(image_clip, pos))
+            negative_conds.append(cls._encode(image_clip, neg))
+
+        if slots:
+            from ..utils.batch_lora import add_batch_loras
+            model = add_batch_loras(model, [
+                (name, {key: patch for key, patch in loaded[name].items()
+                        if (key if isinstance(key, str) else key[0]) in model_keys}, ranges, strengths)
+                for (name, ranges), strengths in slots.items()
+            ], len(positives))
+        # CLIP can represent only the common prefix; per-image CLIP changes are
+        # already baked into the returned conditioning tensors.
+        from ..utils.batch_anima import enable_anima_batching
+        model = enable_anima_batching(model)
+        return model, clip, positive_conds, negative_conds
 
     @staticmethod
-    def _make_noise_inject_callback(strength, denoise, scheduler, steps, model_i, seed, console_log=False):
+    def _make_noise_inject_callback(strength, denoise, scheduler, steps, model_i, seeds, console_log=False):
         """
         Returns a per-step callback for comfy.sample.sample that injects
         scheduler-scaled Gaussian noise at every denoising step.
@@ -437,7 +462,7 @@ class BatchWildcardSampler(io.ComfyNode):
         At step i the injected magnitude is strength × σ_i, so injection is
         heaviest at the start (large sigma) and tapers to near-zero as the
         sampler converges (sigma → 0). The noise is seeded deterministically
-        per step (seed + step) for reproducibility.
+        per image and step (image seed + step) for reproducibility.
         """
         model_sampling = model_i.get_model_object("model_sampling")
         device = comfy.model_management.get_torch_device()
@@ -461,9 +486,11 @@ class BatchWildcardSampler(io.ComfyNode):
             if step < len(active_sigmas) - 1:
                 sigma_i = active_sigmas[step].item()
                 gen = torch.Generator(device=x.device)
-                gen.manual_seed(seed + step)
-                noise_i = torch.randn(x.shape, generator=gen, device=x.device, dtype=x.dtype)
-                x.add_(noise_i * (sigma_i * strength))
+                noise_i = torch.cat([
+                    torch.randn(x[j:j + 1].shape, generator=gen.manual_seed(s + step), device=x.device, dtype=x.dtype)
+                    for j, s in enumerate(seeds)
+                ])
+                x.add_(noise_i, alpha=sigma_i * strength)
 
         return callback
 
@@ -502,10 +529,15 @@ class BatchWildcardSampler(io.ComfyNode):
         image = image.movedim(1, -1).clamp(0.0, 1.0)  # NCHW -> NHWC
 
         # 4) Re-encode. Always hand the VAE a 4D NHWC image (same as the native VAE
-        #    Encode node); the wrapper adds any temporal axis the VAE needs.
+        #    Encode node); the wrapper adds any temporal axis the VAE needs. A 3D
+        #    VAE reads a 4D batch as the frames of one video, so there each image
+        #    is encoded on its own.
         if console_log:
             print(f"  [Batch Wildcard Sampler] pixel upscale: encoding image {tuple(image.shape)}")
-        upscaled = vae.encode(image[:, :, :, :3])
+        if vae.latent_dim == 3:
+            upscaled = torch.cat([vae.encode(image[i:i + 1, :, :, :3]) for i in range(image.shape[0])])
+        else:
+            upscaled = vae.encode(image[:, :, :, :3])
         if console_log:
             print(f"  [Batch Wildcard Sampler] pixel upscale: encoded latent {tuple(upscaled.shape)}")
 
@@ -539,7 +571,7 @@ class BatchWildcardSampler(io.ComfyNode):
         Inspect the workflow graph to determine whether this node's `latent`
         output is connected to anything.
 
-        The output slot is resolved from RETURN_NAMES so this keeps working if
+        The output slot is resolved from the V3 schema so this keeps working if
         outputs are reordered later.
 
         Returns True/False when it can be determined, or None when the graph
@@ -551,7 +583,8 @@ class BatchWildcardSampler(io.ComfyNode):
                 return None
 
             # Resolve the current latent slot from the declared output order.
-            latent_slot = BatchWildcardSampler.RETURN_NAMES.index("latent")
+            latent_slot = next(i for i, output in enumerate(BatchWildcardSampler.define_schema().outputs)
+                               if output.display_name == "latent")
 
             # EXTRA_PNGINFO is normally {"workflow": {...}}; tolerate a bare workflow too.
             workflow = extra_pnginfo.get("workflow") if isinstance(extra_pnginfo, dict) else None
@@ -595,6 +628,77 @@ class BatchWildcardSampler(io.ComfyNode):
         output = clip.encode_from_tokens(tokens, return_pooled=True, return_dict=True)
         cond_tensor = output.pop("cond")
         return [[cond_tensor, output]]
+
+    @staticmethod
+    def _batch_conditioning(conds):
+        """
+        Stack single-prompt conditionings into one conditioning with one entry
+        per batch index, so a single sampler call gives every image its own prompt.
+
+        Prompts encode to different token lengths, so shorter conds are padded to
+        the longest. When every length divides the longest (e.g. CLIP's 77-token
+        chunks) the cond is repeated, which is how ComfyUI itself pads
+        cross-attention conds for batching. Otherwise it is zero-padded, and when
+        the text encoder returned an attention mask the padding is masked out for
+        models that read it (e.g. Qwen-Image).
+        """
+        entries = [cond[0] for cond in conds]
+        # Anima's IDs/weights are 1D token sequences, not batch-first tensors.
+        # Core unconditionally unsqueezes them, so preserve the original prompt
+        # inputs for our model-local extra_conds adapter instead of stacking IDs.
+        if any("t5xxl_ids" in extra for _, extra in entries):
+            from ..utils.batch_anima import PROMPTS_KEY
+            prompts = []
+            for embedding, extra in entries:
+                ids = extra.get("t5xxl_ids")
+                weights = extra.get("t5xxl_weights")
+                if not torch.is_tensor(ids) or ids.ndim != 1:
+                    raise ValueError("Anima batching expects a 1D token ID sequence for each image.")
+                if weights is None:
+                    weights = torch.ones_like(ids, dtype=embedding.dtype)
+                if weights.shape != ids.shape:
+                    raise ValueError("Anima token IDs and weights must have matching lengths.")
+                prompts.append((embedding, ids, weights))
+            # Placeholder is replaced after the diffusion model is loaded.
+            # The output MODEL carries the matching preprocessing adapter.
+            placeholder = torch.cat([embedding[:, :1] for embedding, _ in entries])
+            return [[placeholder, {PROMPTS_KEY: prompts}]]
+        max_len = max(cond.shape[1] for cond, _ in entries)
+        use_mask = any("attention_mask" in extra for _, extra in entries)
+        repeat = not use_mask and all(max_len % cond.shape[1] == 0 for cond, _ in entries)
+
+        tensors = []
+        masks = []
+        for cond, extra in entries:
+            if repeat:
+                tensors.append(cond.repeat(1, max_len // cond.shape[1], 1))
+                continue
+            tensors.append(F.pad(cond, (0, 0, 0, max_len - cond.shape[1])))
+            if use_mask:
+                mask = extra.get("attention_mask")
+                if mask is None:
+                    mask = torch.ones(cond.shape[:2], dtype=torch.long, device=cond.device)
+                masks.append(F.pad(mask, (0, max_len - mask.shape[1])))
+
+        out = {}
+        for key in set().union(*(extra.keys() for _, extra in entries)) - {"attention_mask"}:
+            values = [extra.get(key) for _, extra in entries]
+            if all(torch.is_tensor(value) and value.ndim > 0 and value.shape[0] == 1
+                   for value in values):
+                if key in ("conditioning_llama3", "conditioning_byt5small"):
+                    # These auxiliary encoders place tokens on the penultimate axis.
+                    length = max(value.shape[-2] for value in values)
+                    values = [F.pad(value, (0, 0, 0, length - value.shape[-2])) for value in values]
+                if not all(value.shape[1:] == values[0].shape[1:] for value in values):
+                    raise ValueError(f"Cannot batch conditioning metadata '{key}' with differing shapes.")
+                out[key] = torch.cat(values)
+            elif all(comfy.conds.is_equal(value, values[0]) for value in values[1:]):
+                out[key] = values[0]
+            else:
+                raise ValueError(f"Cannot batch differing conditioning metadata '{key}'.")
+        if use_mask:
+            out["attention_mask"] = torch.cat(masks)
+        return [[torch.cat(tensors), out]]
 
 
 

@@ -189,15 +189,29 @@ class _ScheduledLora:
             guider.conds = original_conds
 
 
-def _apply_lora(model, clip, lora, model_strength, clip_strength, ranges, scheduled):
-    if not scheduled:
+def _apply_lora(model, clip, lora, model_strength, clip_strength, ranges, scheduled, time_options=None):
+    if not scheduled and time_options is None:
         return comfy.sd.load_lora_for_models(model, clip, lora, model_strength, clip_strength)
+    if time_options is not None and model_strength == 0.0:
+        if clip is not None and clip_strength != 0.0:
+            _, clip = comfy.sd.load_lora_for_models(None, clip, lora, 0.0, clip_strength)
+        return model, clip
 
     model = model.clone()
+    if time_options is not None:
+        from ..utils.lora_time_h3 import add_h3_timed_lora
+        key_map = comfy.lora.model_lora_keys_unet(model.model, {})
+        patches = comfy.lora.load_lora(comfy.lora_convert.convert_lora(lora), key_map)
+        if add_h3_timed_lora(model, patches, model_strength, ranges if scheduled else None, time_options):
+            if clip is not None and clip_strength != 0.0:
+                _, clip = comfy.sd.load_lora_for_models(None, clip, lora, 0.0, clip_strength)
+            return model, clip
     # Native weight hooks require the non-dynamic patcher (as CFGGuider does
     # when hooks arrive through conditioning). Do this before registering weights.
     if model.is_dynamic():
         model = model.get_non_dynamic_delegate()
+    from ..utils.lora_hooks import enable_quantized_hooks
+    enable_quantized_hooks(model)
     # Dynamic loading enables casting on every Comfy operation. The regular
     # hook-compatible patcher must do the same: mixed-dtype checkpoints such as
     # Anima can have FP16 adapter norms alongside BF16 linear weights, including
@@ -212,13 +226,111 @@ def _apply_lora(model, clip, lora, model_strength, clip_strength, ranges, schedu
     hook.weights = patches
     hook.need_weight_init = False
     model.add_hook_patches(hook, patches, strength_patch=model_strength)
-    model.add_wrapper_with_key(
-        comfy.patcher_extension.WrappersMP.OUTER_SAMPLE,
-        "mnemic_scheduled_lora", _ScheduledLora(hook, ranges),
-    )
-    if clip is not None:
+    if time_options is not None:
+        from ..utils.lora_time import add_timed_lora
+        add_timed_lora(model, hook, ranges if scheduled else None, time_options)
+    else:
+        model.add_wrapper_with_key(
+            comfy.patcher_extension.WrappersMP.OUTER_SAMPLE,
+            "mnemic_scheduled_lora", _ScheduledLora(hook, ranges),
+        )
+    if clip is not None and clip_strength != 0.0:
         _, clip = comfy.sd.load_lora_for_models(None, clip, lora, 0.0, clip_strength)
     return model, clip
+
+
+def parse_lora_tag(tag_text, has_clip, lora_files, console_log):
+    """
+    Parse one angle-bracket tag into (lora_name, model_strength, clip_strength,
+    ranges, scheduled, time_options). Returns None for non-LoRA tags, disabled
+    tags, and tags that match no LoRA file.
+    """
+    tag = tag_text[1:-1]
+    pak = tag.split(":")
+    type = pak[0]
+    if type != 'lora':
+        return None
+
+    # Parse the tag components
+    if len(pak) <= 1 or not pak[1]:
+        return None
+    name = pak[1]
+    parts = pak[2:]
+    time_options = None
+    if any(part.split("=", 1)[0].strip() in ("time", "fps", "blend") for part in parts):
+        # No temporal imports, wrappers, masks, or extra predictions for
+        # existing constant/step-only tags.
+        from ..utils.lora_time import parse_time_options
+        parts, time_options = parse_time_options(parts, name)
+    weights, ranges, scheduled = _parse_schedule(parts, name)
+    pak = pak[:2] + weights
+
+    # Parse weights
+    wModel = 1.0
+    wClip = 1.0
+
+    if len(pak) > 2 and pak[2]:
+        try:
+            wModel = float(pak[2])
+        except ValueError:
+            if console_log:
+                print(f"LoraTagLoader Warning: Invalid model strength value '{pak[2]}' for LoRA '{pak[1]}'. Defaulting to 1.0.")
+            wModel = 1.0
+
+    # Timed CLIP changes would bake the LoRA into the whole prompt.
+    wClip = 0.0 if time_options is not None else wModel
+
+    if len(pak) > 3 and pak[3]:
+        try:
+            wClip = float(pak[3])
+        except ValueError:
+            if console_log:
+                print(f"LoraTagLoader Warning: Invalid clip strength value '{pak[3]}' for LoRA '{pak[1]}'. Keeping default CLIP strength ({wClip}).")
+            # Keep the tag's default: model strength, or zero for time=.
+
+    if time_options is not None and time_options.get("blend") is not None:
+        if len(pak) > 2 and pak[2]:
+            logging.warning("LoraTagLoader: LoRA '%s': blend= takes priority; ignoring positional model strength.", name)
+        wModel = 1.0 if any(value != 0 for value in time_options["blend"]) else 0.0
+
+    # A disabled tag still gets removed from the prompt, but does not need to
+    # resolve or load a LoRA file.
+    if wModel == 0.0 and (not has_clip or wClip == 0.0):
+        return None
+
+    # Use our new matching system
+    lora_name = find_best_match(name, lora_files, log=console_log, fuzzy_search=is_lora_fuzzy_search_enabled(), max_logged=get_lora_max_logged_candidates())
+
+    if lora_name is None:
+        if console_log:
+            print(f"No matching LoRA found for tag: {(type, name, wModel, wClip)}")
+        return None
+
+    if console_log:
+        logged_weight = time_options["blend"] if time_options is not None and time_options.get("blend") is not None else wModel
+        print(f"\nApplying LoRA: {(type, name, logged_weight, wClip)} >> {lora_name}")
+        if scheduled:
+            range_text = ",".join(f"{start}-{end if end is not None else 'end'}" for start, end in ranges)
+            print(f"LoraTagLoader: Model sampling steps {range_text} (inclusive); CLIP strength remains constant.")
+        if time_options is not None:
+            print(f"LoraTagLoader: Video time windows {time_options['ranges']} seconds.")
+            if time_options.get("blend") is not None:
+                print(f"LoraTagLoader: Model strength ramps from {time_options['blend'][0]} to {time_options['blend'][1]} within the time window.")
+
+    return lora_name, wModel, wClip, ranges, scheduled, time_options
+
+
+def load_lora_file(lora_name):
+    """Load a LoRA state dict, reusing the cached file when it was the last one loaded."""
+    global _LOADED_LORA
+    lora_path = folder_paths.get_full_path("loras", lora_name)
+    if _LOADED_LORA is not None and _LOADED_LORA[0] == lora_path:
+        return _LOADED_LORA[1]
+    # Release the previous file before loading the next one.
+    _LOADED_LORA = None
+    lora = comfy.utils.load_torch_file(lora_path, safe_load=True)
+    _LOADED_LORA = (lora_path, lora)
+    return lora
 
 
 class LoraTagLoader(io.ComfyNode):
@@ -235,15 +347,15 @@ class LoraTagLoader(io.ComfyNode):
             node_id="MNeMiC_LoraTagLoader",
             display_name="🏷️ LoRA Loader Prompt Tags",
             category="⚡ MNeMiC Nodes",
-            description="Loads LoRAs from prompt tags, optionally limits them to one or more sampling step ranges, and removes the tags from the prompt.",
+            description="Loads LoRAs from prompt tags, with optional denoising step ranges, video time windows, or strength ramps, and removes the tags from the prompt.",
             inputs=[
-                io.Model.Input("MODEL", tooltip="The model to apply the LoRAs to. Scheduled tags affect only the selected sampling steps."),
-                io.Clip.Input("CLIP", optional=True, tooltip="The text encoder to apply the LoRAs to. CLIP strengths apply during encoding and are not step-scheduled."),
+                io.Model.Input("MODEL", tooltip="The model to apply the LoRAs to. Supports step schedules and opt-in time windows for LTX and MiniMax H3 video."),
+                io.Clip.Input("CLIP", optional=True, tooltip="The text encoder to patch. CLIP strengths are global; time= tags default to CLIP strength 0."),
                 io.String.Input(
                     "STRING",
                     multiline=True,
                     force_input=True,
-                    tooltip="Prompt with <lora:name:strength> tags. Use start=/end= or range=2-4,8-10 for inclusive sampling steps counted from 1; see the node Info panel.",
+                    tooltip="LoRA tags with step ranges or time=0-10:blend=0.5-2 in video seconds. Video effects may spread across boundaries; see the node Info panel.",
                 ),
             ],
             outputs=[
@@ -255,8 +367,6 @@ class LoraTagLoader(io.ComfyNode):
 
     @classmethod
     def execute(cls, MODEL, STRING, CLIP=None) -> io.NodeOutput:
-        global _LOADED_LORA
-
         console_log = is_lora_console_log_enabled()
         if console_log:
             print(f"\nLoraTagLoader processing text: {STRING}")
@@ -267,80 +377,14 @@ class LoraTagLoader(io.ComfyNode):
 
         model_lora = MODEL
         clip_lora = CLIP
-        
+
         lora_files = folder_paths.get_filename_list("loras")
         for f in founds:
-            tag = f[1:-1]
-            pak = tag.split(":")
-            type = pak[0]
-            if type != 'lora':
+            spec = parse_lora_tag(f, clip_lora is not None, lora_files, console_log)
+            if spec is None:
                 continue
-            
-            # Parse the tag components
-            if len(pak) <= 1 or not pak[1]:
-                continue
-            name = pak[1]
-            weights, ranges, scheduled = _parse_schedule(pak[2:], name)
-            pak = pak[:2] + weights
-            
-            # Parse weights
-            wModel = 1.0
-            wClip = 1.0
-
-            if len(pak) > 2 and pak[2]:
-                try:
-                    wModel = float(pak[2])
-                except ValueError:
-                    if console_log:
-                        print(f"LoraTagLoader Warning: Invalid model strength value '{pak[2]}' for LoRA '{pak[1]}'. Defaulting to 1.0.")
-                    wModel = 1.0
-            
-            wClip = wModel # default clip to model weight
-
-            if len(pak) > 3 and pak[3]:
-                try:
-                    wClip = float(pak[3])
-                except ValueError:
-                    if console_log:
-                        print(f"LoraTagLoader Warning: Invalid clip strength value '{pak[3]}' for LoRA '{pak[1]}'. Defaulting to model weight ({wClip}).")
-                    # wClip is already set to wModel, so no change needed here, just the warning.
-
-            # A disabled tag still gets removed from the prompt below, but
-            # does not need to resolve or load a LoRA file.
-            if wModel == 0.0 and (clip_lora is None or wClip == 0.0):
-                continue
-
-            # Use our new matching system
-            lora_name = find_best_match(name, lora_files, log=console_log, fuzzy_search=is_lora_fuzzy_search_enabled(), max_logged=get_lora_max_logged_candidates())
-            
-            if lora_name is None:
-                if console_log:
-                    print(f"No matching LoRA found for tag: {(type, name, wModel, wClip)}")
-                continue
-            
-            if console_log:
-                print(f"\nApplying LoRA: {(type, name, wModel, wClip)} >> {lora_name}")
-                if scheduled:
-                    range_text = ",".join(f"{start}-{end if end is not None else 'end'}" for start, end in ranges)
-                    print(f"LoraTagLoader: Model sampling steps {range_text} (inclusive); CLIP strength remains constant.")
-            
-            # Load and apply the LoRA
-            lora_path = folder_paths.get_full_path("loras", lora_name)
-            lora = None
-            
-            # Check if we already have this LoRA loaded
-            if _LOADED_LORA is not None:
-                if _LOADED_LORA[0] == lora_path:
-                    lora = _LOADED_LORA[1]
-                else:
-                    temp = _LOADED_LORA
-                    _LOADED_LORA = None
-                    del temp
-
-            # Load the LoRA if needed
-            if lora is None:
-                lora = comfy.utils.load_torch_file(lora_path, safe_load=True)
-                _LOADED_LORA = (lora_path, lora)
+            lora_name, wModel, wClip, ranges, scheduled, time_options = spec
+            lora = load_lora_file(lora_name)
 
             # Apply the LoRA
             is_zit = False
@@ -375,12 +419,12 @@ class LoraTagLoader(io.ComfyNode):
                 
                 try:
                     # Use the standard loading path, which will now use our patched function
-                    model_lora, clip_lora = _apply_lora(model_lora, clip_lora, lora, wModel, wClip, ranges, scheduled)
+                    model_lora, clip_lora = _apply_lora(model_lora, clip_lora, lora, wModel, wClip, ranges, scheduled, time_options)
                 finally:
                     # Always restore the original function
                     comfy.lora.model_lora_keys_unet = original_model_lora_keys_unet
             else:
-                model_lora, clip_lora = _apply_lora(model_lora, clip_lora, lora, wModel, wClip, ranges, scheduled)
+                model_lora, clip_lora = _apply_lora(model_lora, clip_lora, lora, wModel, wClip, ranges, scheduled, time_options)
 
         # Remove the LoRA tags from the text
         plain_prompt = re.sub(TAG_PATTERN, "", STRING)

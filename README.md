@@ -18,7 +18,7 @@ API keys and private server addresses for the ✨ LLM nodes live in a `.env` fil
 
 ## 🔀 [Batch Wildcard Upscale Sampler](./README/batch_wildcard_sampler.md)
 
-Resolves wildcards and LoRA loading independently for every image, and can upscale the results (like Hires-fix), but processes them sequentially rather than as a true batch. Adapted from [ChronoKnight's code](https://civitai.com/user/ChronoKnight).
+Generates a true batch with independent wildcard prompts, LoRA selections, and LoRA weights for every image. Supports an optional upscale refinement pass (like Hires-fix). Anima and SDXL batching are confirmed working. Adapted from [ChronoKnight's code](https://civitai.com/user/ChronoKnight).
 <img width="2175" height="639" alt="image" src="https://github.com/user-attachments/assets/14da44c8-4c23-40c9-9c44-35d9f9b8313e" />
 
 ## 💾 [Save Image With Metadata](./README/image_save_with_metadata.md)

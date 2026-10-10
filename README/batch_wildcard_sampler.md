@@ -2,7 +2,7 @@
 
 The Batch Wildcard Sampler generates multiple images where **every image resolves its own independent set of wildcards and LoRA loading**. A normal sampler applies a single prompt to the whole batch; this node instead resolves the prompt separately for each index, so a single run produces a different prompt — and therefore a different image — for each item.
 
-It is an all-in-one node: it resolves the wildcards, loads any LoRAs referenced in the prompt, encodes each prompt through CLIP, samples each image, and optionally runs an upscale second pass. It can also be used purely as a prompt previewer with no model attached, to check what your wildcards resolve to.
+It is an all-in-one node: it resolves the wildcards, loads any LoRAs referenced in the prompt, encodes each prompt, samples the images together as one batch, and optionally runs a batched upscale second pass. It can also be used purely as a prompt previewer with no model attached, to check what your wildcards resolve to.
 
 Additionally this node has an Upscale pass that can be enabled, using pixel-space upscaling with lanczos, or using an upscale model. Like `Hires-fix` from A1111/Forge.
 
@@ -15,18 +15,29 @@ Huge thanks and credits to ChronoKnight for the initial version of this node!
 
 ## About Batching
 
-Despite the name, this node is **not currently** doing true sampler batching. It processes one image at a time internally: resolve wildcards, encode prompts, sample, optionally upscale, then move to the next item. The benefit is convenience and some speed-ups from keeping the whole sequence inside one node and returning one combined output at the end, but the actual image generation is still sequential rather than batched.
+This node does true sampler batching: the whole batch is denoised in one sampler call, with a different prompt for each image. VRAM use grows with `batch_size`, just like a normal KSampler batch.
+
+**Anima and SDXL batching are confirmed working.** Each image can use its own set of LoRAs, model strengths, and CLIP strengths within the same batch. Shared LoRAs and per-image LoRAs can be combined, such as a common acceleration LoRA with a different style or style strength for each image.
+
+Prompt encoding and Anima's model-side text preprocessing run per prompt. Denoising runs on the complete batch. The optional upscale pass also denoises the complete batch together.
 
 ## Explanation
 
-Internally, ComfyUI requires conditioning tensors to have a batch dimension of 1, which normally prevents giving each image in a batch its own prompt. This node works around that by looping internally:
+ComfyUI gives conditioning entry *n* to latent *n* when the conditioning's batch size matches the latent batch. This node builds such a conditioning:
 
-1. Resolve the wildcards for batch index `i`.
-2. Load any LoRAs referenced by `<lora:...>` tags in the resolved prompt onto a clone of the model and CLIP.
-3. Encode the resolved positive and negative prompts through CLIP (with LoRA tags stripped from the text).
-4. Sample a single image with a unique seed.
-5. Optionally run an upscale second pass on the result.
-6. Repeat for every index, then combine all results into one output batch.
+1. Resolve wildcards and LoRA tags for every image.
+2. Encode each image's positive and negative prompts with its own CLIP patches.
+3. Stack the conditionings and seed each image's initial noise independently.
+4. Sample the entire batch once, applying per-image model LoRA strengths.
+5. Optionally upscale and sample the entire batch again.
+
+Different LoRAs and model weights can be used for each image **inside the same sampler call**. The identical leading LoRA tags are loaded normally. Remaining LoRAs are applied as additive layer outputs with a separate strength for each image; a missing LoRA has strength zero. Each image's positive and negative prompts are encoded using its own CLIP LoRA weights before sampling.
+
+Per-image adapters support ordinary LoRA, LoHa, LoKr, and linear/convolution weight or bias diffs, including sampling-step ranges. Differing DoRA, OFT, normalization patches, shape-changing patches, and video time/blend tags raise an error. Put such tags first, identically in every prompt, to use the regular shared loader. Existing bypass-patched models cannot receive another set of per-image adapters; use the base model as input. LoRA tags load from the positive prompt only.
+
+The returned model must be reused with the original latent batch size and image order. The returned CLIP contains only the shared leading tags; per-image CLIP changes are already baked into the conditioning outputs. Adapter computation and memory grow with the number of different LoRAs as well as batch size. No automatic sequential fallback is used.
+
+The batching approach follows [CRT's File Batch Prompt Scheduler](https://github.com/PGCRT/CRT-Nodes/blob/main/py/File_Batch_Prompt_Scheduler.py) and [KSampler Batch](https://github.com/PGCRT/CRT-Nodes/blob/main/py/Ksampler_Batch.py): concatenate per-image conditioning and noise before one sampler call. Per-image model LoRAs extend that approach using ComfyUI's adapter bypass operations.
 
 ### Example
 
@@ -72,6 +83,35 @@ LoRAs can be loaded directly from the prompt using `<lora:name:strength>` tags �
 
 The LoRA tags are **kept** in the resolved prompt (so they can be recorded in metadata) and are automatically **stripped before the text is sent to CLIP**, so the tags themselves never pollute the conditioning.
 
+### Different strengths per image
+
+Use an inline choice for the strength:
+
+```text
+A colorful illustration <lora:AdventureTimeStyleAnima:{0.5|1|2|4}>
+```
+
+Each image independently selects a strength. Choices are random, so values may repeat across the batch.
+
+### Different LoRAs per image
+
+Put complete tags inside an inline choice, or store them in wildcard files:
+
+```text
+A portrait {<lora:style_a:0.8>|<lora:style_b:1.2>}
+```
+
+Each choice can also contain several tags to select a complete set of LoRAs. Use LoRAs compatible with the connected base model.
+
+### Shared and per-image LoRAs together
+
+```text
+<lora:anima-turbo-lora-v0.2.safetensors:0.85>
+A colorful illustration <lora:AdventureTimeStyleAnima:{0.5|1|2|4}>
+```
+
+Every image uses the turbo LoRA at `0.85` and independently selects its style strength. Identical leading tags are applied to the shared model; differing tags retain their own strengths for each image. A LoRA with no text-encoder weights affects only the diffusion model, even when the tag specifies a CLIP strength.
+
 ### Interaction with Save Image With Metadata
 
 Because the resolved prompts retain their `<lora:...>` tags, the [Save Image With Metadata](./image_save_with_metadata.md) node decides how to handle them based on its own `strip_lora_prompt` toggle:
@@ -83,10 +123,10 @@ Because the resolved prompts retain their `<lora:...>` tags, the [Save Image Wit
 
 ## Per-Image Resolution & Seeding
 
-Every batch index is resolved and sampled independently:
+Every batch index is resolved and seeded independently:
 
 - **Wildcards** are resolved with `seed + index`, so each image draws a different result while staying fully reproducible.
-- **Noise** for each image is also generated with `seed + index`.
+- **Noise** for each image is also generated with `seed + index`, so each image starts from the same noise it would get if sampled alone. Ancestral and SDE samplers add their own noise during sampling, so their results can differ slightly from sampling each image alone.
 
 Because both use the same base `seed`, re-running with the same `seed` and prompt always reproduces the identical batch. Change the `seed` to get a completely new set of variations.
 
@@ -99,7 +139,7 @@ Because both use the same base `seed`, re-running with the same `seed` and promp
 - `text` — The positive prompt, with wildcard and `<lora:...>` support. Resolved independently for each image in the batch.
 - `negative` — The negative prompt. Supports the exact same wildcard syntax as the positive prompt, and is also resolved independently per image.
 - `seed` — Base seed for **both** wildcard resolution and noise generation. Each image uses `seed + index`.
-- `batch_size` — Number of images to generate sequentially. This is not a true sampler batch; each image resolves its own wildcards and prompt, then runs one after another inside the node.
+- `batch_size` — Number of images to generate. Every image resolves its own wildcards and prompt, and the whole batch is sampled at once.
 - `width` / `height` — Output dimensions for the first pass.
 - `steps` — Number of sampling steps.
 - `cfg` — Classifier-free guidance scale.
@@ -136,13 +176,13 @@ These inputs are hidden behind the node's **Advanced** toggle and are collapsed 
 
 - `recache_wildcards` — Force a reload of all wildcard files from disk. Useful after adding or editing wildcard files. Can be turned off again after running once.
 
-Console logging is no longer a node input. This node resolves wildcards and LoRAs using the same engine as the Wildcard Processor and LoRA Loader Prompt Tags nodes, so enable it in ComfyUI's settings under **⚡MNeMiC Nodes → Wildcard Processing → Console Logging** and **⚡MNeMiC Nodes → LoRA Loading → Console Logging** to see detailed processing steps in your console.
+Console logging is controlled in ComfyUI's settings under **⚡MNeMiC Nodes → Wildcard Processing → Console Logging** and **⚡MNeMiC Nodes → LoRA Loading → Console Logging**. This node uses the same wildcard and LoRA matching engines as the Wildcard Processor and LoRA Loader Prompt Tags nodes.
 
 ---
 
 ## Upscale
 
-When `upscale` is enabled the node runs a second sampling pass on each image at a larger resolution. The process is:
+When `upscale` is enabled the node runs a second sampling pass on the complete batch at a larger resolution, preserving each image's prompts and LoRA settings. The process is:
 
 1. The first-pass latent is decoded to pixel space using the connected VAE.
 2. If an `upscale_model` is connected, AI super-resolution runs first (e.g. a 4x ESRGAN model). The output is then scaled down to the exact target size set by `upscale_rate`, so a 4x model with `upscale_rate = 2.0` gives a clean 2× final image.
@@ -155,14 +195,14 @@ The upscale pass requires a VAE to be connected. If `upscale` is on but no VAE i
 
 ## Outputs
 
-- `model` — The model after LoRA patches from the last batch item have been applied. Useful for chaining into other nodes.
-- `clip` — The CLIP after LoRA patches from the last batch item have been applied.
-- `positive` — The positive conditioning encoded from the last batch item's resolved prompt.
-- `negative` — The negative conditioning encoded from the last batch item's resolved prompt.
+- `model` — The shared model with per-image LoRA adapters. Reuse with the same latent batch size and order.
+- `clip` — CLIP with shared leading LoRA tags. Per-image CLIP changes are baked into the conditioning outputs.
+- `positive` — The batched positive conditioning, one entry per image in batch order.
+- `negative` — The batched negative conditioning, one entry per image in batch order.
 - `latent` — The combined batch of sampled latents (empty when sampling is skipped). Route this into a VAE Decode to get images.
 - `prompt` — The resolved positive prompt for each image, returned as a list (one entry per batch item). Connect to a **Show Text** node to see each resolved prompt as a separate entry.
 
-> The `model`, `clip`, `positive`, and `negative` outputs reflect the **last** batch item. They are useful for passing conditionings and a patched model downstream without needing separate encoder nodes.
+> The `positive` and `negative` outputs line up with the `latent` batch, so a downstream KSampler fed the latent still gives every image its own prompt. Use the returned `model` to retain per-image LoRAs; keep the latent batch size and order unchanged.
 
 ---
 
@@ -220,4 +260,12 @@ Alternatively, wire this node's `prompt` list output into the saver's `positive_
 
 **To use downstream conditionings:**
 
-Connect the `positive` and `negative` outputs to other nodes (e.g. a second KSampler) to reuse the encoded conditioning from the last batch item without needing separate CLIPTextEncode nodes.
+Connect the `model`, `positive`, `negative`, and `latent` outputs to a downstream sampler to preserve per-image conditioning and LoRA settings. Keep the batch size and image order unchanged. Anima also requires the returned model for its per-prompt text preprocessing.
+
+## Compatibility and Limits
+
+Anima preserves each image's T5 IDs, token weights, and original Qwen embeddings until its model-side text preprocessing runs. The processed conditionings are then stacked for batched denoising. Downstream samplers must use this node's returned model alongside its conditioning outputs. Constant per-image LoRA patches are routed to the correct image during preprocessing; step-scheduled patches apply during denoising only.
+
+Prompt embeddings with different lengths are padded (or repeated for compatible CLIP lengths). Padding can change results on models that ignore attention masks. Initial noise uses each image's seed; ancestral/SDE sampling uses the batch's first seed for later noise, so results need not match separate runs. Auxiliary Llama/byT5 conditionings are also stacked. Unsupported differing metadata raises an error rather than reusing another image's conditioning.
+
+Anima and SDXL are confirmed working. Other architectures depend on their conditioning formats and layer layouts. Per-image adapter routing assumes layers retain the image batch dimension or flatten contiguous tokens per image; custom models that reorder or split rows need dedicated support. Per-image LoRAs require ComfyUI's weight-adapter bypass APIs.
