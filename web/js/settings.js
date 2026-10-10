@@ -9,6 +9,15 @@ app.registerExtension({
   name: "MNeMiC.Settings",
   settings: [
     {
+      id: "MNeMiC.WorkflowFolders.Enabled",
+      name: "Enhance native workflow folders",
+      category: ["⚡MNeMiC Nodes", "Workflow Folders", "Enabled"],
+      tooltip: "Add folder creation, renaming, drag/drop moves, Open folder and Copy path to the native Workflows sidebar. Turn off to remove the added controls immediately; folders and workflows stay on disk.",
+      type: "boolean",
+      defaultValue: true,
+      onChange: () => window.dispatchEvent(new Event("mnemic-workflow-folders-changed")),
+    },
+    {
       id: "MNeMiC.LoRALoading.ConsoleLogging",
       name: "Console logging",
       category: ["⚡MNeMiC Nodes", "LoRA Loading", "Console Logging"],

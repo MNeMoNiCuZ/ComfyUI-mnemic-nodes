@@ -1,7 +1,7 @@
 [project]
 name = "comfyui-mnemic-nodes"
-description = "LoRA Tag Loader now also supports timing control for video LoRA loading. Batch processing is now (hopefully), actually processing the batch at the same time."
-version = "3.1.6"
+description = "Added improvements to the folder handling of the Workflows section in the ComfyUI side menu"
+version = "3.1.7"
 license = { file = "LICENSE" }
 dependencies = ["configparser", "groq", "transformers", "torch", "tiktoken", "imageio", "tqdm", "piexif", "requests", "colorama", "opencv-python", "python-dotenv"]
 

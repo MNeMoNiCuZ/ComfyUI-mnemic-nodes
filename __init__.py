@@ -51,6 +51,7 @@ from .nodes.ideogram4_random_prompter import Ideogram4RandomPrompter
 from .nodes.image_save_with_metadata import ImageSaveWithMetadata
 from .utils.image_save_runtime_hook import install_runtime_hooks
 from .utils.llm_routes import register_llm_routes
+from .utils.workflow_folders import register_workflow_folder_routes
 from .utils.env_manager import ensure_env_file
 
 
@@ -170,6 +171,7 @@ class MnemicExtension(ComfyExtension):
         ensure_env_file()
         register_llm_routes()
         register_load_images_routes()
+        register_workflow_folder_routes()
 
         by_new_id = {}
         for node_cls in await self.get_node_list():

@@ -14,6 +14,14 @@ API keys and private server addresses for the ✨ LLM nodes live in a `.env` fil
 
 `.env` is git-ignored and read only by the ComfyUI backend. Nothing in it is ever written into a workflow or an image's metadata, so sharing those is safe.
 
+## Workflow sidebar tools
+
+The native **Workflows** sidebar gains folder/subfolder creation, folder renaming,
+drag/drop moves, and **Open folder / Copy path** folder-menu actions. Configured
+links to workflow libraries on other drives are supported. See
+[Workflow folders](./README/workflow_folders.md) for usage and compatibility.
+Restart ComfyUI and refresh the browser after installing this feature.
+
 # Nodes
 
 ## 🔀 [Batch Wildcard Upscale Sampler](./README/batch_wildcard_sampler.md)
