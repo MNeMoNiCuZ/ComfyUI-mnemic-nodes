@@ -12,6 +12,8 @@ import {
 const SETTING = "MNeMiC.WorkflowFolders.Enabled";
 const PANEL = '[data-testid="workflows-sidebar"].workflows-sidebar-tab';
 const BROWSE = ".comfyui-workflows-browse";
+const SEARCH = ".comfyui-workflows-search-panel";
+const TREE_SECTION = `${BROWSE}, ${SEARCH}`;
 const ROW = ".p-tree-node-content";
 const NODE = '.tree-node[data-testid^="tree-node-root/"]';
 const MIME = "application/x-mnemic-workflow-path";
@@ -73,13 +75,19 @@ function addStyles() {
             margin-left: var(--p-tree-node-gap, 4px); }
         .mnm-wf-extra .tree-node { display: flex; align-items: center; justify-content: space-between; width: 100%; }
         .mnm-wf-extra .p-tree-node-children { padding: var(--p-tree-node-children-padding, 0 0 0 16px); list-style: none; }
-        .mnm-wf-menu { position: fixed; z-index: 10020; min-width: 190px; padding: 5px;
+        .mnm-wf-menu { position: fixed; z-index: 10020; display: flex; flex-direction: column;
+            width: max-content; min-width: 0; max-width: calc(100vw - 8px); box-sizing: border-box; padding: 5px;
             background: var(--p-menu-background, var(--comfy-menu-bg, #252525));
             color: var(--p-menu-color, var(--fg-color, #ddd));
             border: 1px solid #80808060; border-radius: 6px; box-shadow: 0 4px 18px #0006; }
-        .mnm-wf-menu .mnm-wf-button { width: 100%; justify-content: flex-start; font-size: 13px;
+        .mnm-wf-menu .mnm-wf-button { width: auto; justify-content: flex-start; font-size: 13px; white-space: nowrap;
             padding: 8px 10px; color: var(--p-menu-color, var(--fg-color, #ddd)); }
         .mnm-wf-menu .mnm-wf-button > i { width: 16px; flex: none; }
+        .mnm-wf-native-move .mnm-wf-button { width: 100%; justify-content: flex-start;
+            gap: var(--p-contextmenu-item-gap, 8px); padding: var(--p-contextmenu-item-padding, 8px 12px);
+            font: inherit; border-radius: var(--p-contextmenu-item-border-radius, 4px); }
+        .mnm-wf-native-move .p-contextmenu-item-icon { color: var(--p-contextmenu-item-icon-color, inherit);
+            font-size: 1rem; flex: none; }
         .mnm-wf-dialog { width: 380px; max-width: calc(100vw - 32px); border: 1px solid #80808060;
             border-radius: 8px; background: var(--p-content-background, var(--comfy-menu-bg, #252525));
             color: var(--p-content-color, var(--fg-color, #ddd)); padding: 20px; }
@@ -103,6 +111,7 @@ class WorkflowFolders {
         this.folders = new Set();
         this.expanded = new Set();
         this.originalDraggable = new Map();
+        this.nativeMenuEdits = [];
         this.events = new AbortController();
         this.alive = true;
         this.busy = false;
@@ -133,6 +142,10 @@ class WorkflowFolders {
             drop: e => this.onDrop(e),
             dragend: () => this.clearDrag(),
         })) panel.addEventListener(event, handler, { capture: true, signal: this.events.signal });
+        document.addEventListener("dragend", () => this.clearDrag(), { capture: true, signal: this.events.signal });
+        document.addEventListener("dragover", event => {
+            if (this.drag && !panel.contains(event.target)) this.stopAutoScroll();
+        }, { capture: true, signal: this.events.signal });
         this.schedule();
         this.refreshInfo();
     }
@@ -203,21 +216,27 @@ class WorkflowFolders {
     rowAt(target) {
         if (!(target instanceof Element)) return null;
         const row = target.closest(ROW);
-        if (!row || !row.closest(BROWSE) || !this.panel.contains(row)) return null;
+        if (!row || !row.closest(TREE_SECTION) || !this.panel.contains(row)) return null;
         const node = row.querySelector(NODE);
         if (!node) return null;
         return { row, node, path: this.pathFor(node), folder: node.classList.contains("tree-folder") };
     }
 
     decorate() {
-        const browse = this.panel.querySelector(BROWSE);
-        if (!browse || !this.store) return;
-        const browseRow = browse.firstElementChild;
-        if (browseRow && this.tools.parentElement !== browseRow) browseRow.append(this.tools);
+        if (!this.store) return;
         const nativePaths = nativeFolderPaths(this.store.persistedWorkflows ?? []);
         // Existing native folders are real paths too, including directory links
         // which older backend listings omitted. Give every native row actions.
         const folders = this.folders = new Set([...this.info.folders, ...nativePaths]);
+        // Search mounts a separate native tree and removes Browse entirely.
+        // Decorate only its matching rows; never inject unrelated empty folders.
+        const search = this.panel.querySelector(SEARCH);
+        if (search) this.decorateFolderRows(search);
+        for (const row of this.originalDraggable.keys()) if (!row.isConnected) this.originalDraggable.delete(row);
+        const browse = this.panel.querySelector(BROWSE);
+        if (!browse) return;
+        const browseRow = browse.firstElementChild;
+        if (browseRow && this.tools.parentElement !== browseRow) browseRow.append(this.tools);
         // If native workflows have appeared in an injected folder, remove its
         // old empty-folder row; Vue owns the replacement and its children.
         for (const extra of browse.querySelectorAll(".mnm-wf-extra")) {
@@ -270,9 +289,14 @@ class WorkflowFolders {
             return item;
         };
         for (const path of [...folders].sort((a, b) => a.split("/").length - b.split("/").length || a.localeCompare(b))) ensureFolder(path);
-        for (const [path, item] of rows) {
-            if (!item || !folders.has(path)) continue;
-            const row = item.querySelector(`:scope > ${ROW}`);
+        this.decorateFolderRows(browse);
+    }
+
+    decorateFolderRows(section) {
+        for (const node of section.querySelectorAll(`${NODE}.tree-folder`)) {
+            const path = this.pathFor(node);
+            if (!this.folders.has(path)) continue;
+            const row = node.closest(ROW);
             if (!row) continue;
             if (!this.originalDraggable.has(row)) {
                 this.originalDraggable.set(row, row.getAttribute("draggable"));
@@ -284,7 +308,6 @@ class WorkflowFolders {
                     this.folderMenu(path, box.left, box.bottom);
                 });
                 action.classList.add("mnm-wf-folder-action");
-                const node = row.querySelector(NODE);
                 (node?.querySelector(".node-actions") ?? node ?? row).append(action);
             }
         }
@@ -345,12 +368,91 @@ class WorkflowFolders {
 
     onContextMenu(event) {
         const data = this.rowAt(event.target);
-        if (data && (!data.folder || !this.folders.has(data.path))) return;
+        this.closeMenu();
+        this.clearNativeMenu();
+        if (data && !data.folder) {
+            // Let Vue open its menu first; retain all native commands.
+            this.nativeMenuFrame = requestAnimationFrame(() => {
+                this.nativeMenuFrame = 0;
+                if (this.alive) this.enhanceWorkflowMenu(data.path);
+            });
+            return;
+        }
+        if (data && !this.folders.has(data.path)) return;
         const root = !data && this.dropTarget(event.target);
         if (!data && !root) return;
         event.preventDefault();
         event.stopImmediatePropagation();
         this.folderMenu(data?.path ?? "", event.clientX, event.clientY);
+    }
+
+    clearNativeMenu() {
+        cancelAnimationFrame(this.nativeMenuFrame);
+        this.nativeMenuEvents?.abort();
+        this.nativeMoveItem?.remove();
+        this.nativeMoveItem = null;
+        for (const [node, title] of this.nativeMenuEdits) {
+            if (title === null) node.removeAttribute("title"); else node.title = title;
+        }
+        this.nativeMenuEdits = [];
+    }
+
+    enhanceWorkflowMenu(path) {
+        const menu = [...document.querySelectorAll(".p-contextmenu")].find(node => node.getClientRects().length);
+        const list = menu?.querySelector(".p-contextmenu-root-list");
+        if (!list) return;
+        const descriptions = {
+            Rename: "Change this workflow's filename.",
+            Delete: "Delete this saved workflow from disk.",
+            Insert: "Add this workflow's nodes and connections to the current canvas, keeping the nodes already there.",
+            Duplicate: "Create a separate copy of this workflow.",
+        };
+        for (const item of list.querySelectorAll(".p-contextmenu-item")) {
+            const description = descriptions[item.getAttribute("aria-label")];
+            if (!description) continue;
+            const link = item.querySelector(".p-contextmenu-item-link");
+            for (const node of [item, link].filter(Boolean)) {
+                this.nativeMenuEdits.push([node, node.getAttribute("title")]);
+                node.title = description;
+            }
+        }
+        const item = this.nativeMoveItem = element("li", "p-contextmenu-item mnm-wf-native-move");
+        item.setAttribute("role", "none");
+        const move = button("Move this workflow to another folder, keeping its filename.", "pi-sign-out", () => {
+            list.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", code: "Escape", bubbles: true }));
+            this.clearNativeMenu();
+            this.moveDialog(path, false);
+        }, "Move To...");
+        move.classList.add("p-contextmenu-item-link");
+        move.querySelector("i").classList.add("p-contextmenu-item-icon");
+        move.setAttribute("role", "menuitem");
+        move.disabled = this.busy || this.store?.isBusy;
+        const content = element("div", "p-contextmenu-item-content");
+        content.append(move);
+        item.append(content);
+        list.append(item);
+        this.nativeMenuEvents = new AbortController();
+        // Include the added command in keyboard navigation without changing
+        // Vue's menu model or command handlers.
+        list.addEventListener("keydown", event => {
+            const links = [...list.querySelectorAll(".p-contextmenu-item-link, button:not(:disabled)")];
+            const index = links.indexOf(document.activeElement);
+            if (["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
+                event.preventDefault();
+                event.stopImmediatePropagation();
+                const next = event.key === "Home" ? 0 : event.key === "End" ? links.length - 1
+                    : index < 0 ? (event.key === "ArrowDown" ? 0 : links.length - 1)
+                    : (index + (event.key === "ArrowDown" ? 1 : -1) + links.length) % links.length;
+                links[next]?.focus();
+            } else if (["Enter", " "].includes(event.key) && index >= 0) {
+                event.preventDefault();
+                event.stopImmediatePropagation();
+                links[index].click();
+            }
+        }, { capture: true, signal: this.nativeMenuEvents.signal });
+        // Adding a row can push a menu opened near the bottom off screen.
+        const box = menu.getBoundingClientRect();
+        if (box.bottom > innerHeight - 4) menu.style.top = `${Math.max(4, innerHeight - box.height - 4) + scrollY}px`;
     }
 
     closeMenu() {
@@ -364,16 +466,16 @@ class WorkflowFolders {
         const menu = this.menu = element("div", "mnm-wf-menu");
         menu.setAttribute("role", "menu");
         const choices = [
-            [path ? "New subfolder" : "New folder", "pi-folder-plus", () => this.createDialog(path)],
+            [path ? "New subfolder" : "New folder", "pi-folder-plus", () => this.createDialog(path), "Create a folder inside this folder."],
             ...(path ? [
-                ["Rename folder", "pi-pencil", () => this.renameDialog(path)],
-                ["Move folder to…", "pi-arrow-right", () => this.moveDialog(path)],
+                ["Rename folder", "pi-pencil", () => this.renameDialog(path), "Change this folder's name, keeping its contents."],
+                ["Move To...", "pi-sign-out", () => this.moveDialog(path), "Move this folder and all its contents to another folder."],
             ] : []),
-            ["Open folder", "pi-folder-open", () => this.openFolder(path)],
-            ["Copy folder path", "pi-copy", () => this.copyPath(path)],
+            ["Open folder", "pi-folder-open", () => this.openFolder(path), "Open this folder in the file manager on the ComfyUI machine (local connections only)."],
+            ["Copy folder path", "pi-copy", () => this.copyPath(path), "Copy this folder's absolute disk path to the clipboard."],
         ];
-        for (const [label, icon, action] of choices) {
-            const choice = button(label, icon, () => { this.closeMenu(); action(); }, label);
+        for (const [label, icon, action, tooltip] of choices) {
+            const choice = button(tooltip, icon, () => { this.closeMenu(); action(); }, label);
             choice.setAttribute("role", "menuitem");
             choice.disabled = this.busy || (label === "Open folder" && !this.info.can_open);
             menu.append(choice);
@@ -419,6 +521,7 @@ class WorkflowFolders {
             }
             else { input.type = "text"; input.required = true; }
             input.value = field.value ?? "";
+            if (field.tooltip) input.title = field.tooltip;
             controls[field.id] = input;
             form.append(label, input);
         }
@@ -474,10 +577,11 @@ class WorkflowFolders {
             values => this.move(path, joinPath(parentPath(path), validateName(values.name)), true), "Rename");
     }
 
-    moveDialog(path) {
+    moveDialog(path, folder = true) {
         this.dialog(`Move ${basename(path)}`, [
-            { id: "parent", label: "Destination folder", options: this.folderOptions(path), value: parentPath(path) },
-        ], values => this.move(path, joinPath(values.parent, basename(path)), true), "Move");
+            { id: "parent", label: "Destination folder", options: this.folderOptions(folder ? path : null), value: parentPath(path),
+                tooltip: "Choose the folder to move this item into. Root is the top level of Workflows." },
+        ], values => this.move(path, joinPath(values.parent, basename(path)), folder), "Move");
     }
 
     async operation(action) {
@@ -585,8 +689,14 @@ class WorkflowFolders {
     }
 
     onDragOver(event) {
+        if (!this.drag || this.busy) return;
+        this.updateAutoScroll(event);
         const target = this.dropTarget(event.target);
-        if (!target || !this.drag || this.busy) return;
+        if (!target) {
+            this.dropElement?.classList.remove("mnm-wf-drop");
+            this.dropElement = null;
+            return;
+        }
         event.preventDefault();
         event.stopImmediatePropagation();
         const destination = joinPath(target.path, basename(this.drag.path));
@@ -600,6 +710,7 @@ class WorkflowFolders {
     }
 
     onDragLeave(event) {
+        if (!this.panel.contains(event.relatedTarget)) this.stopAutoScroll();
         if (this.dropElement && !this.dropElement.contains(event.relatedTarget)) {
             this.dropElement.classList.remove("mnm-wf-drop");
             this.dropElement = null;
@@ -607,6 +718,7 @@ class WorkflowFolders {
     }
 
     onDrop(event) {
+        this.stopAutoScroll();
         const target = this.dropTarget(event.target);
         if (!target || !this.drag) return;
         event.preventDefault();
@@ -619,9 +731,65 @@ class WorkflowFolders {
     }
 
     clearDrag() {
+        this.stopAutoScroll();
         this.dropElement?.classList.remove("mnm-wf-drop");
         this.dropElement = null;
         this.drag = null;
+    }
+
+    updateAutoScroll(event) {
+        // Find the actual scroll container; frontend versions may put it on
+        // the tree, sidebar body, or a wrapping ScrollPanel element.
+        let container = event.target instanceof Element ? event.target : null;
+        while (container && this.panel.contains(container)) {
+            const overflow = getComputedStyle(container).overflowY;
+            if (container.scrollHeight > container.clientHeight && /^(auto|scroll)$/.test(overflow)) break;
+            container = container.parentElement;
+        }
+        if (!container || !this.panel.contains(container)) {
+            this.stopAutoScroll();
+            return;
+        }
+        const box = container.getBoundingClientRect();
+        const panelBox = this.panel.getBoundingClientRect();
+        const top = Math.max(box.top, panelBox.top, 0);
+        const bottom = Math.min(box.bottom, panelBox.bottom, innerHeight);
+        const edge = Math.min(56, (bottom - top) / 3);
+        const y = event.clientY;
+        const speed = y < top + edge ? -Math.min(1, (top + edge - y) / edge)
+            : y > bottom - edge ? Math.min(1, (y - bottom + edge) / edge) : 0;
+        if (!speed || bottom <= top || event.clientX < box.left || event.clientX > box.right) {
+            this.stopAutoScroll();
+            return;
+        }
+        this.scrollDrag = { container, speed, x: event.clientX, y };
+        if (this.scrollFrame) return;
+        let previous = performance.now();
+        const tick = now => {
+            this.scrollFrame = 0;
+            if (!this.drag || !this.alive || this.busy || !this.scrollDrag?.container.isConnected) {
+                this.stopAutoScroll();
+                return;
+            }
+            const { container, speed, x, y } = this.scrollDrag;
+            container.scrollTop += speed * 650 * Math.min(now - previous, 40) / 1000;
+            previous = now;
+            // Rows move beneath a stationary pointer. Keep drop feedback in
+            // sync even when the browser sends no fresh dragover event.
+            const target = this.dropTarget(document.elementFromPoint(x, y));
+            this.dropElement?.classList.remove("mnm-wf-drop");
+            this.dropElement = target?.element ?? null;
+            const invalid = target && this.drag.folder && isWithin(joinPath(target.path, basename(this.drag.path)), this.drag.path);
+            this.dropElement?.classList.toggle("mnm-wf-drop", !invalid);
+            this.scrollFrame = requestAnimationFrame(tick);
+        };
+        this.scrollFrame = requestAnimationFrame(tick);
+    }
+
+    stopAutoScroll() {
+        cancelAnimationFrame(this.scrollFrame);
+        this.scrollFrame = 0;
+        this.scrollDrag = null;
     }
 
     dispose() {
@@ -632,6 +800,7 @@ class WorkflowFolders {
         cancelAnimationFrame(this.frame);
         clearTimeout(this.refreshTimer);
         this.closeMenu();
+        this.clearNativeMenu();
         this.dialogNode?.close();
         this.clearDrag();
         this.tools.remove();

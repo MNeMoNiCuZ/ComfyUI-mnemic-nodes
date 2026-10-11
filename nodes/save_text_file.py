@@ -135,17 +135,13 @@ class SaveTextFile(io.ComfyNode):
                 prefix = prefix[:max_filename_len]
                 suffix = ""
 
-        # Safety check to prevent directory traversal
-        if '..' in path or any(esc in path for esc in ['..\\', '../']):
-            raise ValueError("The specified path contains invalid characters that navigate outside the output directory.")
+        if os.path.isabs(path) or os.path.splitdrive(path)[0]:
+            raise ValueError("The path must be a folder inside the output directory, not an absolute path.")
 
-        # Get the base output directory from folder_paths
-        output_base_dir = get_output_directory()
-        full_path = os.path.join(output_base_dir, path)
-        full_path = os.path.abspath(full_path)
-
-        # Ensure the path is within the allowed directory
-        if not full_path.startswith(output_base_dir):
+        # Resolve symlinks and ".." before checking containment
+        output_base_dir = os.path.realpath(get_output_directory())
+        full_path = os.path.realpath(os.path.join(output_base_dir, path))
+        if os.path.commonpath([output_base_dir, full_path]) != output_base_dir:
             raise ValueError("The specified path is outside the allowed output directory")
 
         if not os.path.exists(full_path):
@@ -179,6 +175,9 @@ class SaveTextFile(io.ComfyNode):
     def save_with_conflict_handling(cls, path, stem, extension, content, mode, separator, padding):
         filename = stem + extension
         if mode == "overwrite":
+            # A symlink here could redirect the write outside the output directory
+            if os.path.islink(os.path.join(path, filename)):
+                raise ValueError(f"Refusing to overwrite symlink `{filename}`.")
             cls.writeTextFile(os.path.join(path, filename), content)
             return filename
 

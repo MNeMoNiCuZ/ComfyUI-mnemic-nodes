@@ -10,7 +10,6 @@ import os
 import re
 import threading
 from collections import deque
-from datetime import datetime
 
 import folder_paths
 import numpy as np
@@ -18,6 +17,7 @@ from PIL import Image
 
 from comfy_api.latest import io
 
+from ..utils.date_templates import resolve_date_template as _resolve_strftime
 from ..utils.image_save_with_metadata_civitai import (
     civitai_lora_key_name,
     get_civitai_sampler_name,
@@ -520,41 +520,6 @@ def _extract_from_workflow(prompt: dict) -> dict:
         "height": int(height),
         "denoise": _first_direct(prompt, DENOISE_FIELDS, 1.0),
     }
-
-
-def _format_like_format_date_time(date_format: str, respect_system_locale: bool = False) -> str:
-    now = datetime.now()
-    temp_format = date_format.replace("%%", "__DOUBLE_PERCENT_PLACEHOLDER__")
-    if not respect_system_locale:
-        temp_format = temp_format.replace("%x", "%Y-%m-%d")
-        temp_format = temp_format.replace("%c", "%Y-%m-%d %H.%M.%S")
-    temp_format = re.sub(r"(?<!%)%w", str(now.weekday()), temp_format)
-    temp_format = re.sub(r"(?<!%)%u", str(now.isoweekday() % 7), temp_format)
-    formatted_string = now.strftime(temp_format).replace("__DOUBLE_PERCENT_PLACEHOLDER__", "%")
-    if "%X" in date_format:
-        formatted_string = formatted_string.replace(now.strftime("%X"), now.strftime("%X").replace(":", "."))
-    if "%c" in date_format:
-        formatted_string = formatted_string.replace(now.strftime("%c"), now.strftime("%c").replace(":", "."))
-    return formatted_string
-
-
-def _resolve_strftime(text: str) -> str:
-    pattern = re.compile(r"%date:([^%]+)%")
-    if pattern.search(text):
-        def repl(match):
-            fmt = match.group(1)
-            converted = (
-                fmt.replace("yyyy", "%Y")
-                .replace("MM", "%m")
-                .replace("dd", "%d")
-                .replace("hh", "%H")
-                .replace("mm", "%M")
-                .replace("ss", "%S")
-            )
-            return _format_like_format_date_time(converted)
-
-        return pattern.sub(repl, text)
-    return _format_like_format_date_time(text)
 
 
 def _parse_ckpt_basename(ckpt_name: str) -> str:

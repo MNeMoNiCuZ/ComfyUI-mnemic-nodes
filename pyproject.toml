@@ -1,7 +1,7 @@
 [project]
 name = "comfyui-mnemic-nodes"
-description = "Added improvements to the folder handling of the Workflows section in the ComfyUI side menu"
-version = "3.1.7"
+description = "Improved workflow management in sidebar menu. More settings and works in search mode. Reordered inputs for LoRA loader. Added more path escape safety features to DownloadImageFromURL and improved the features in general"
+version = "3.1.8"
 license = { file = "LICENSE" }
 dependencies = ["configparser", "groq", "transformers", "torch", "tiktoken", "imageio", "tqdm", "piexif", "requests", "colorama", "opencv-python", "python-dotenv"]
 

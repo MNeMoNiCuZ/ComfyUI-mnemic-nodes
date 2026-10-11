@@ -12,7 +12,7 @@ Open **Workflows** in the left sidebar.
 - The **folder-plus icon** at the right end of the **Browse** row creates a
   folder. Choose its parent to create a subfolder. There is no extra toolbar row.
 - **Right-click a folder**, or click its vertical **⋮** button, for **New subfolder**,
-  **Rename folder**, **Move folder to…**, **Open folder**, and **Copy folder path**.
+  **Rename folder**, **Move To...**, **Open folder**, and **Copy folder path**.
   Every folder's menu button stays visible, including folders created outside ComfyUI.
 - **Open folder** opens the real directory in Explorer, Finder, or the Linux
   desktop file manager. It is available when connecting through loopback on the
@@ -22,15 +22,26 @@ Open **Workflows** in the left sidebar.
 - **Drag workflows or folders onto a folder** to move them into it. Drop onto the
   **Browse** row or empty tree background to move an item back to the root. Drop
   feedback appears only while dragging; there is no dedicated drop strip.
+- Hold a dragged workflow or folder near the top or bottom edge of the list to
+  scroll automatically. Scrolling continues while you hold the pointer there;
+  move away from the edge or finish the drag to stop.
+- **Right-click a workflow or folder → Move To...** opens a destination picker,
+  including the workflow root and folders whose tree branches are collapsed.
+  The item keeps its name. A folder's own subtree is excluded from destinations.
+- Menu actions have explanatory tooltips. **Insert** adds the saved workflow's
+  nodes and connections to the current canvas, keeping the nodes already there.
 - **Right-click a workflow → Rename** uses ComfyUI's existing workflow rename action.
 - The native **Refresh** button re-reads workflows and folders from disk. Use it
   after creating, moving, or renaming folders in your system's file manager.
   It fetches folders directly without browser caching, including empty root folders.
   Empty directories appear alongside the native workflow tree and can be expanded.
 
-Folder drag/drop and folder actions apply to the **Browse** section. Native
-workflow loading, search, bookmarks, and workflow-to-canvas dragging remain
-available. The tree lists folders alphabetically before workflow files.
+Folder drag/drop and folder actions apply to **Browse** and **search results**.
+Right-click a workflow in either tree to use **Move To...** alongside its native
+commands. Search shows actions on matching folders without adding unrelated
+empty folders. Native workflow loading, bookmarks, and workflow-to-canvas
+dragging remain available. The tree lists folders alphabetically before workflow
+files.
 
 The tree includes ordinary folders and configured directory links/junctions,
 including links to workflow libraries on other drives. It follows linked
@@ -72,7 +83,7 @@ is not included.
 The JavaScript state regression checks run with:
 
 ```powershell
-node --test tests/workflow_folder_core.test.mjs
+node --test tests/workflow_folder_core.test.mjs tests/workflow_folders_interaction.test.mjs
 ```
 
 Browser checks used disk-derived directory listings and temporary in-memory

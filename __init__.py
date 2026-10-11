@@ -133,6 +133,25 @@ def _build_replacement(old_node_id: str, node_cls: type[io.ComfyNode]) -> io.Nod
     values in a saved workflow JSON are matched back to input ids.
     """
     schema = node_cls.GET_SCHEMA()
+    if schema.node_id == "MNeMiC_DownloadImageFromURL":
+        # Legacy API prompts have no explicit save flag. Keep their settings,
+        # with permanent saves disabled until saving is explicitly enabled.
+        return io.NodeReplace(
+            new_node_id=schema.node_id,
+            old_node_id=old_node_id,
+            old_widget_ids=["image_url", "save_file_name_override", "save_path"],
+            input_mapping=[
+                {"new_id": "image_url", "old_id": "image_url"},
+                {"new_id": "name", "old_id": "save_file_name_override"},
+                {"new_id": "path", "old_id": "save_path"},
+                {"new_id": "save", "set_value": False},
+                {"new_id": "save_location", "set_value": "input"},
+                {"new_id": "overwrite", "set_value": False},
+                {"new_id": "file_format", "set_value": "png"},
+                {"new_id": "quality", "set_value": 100},
+            ],
+            output_mapping=[{"new_idx": i, "old_idx": i} for i in range(len(schema.outputs))],
+        )
     old_input_ids = {"input_path": "folder_path"} if schema.node_id in (
         "MNeMiC_LoadTextImagePairSingle", "MNeMiC_LoadTextImagePairsList"
     ) else {}
