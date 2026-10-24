@@ -5,6 +5,8 @@ from pathlib import Path
 import json
 import folder_paths
 from .file_utils import find_best_match
+from .wildcard_documents import resolve_document
+from .wildcard_provenance import WILDCARD_RE
 from colorama import Fore, Style
 
 class WildcardManager:
@@ -16,6 +18,7 @@ class WildcardManager:
         self.variables = {}
         self.separator = " "
         self.first_wildcard_processed = False
+        self.max_nested_passes = 10
 
     def wildcard_log(self, message, level=0):
         if self.console_log:
@@ -91,42 +94,47 @@ class WildcardManager:
 
         return all_files
 
-    def get_wildcard_options(self, wildcard_name):
+    def get_wildcard_options(self, wildcard_name, whole_document=False):
         if self.console_log:
             if self.first_wildcard_processed:
                 print(f"\n{Fore.CYAN}{'-----' * 21}{Style.RESET_ALL}\n")
             find_best_match(wildcard_name, self.wildcard_files, log=True, wildcard_paths=self.get_all_wildcard_paths())
             self.first_wildcard_processed = True
 
-        if wildcard_name in self.wildcard_cache:
-            return self.wildcard_cache[wildcard_name]
+        cache_key = (wildcard_name, whole_document)
+        if cache_key in self.wildcard_cache:
+            return self.wildcard_cache[cache_key]
 
         best_match = find_best_match(wildcard_name, self.wildcard_files, log=False, wildcard_paths=self.get_all_wildcard_paths())
 
         if not best_match:
-            self.wildcard_cache[wildcard_name] = None
+            self.wildcard_cache[cache_key] = None
             return None
 
         try:
             with open(best_match, 'r', encoding='utf-8') as f:
-                lines = [line.rstrip('\r\n') for line in f if line.rstrip('\r\n') and not line.lstrip().startswith('#')]
+                lines = [f.read()] if whole_document else [line.rstrip('\r\n') for line in f if line.rstrip('\r\n') and not line.lstrip().startswith('#')]
         except UnicodeDecodeError:
             self.wildcard_log(f"{Fore.YELLOW}Warning: Could not decode {os.path.basename(best_match)} as UTF-8. Trying with 'latin-1' encoding.", level=1)
             with open(best_match, 'r', encoding='latin-1') as f:
-                lines = [line.rstrip('\r\n') for line in f if line.rstrip('\r\n') and not line.lstrip().startswith('#')]
+                lines = [f.read()] if whole_document else [line.rstrip('\r\n') for line in f if line.rstrip('\r\n') and not line.lstrip().startswith('#')]
         
-        self.wildcard_cache[wildcard_name] = lines
+        self.wildcard_cache[cache_key] = lines
         return lines
 
     def _evaluate_file_wildcard(self, match):
-        wildcard_name = match.group(1)
+        wildcard_name = match.group("wildcard_name")
+        whole_document = match.group("delimiter") == "___"
         is_glob = any(c in wildcard_name for c in '*?[]')
 
         if not is_glob:
-            options = self.get_wildcard_options(wildcard_name)
+            options = self.get_wildcard_options(wildcard_name, whole_document=whole_document)
             if not options:
                 return match.group(0)
-            chosen_option = self._process_text(random.choice(options))
+            if whole_document:
+                chosen_option = resolve_document(self, wildcard_name, options[0], match.group(0))
+            else:
+                chosen_option = self._process_text(random.choice(options))
             self.wildcard_log(f"{Style.DIM}Evaluated {match.group(0)} -> {Style.NORMAL}{Fore.MAGENTA}{chosen_option}", level=1)
             return chosen_option
 
@@ -153,7 +161,7 @@ class WildcardManager:
                 base_path = next(p for p in wildcard_paths if Path(p) in file_path.parents)
                 relative_path = file_path.relative_to(base_path)
                 file_wildcard_name = str(relative_path).replace('\\', '/').replace('.txt', '')
-                lines = self.get_wildcard_options(file_wildcard_name)
+                lines = self.get_wildcard_options(file_wildcard_name, whole_document=whole_document)
                 if lines:
                     all_lines.extend(lines)
             except StopIteration:
@@ -163,7 +171,9 @@ class WildcardManager:
             self.wildcard_log(f"{Fore.YELLOW}Warning: Glob pattern '{wildcard_name}' matched files, but they are empty or contain only comments.", level=1)
             return match.group(0)
 
-        chosen_option = self._process_text(random.choice(all_lines))
+        selected = random.choice(all_lines)
+        chosen_option = (resolve_document(self, wildcard_name, selected, match.group(0))
+                         if whole_document else self._process_text(selected))
         self.wildcard_log(f"{Style.DIM}Evaluated glob {match.group(0)} -> {Style.NORMAL}{Fore.MAGENTA}{chosen_option}", level=1)
         return chosen_option
 
@@ -233,14 +243,14 @@ class WildcardManager:
         return result
 
     def _process_text(self, text):
-        while True:
+        for _ in range(self.max_nested_passes):
             original_text = text
             
             for var_name, var_value in self.variables.items():
                 text = text.replace(f"${{{var_name}}}", var_value)
 
             text = re.sub(r'{([^{}]*?)}', self.evaluate_curly_braces, text)
-            text = re.sub(r'__([a-zA-Z0-9_./\\*?\[\] -]+?)__', self._evaluate_file_wildcard, text)
+            text = WILDCARD_RE.sub(self._evaluate_file_wildcard, text)
 
             if text == original_text:
                 break

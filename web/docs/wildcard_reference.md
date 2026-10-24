@@ -32,6 +32,62 @@ and contains matches provide fallbacks. **Fuzzy search** is off by default;
 when enabled it also accepts reordered words and interchangeable spaces,
 underscores, and hyphens when no literal match is found.
 
+### Whole-document wildcards
+
+`___filename___` (three underscores on each side) inserts the entire contents
+of `filename.txt`. Use it for a multi-paragraph prompt, reusable instructions,
+or a complete scene description. It uses the same folders and filename matching
+as `__filename__`, which continues to select one random line.
+
+Line breaks, blank lines, indentation, and `#` lines are kept. Wildcards and
+inline choices inside the document are resolved normally, so syntax such as
+`{red|blue}` still chooses one option. Comment and whitespace rules inside
+choice blocks still apply. This includes text files, not PDF or Word documents.
+
+For example, save this as `wildcards/scenes/forest.txt`:
+
+```text
+A __animal__ in a quiet forest.
+
+Soft {morning|evening} light filters through the trees.
+```
+
+Then use `___scenes/forest___` in your prompt to insert both paragraphs.
+You can mix it with line wildcards:
+
+```text
+___scenes/forest___
+Art style: __styles__
+```
+
+`___scenes/*.txt___` chooses one matching file and inserts its full contents;
+each matched file contributes one choice, regardless of its length. A named
+document without a glob does not consume a random selection for the file itself.
+Missing documents stay as tokens; an empty document inserts empty text. Cyclic
+document includes and document nesting beyond **Max nested passes** leave the
+inner token unresolved. Enable **recache_wildcards** after editing a document.
+
+### Choose one reference, then load its whole document
+
+Use `___{__scene_list__}___` when a wildcard file contains a list of other
+wildcard references. It selects **one line** from `scene_list.txt`, then loads
+**all lines of that one selected file**.
+
+For example, `scene_list.txt` contains:
+
+```text
+__scenes/forest__
+__scenes/beach__
+```
+
+With `___{__scene_list__}___`, the result is the complete `forest.txt` or the
+complete `beach.txt`. It does not combine the two files. Ordinary wildcards
+inside the selected document still select individual lines as usual.
+
+You can also choose a document by name directly: `___{scenes/forest|scenes/beach}___`.
+Alternatively, put `___scenes/forest___` and `___scenes/beach___` in the list
+itself and use the normal `__scene_list__` token to pick one of those entries.
+
 ### Glob wildcards
 
 Patterns collect lines from all matching files and choose one line from that

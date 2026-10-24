@@ -20,7 +20,7 @@
 // Parsing
 // ---------------------------------------------------------------------------
 
-const WILDCARD_RE = /__([a-zA-Z0-9_./\\*?\[\] -]+?)__/y;
+const WILDCARD_RE = /(___|__)([a-zA-Z0-9_./\\*?\[\] -]+?)\1/y;
 const TAG_PREFIX_RE = /<([a-zA-Z_][a-zA-Z0-9_]*):/y;
 const COUNT_RE = /\d+(?:-\d+)?\$\$/y;
 const WEIGHT_RE = /\d+(?:\.\d+)?::/y;
@@ -55,7 +55,7 @@ function delim(start, end, kind) {
  *   vardef   ${name=!value} variable definition; has `name`
  *   varuse   ${name} variable use; has `name`
  *   varname  the name inside a vardef
- *   wildcard __file__ wildcard; has `name`
+ *   wildcard __file__ or ___file___ wildcard; has `name` and `wholeDocument`
  *   tag      <name:value> property/LoRA tag; has `name`
  *   comment  # comment inside a choice block
  *   delim    syntax characters; has `kind` (brace, pipe, weight, count, sep, var, tag)
@@ -137,7 +137,7 @@ export function parseWildcardText(text) {
             } else if (c === "_" && text[i + 1] === "_") {
                 const m = matchAt(WILDCARD_RE, text, i);
                 if (m) {
-                    children.push({ type: "wildcard", name: m[1], start: i, end: i + m[0].length, children: [] });
+                    children.push({ type: "wildcard", name: m[2], wholeDocument: m[1] === "___", start: i, end: i + m[0].length, children: [] });
                     i += m[0].length;
                     continue;
                 }

@@ -90,6 +90,51 @@ Loads a random line from a text-file in the wildcards directory.
 
 ---
 
+### Whole-document Wildcards
+
+Use **three underscores** on each side to insert a complete text file:
+
+```text
+___scenes/forest___
+Art style: __styles__
+```
+
+Here, `___scenes/forest___` inserts all of `wildcards/scenes/forest.txt`,
+including paragraphs, blank lines, indentation, and `#` lines. The ordinary
+`__styles__` wildcard still picks one line. The same file can be used in either
+mode. Whole documents use the existing `.txt` wildcard folders and matching
+rules; PDF and Word files are not supported.
+
+Nested file wildcards and inline choices in the document are resolved as usual;
+comment and whitespace rules still apply inside choice blocks. For example,
+`{morning|evening}` in the document chooses one of those words.
+`___scenes/*.txt___` chooses one matching **document**, giving each file one
+chance regardless of its line count.
+
+This works in both Wildcard Processor variants and nodes that use their engine,
+including Batch Wildcard Upscale Sampler and Prompt Property Extractor.
+Highlighting and Preview recognize the complete triple-underscore token.
+Missing files remain unresolved, while an empty document inserts empty text.
+Recursive document includes stop at a cycle or the configured nested-pass limit.
+After editing a document, enable **recache_wildcards** to reload it.
+
+If a wildcard lists other wildcard references, use `___{__scene_list__}___` to
+select one entry and load that entry's **entire document**. For example, with
+these lines in `scene_list.txt`:
+
+```text
+__scenes/forest__
+__scenes/beach__
+```
+
+`___{__scene_list__}___` returns all of `forest.txt` or all of `beach.txt`.
+Wildcards inside that chosen document keep their ordinary line-selection
+behavior. You can also use `___{scenes/forest|scenes/beach}___` to choose a
+document directly, or store triple-underscore references in the list and call
+it with `__scene_list__`.
+
+---
+
 ### Inline Wildcards
 
 Creates a wildcard right in the prompt instead of loading from a file.

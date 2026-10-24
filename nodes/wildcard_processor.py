@@ -8,6 +8,7 @@ from ..utils.file_utils import find_best_match
 from ..utils.wildcard_variables import split_variable_definitions
 from ..utils.wildcard_provenance import (
     MARKED_BRACES_RE,
+    MARKED_DOCUMENT_CHOICE_RE,
     MARKED_WILDCARD_RE,
     InnerMatch,
     build_segments,
@@ -21,6 +22,7 @@ from ..utils.settings_utils import (
     get_wildcard_max_logged_candidates,
     get_wildcard_max_nested_passes,
 )
+from ..utils.wildcard_documents import resolve_document, resolve_document_choice
 from colorama import Fore, Style
 
 from comfy_api.latest import io, ui
@@ -68,7 +70,7 @@ class WildcardProcessor(io.ComfyNode):
                     dynamic_prompts=False,
                     tooltip=(
                         "The text prompt to process. Supports multiple features:\n\n"
-                        "File Wildcards:\nUse __filename__ to insert a random line from filename.txt in one of the supported wildcard directories. Lines starting with # are treated as comments and are ignored.\n\n"
+                        "File Wildcards:\nUse __filename__ for a random line, or ___filename___ for the entire filename.txt document, from the supported wildcard directories. Whole documents keep line breaks and # lines. In single-line mode, lines starting with # are treated as comments and are ignored.\n\n"
                         "Inline Choices:\nUse {a|b|c} to randomly choose between a, b, or c.\nExample Input: A photo of a {red|green|blue} car.\nExample Output: A photo of a green car.\n\n"
                         "Weighted Choices:\nUse {5::black|green|red} to make black 5 times more likely to be chosen than green or red. Weights are normalized to 100% based on the sum of all weights in the block (e.g. {5::red|4::green|7::blue|black} sums to 17, giving red ~29%, green ~24%, blue ~41%, black ~6%).\n\n"
                         "Select Multiple Wildcards:\nUse {2$$a|b|c|d} to output a specific number of items from the result.\nExample Input: My favorite colors are {3$$red|green|blue|yellow|purple}.\nExample Output: My favorite colors are blue, yellow, purple.\n\n"
@@ -224,7 +226,7 @@ class WildcardProcessor(io.ComfyNode):
 
         return all_files
 
-    def get_wildcard_options(self, wildcard_name):
+    def get_wildcard_options(self, wildcard_name, whole_document=False):
         """
         Retrieves the content of a wildcard file using the prioritization schema.
         Caches results for efficiency.
@@ -239,42 +241,51 @@ class WildcardProcessor(io.ComfyNode):
             self.first_wildcard_processed = True
 
         # Now, get the content, using cache if possible.
-        if wildcard_name in self.wildcard_cache:
-            return self.wildcard_cache[wildcard_name]
+        cache_key = (wildcard_name, whole_document)
+        if cache_key in self.wildcard_cache:
+            return self.wildcard_cache[cache_key]
 
         # Cache miss, so find the file (silently) and read it.
         best_match = find_best_match(wildcard_name, self.wildcard_files, log=False, wildcard_paths=self.get_all_wildcard_paths(), fuzzy_search=is_wildcard_fuzzy_search_enabled())
 
         if not best_match:
-            self.wildcard_cache[wildcard_name] = None # Cache the failure
+            self.wildcard_cache[cache_key] = None # Cache the failure
             return None
 
         try:
             with open(best_match, 'r', encoding='utf-8') as f:
-                lines = [line.rstrip('\r\n') for line in f if line.rstrip('\r\n') and not line.lstrip().startswith('#')]
+                lines = [f.read()] if whole_document else [line.rstrip('\r\n') for line in f if line.rstrip('\r\n') and not line.lstrip().startswith('#')]
         except UnicodeDecodeError:
             self.wildcard_log(f"{Fore.YELLOW}Warning: Could not decode {os.path.basename(best_match)} as UTF-8. Trying with 'latin-1' encoding.", level=1)
             with open(best_match, 'r', encoding='latin-1') as f:
-                lines = [line.rstrip('\r\n') for line in f if line.rstrip('\r\n') and not line.lstrip().startswith('#')]
+                lines = [f.read()] if whole_document else [line.rstrip('\r\n') for line in f if line.rstrip('\r\n') and not line.lstrip().startswith('#')]
         
-        self.wildcard_cache[wildcard_name] = lines
+        self.wildcard_cache[cache_key] = lines
         return lines
 
-    def _evaluate_file_wildcard(self, match):
+    def _evaluate_file_wildcard(self, match, whole_document=False):
         """
-        Replaces a __wildcard__ with a random line from corresponding file(s).
+        Replaces __wildcard__ with a random line, or ___wildcard___ with a whole document.
         Supports glob patterns for filename matching.
         """
         wildcard_name = match.group(1)
+        select_reference = getattr(self, "_select_document_reference", False)
+        # Selection wrappers read one row even if it contains a document token.
+        read_document = whole_document and not select_reference
         # A simple check to see if the wildcard name contains any glob characters.
         is_glob = any(c in wildcard_name for c in '*?[]')
 
         # If it's not a glob pattern, use the existing efficient method.
         if not is_glob:
-            options = self.get_wildcard_options(wildcard_name)
+            options = self.get_wildcard_options(wildcard_name, whole_document=read_document)
             if not options:
                 return match.group(0)
-            chosen_option = self._process_text(random.choice(options))
+            if select_reference:
+                chosen_option = random.choice(options)
+            elif whole_document:
+                chosen_option = resolve_document(self, wildcard_name, options[0], match.group(0))
+            else:
+                chosen_option = self._process_text(random.choice(options))
             self.wildcard_log(f"{Style.DIM}Evaluated {match.group(0)} -> {Style.NORMAL}{Fore.MAGENTA}{chosen_option}", level=1)
             return self._protect_resolved_text(chosen_option)
 
@@ -309,7 +320,7 @@ class WildcardProcessor(io.ComfyNode):
                 base_path = next(p for p in wildcard_paths if Path(p) in file_path.parents)
                 relative_path = file_path.relative_to(base_path)
                 file_wildcard_name = str(relative_path).replace('\\', '/').replace('.txt', '')
-                lines = self.get_wildcard_options(file_wildcard_name)
+                lines = self.get_wildcard_options(file_wildcard_name, whole_document=read_document)
                 if lines:
                     all_lines.extend(lines)
             except StopIteration:
@@ -320,7 +331,13 @@ class WildcardProcessor(io.ComfyNode):
             self.wildcard_log(f"{Fore.YELLOW}Warning: Glob pattern '{wildcard_name}' matched files, but they are empty or contain only comments.", level=1)
             return match.group(0)
 
-        chosen_option = self._process_text(random.choice(all_lines))
+        selected = random.choice(all_lines)
+        if select_reference:
+            chosen_option = selected
+        elif whole_document:
+            chosen_option = resolve_document(self, wildcard_name, selected, match.group(0))
+        else:
+            chosen_option = self._process_text(selected)
         self.wildcard_log(f"{Style.DIM}Evaluated glob {match.group(0)} -> {Style.NORMAL}{Fore.MAGENTA}{chosen_option}", level=1)
         return self._protect_resolved_text(chosen_option)
 
@@ -417,9 +434,10 @@ class WildcardProcessor(io.ComfyNode):
         return wrap(f"c{match.group(1)}", result) if match.group(1) else result
 
     def _evaluate_marked_wildcard(self, match):
-        """Resolve a __wildcard__ and tag the result with its source offset."""
-        inner = InnerMatch(match, "__", "__")
-        result = self._evaluate_file_wildcard(inner)
+        """Resolve a line or document wildcard and retain its source offset."""
+        delimiter = match.group("delimiter")
+        inner = InnerMatch(match, delimiter, delimiter, content_group="wildcard_name")
+        result = self._evaluate_file_wildcard(inner, whole_document=delimiter == "___")
         if not match.group(1) or result == inner.group(0):
             return result
         return wrap(f"w{match.group(1)}", result)
@@ -436,6 +454,9 @@ class WildcardProcessor(io.ComfyNode):
             # First, substitute any defined variables.
             for var_name, var_value in self.variables.items():
                 text = text.replace(f"${{{var_name}}}", wrap(f"v{var_name}", var_value))
+
+            # Select a reference before ordinary recursion consumes its first line.
+            text = MARKED_DOCUMENT_CHOICE_RE.sub(lambda match: resolve_document_choice(self, match), text)
 
             # Process innermost curly braces expressions
             text = MARKED_BRACES_RE.sub(self._evaluate_marked_braces, text)

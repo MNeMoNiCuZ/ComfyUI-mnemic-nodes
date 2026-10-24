@@ -53,6 +53,8 @@ function addStyles() {
     const style = element("style");
     style.id = "mnm-workflow-folder-styles";
     style.textContent = `
+        /* Keep the native heading's flexible spacer, without its dashed border. */
+        [data-testid="workflows-sidebar"] .comfyui-workflows-browse > :has(> .mnm-wf-tools) > .border-dashed { border: 0; }
         .mnm-wf-tools { display: inline-flex; align-items: center; flex: none; margin-left: auto; padding-right: 16px; }
         .mnm-wf-button { display: inline-flex; align-items: center; justify-content: center; gap: 6px;
             padding: 6px 8px; border: 0; border-radius: 5px; background: transparent;

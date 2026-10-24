@@ -1,6 +1,6 @@
 """Track which part of a wildcard template produced which part of the output.
 
-Before processing, every "{" and "__name__" in the template gets an invisible
+Before processing, every "{" and line/document wildcard gets an invisible
 source marker holding its offset in the original text. When the processor
 resolves a block, wildcard or variable, it wraps the result in open/close
 markers carrying a source key. At the end the markers are turned into a tree
@@ -9,7 +9,7 @@ of segments for the node's Preview, and stripped from the real output.
 Markers use Unicode private-use characters, which never appear in prompts.
 Source keys match what the frontend highlighter colors:
   c<offset>  the {…} block starting at <offset>
-  w<offset>  the __wildcard__ starting at <offset>
+  w<offset>  the __wildcard__ or ___document___ starting at <offset>
   v<name>    the variable <name>
 """
 
@@ -30,19 +30,25 @@ _ANY_MARKER_RE = re.compile(
         CLOSE,
     ])
 )
-_WILDCARD_RE = re.compile(r"__([a-zA-Z0-9_./\\*?\[\] -]+?)__")
+# Try three underscores first so document wildcards cannot become line wildcards.
+WILDCARD_PATTERN = r"(?P<delimiter>___|__)(?P<wildcard_name>[a-zA-Z0-9_./\\*?\[\] -]+?)(?P=delimiter)"
+WILDCARD_RE = re.compile(WILDCARD_PATTERN)
 
 # Regexes the processors use, extended to capture an optional source marker
 # in front of the construct. Group 1 is the source offset (or None).
 MARKED_BRACES_RE = re.compile(r"(?:" + SOURCE_START + r"(\d+)" + SOURCE_END + r")?{([^{}]*?)}")
+# A document wrapper selects a reference before expanding the selected file.
+MARKED_DOCUMENT_CHOICE_RE = re.compile(
+    r"___(?:" + SOURCE_START + r"(\d+)" + SOURCE_END + r")?{([^{}]*?)}___"
+)
 MARKED_WILDCARD_RE = re.compile(
-    r"(?:" + SOURCE_START + r"(\d+)" + SOURCE_END + r")?__([a-zA-Z0-9_./\\*?\[\] -]+?)__"
+    r"(?:" + SOURCE_START + r"(\d+)" + SOURCE_END + r")?" + WILDCARD_PATTERN
 )
 
 
 def mark_sources(text):
-    """Insert a source marker before every "{" (not "${") and "__name__"."""
-    wildcard_starts = {m.start() for m in _WILDCARD_RE.finditer(text)}
+    """Insert a source marker before every "{" (not "${") and file wildcard."""
+    wildcard_starts = {m.start() for m in WILDCARD_RE.finditer(text)}
     parts = []
     for i, ch in enumerate(text):
         if (ch == "{" and (i == 0 or text[i - 1] != "$")) or i in wildcard_starts:
@@ -114,8 +120,8 @@ class InnerMatch:
     values they got before markers existed.
     """
 
-    def __init__(self, match, prefix, suffix):
-        self._inner = match.group(2)
+    def __init__(self, match, prefix, suffix, content_group=2):
+        self._inner = match.group(content_group)
         self._whole = f"{prefix}{self._inner}{suffix}"
 
     def group(self, index=0):

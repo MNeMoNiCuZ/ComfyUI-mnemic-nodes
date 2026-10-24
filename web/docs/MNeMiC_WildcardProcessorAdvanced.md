@@ -2,6 +2,7 @@
 
 The same wildcard engine as **📝 Wildcard Processor**, with control over the
 multi-pick separator and extra outputs for the seed and for extracted tags.
+Use `__filename__` for a random line or `___filename___` for a whole text file.
 The full syntax reference is included below.
 
 ## Inputs
