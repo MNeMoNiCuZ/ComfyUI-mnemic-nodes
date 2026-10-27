@@ -135,6 +135,29 @@ it with `__scene_list__`.
 
 ---
 
+### Folder Wildcards
+
+Use **tildes** instead of underscores to name a folder. A random `.txt` file is
+picked from that folder (including its subfolders), then read the same way as a
+file wildcard:
+
+-   `~~folder~~` inserts a random line from the picked file.
+-   `~~~folder~~~` inserts the whole picked file.
+
+```text
+A __color__ ~~animals~~ in ~~~scenes~~~
+```
+
+Folders are matched by name with the same ranking as files: `~~pets~~` finds
+`animals/pets`, but a `pets` folder at the root of a wildcards directory ranks
+higher, and `~~animals/pets~~` prefers that exact subfolder. Only the best
+matching folder is used. Each file in it has the same chance, regardless of its
+length; empty and comment-only files are skipped. Wildcards inside the picked
+line or file are resolved as usual. With console logging enabled, the folder
+ranking and the picked file are printed.
+
+---
+
 ### Inline Wildcards
 
 Creates a wildcard right in the prompt instead of loading from a file.

@@ -88,6 +88,28 @@ You can also choose a document by name directly: `___{scenes/forest|scenes/beach
 Alternatively, put `___scenes/forest___` and `___scenes/beach___` in the list
 itself and use the normal `__scene_list__` token to pick one of those entries.
 
+### Folder wildcards
+
+Tildes name a folder instead of a file. The node finds the best matching
+folder, picks one random `.txt` file inside it or any of its subfolders, and
+then reads it:
+
+- `~~folder~~` inserts a random line from that file, like `__filename__`.
+- `~~~folder~~~` inserts the whole file, like `___filename___`.
+
+```text
+A __color__ ~~animals~~ in ~~~scenes~~~
+```
+
+Folders are matched by name with the same ranking as files: `~~pets~~` finds
+`animals/pets`, but a `pets` folder at a wildcard root ranks higher.
+`~~animals/pets~~` prefers that exact subfolder. Only one folder is used; folders
+with the same name elsewhere are not combined. Every file in the folder has the
+same chance, regardless of its length or subfolder; empty and comment-only
+files are skipped. Wildcards inside the chosen line or file
+are resolved as usual. With the console log enabled, the folder ranking and the
+picked file are printed.
+
 ### Glob wildcards
 
 Patterns collect lines from all matching files and choose one line from that

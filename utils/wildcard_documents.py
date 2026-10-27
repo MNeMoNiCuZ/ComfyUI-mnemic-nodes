@@ -1,6 +1,6 @@
 """Expand whole-document wildcard content without unbounded include cycles."""
 
-from .wildcard_provenance import InnerMatch, WILDCARD_RE, strip_markers, wrap
+from .wildcard_provenance import InnerMatch, MARKED_WILDCARD_RE, WILDCARD_RE, strip_markers, wrap
 
 
 def resolve_document_choice(processor, match):
@@ -9,6 +9,7 @@ def resolve_document_choice(processor, match):
     A row such as __scene__ must survive selection without being expanded to
     one of scene.txt's lines. The flag applies only while selecting the row;
     ordinary wildcards inside the selected document keep their normal meaning.
+    A ~~folder~~ row loads a whole random file from that folder.
     """
     previous = getattr(processor, "_select_document_reference", False)
     processor._select_document_reference = True
@@ -20,11 +21,11 @@ def resolve_document_choice(processor, match):
 
     reference = WILDCARD_RE.fullmatch(selected)
     name = reference.group("wildcard_name") if reference else selected
-    target = WILDCARD_RE.fullmatch(f"___{name}___")
+    delimiter = "~~~" if reference and reference.group("delimiter")[0] == "~" else "___"
+    target = MARKED_WILDCARD_RE.fullmatch(f"{delimiter}{name}{delimiter}")
     if not target:
         return match.group(0)
-    inner = InnerMatch(target, "___", "___", content_group="wildcard_name")
-    result = processor._evaluate_file_wildcard(inner, whole_document=True)
+    result = processor._evaluate_marked_wildcard(target)
     return wrap(f"c{match.group(1)}", result) if match.group(1) else result
 
 

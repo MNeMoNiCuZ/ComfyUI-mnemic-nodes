@@ -9,7 +9,8 @@ of segments for the node's Preview, and stripped from the real output.
 Markers use Unicode private-use characters, which never appear in prompts.
 Source keys match what the frontend highlighter colors:
   c<offset>  the {…} block starting at <offset>
-  w<offset>  the __wildcard__ or ___document___ starting at <offset>
+  w<offset>  the __wildcard__, ___document___, ~~folder~~ or ~~~folder~~~
+             starting at <offset>
   v<name>    the variable <name>
 """
 
@@ -30,8 +31,9 @@ _ANY_MARKER_RE = re.compile(
         CLOSE,
     ])
 )
-# Try three underscores first so document wildcards cannot become line wildcards.
-WILDCARD_PATTERN = r"(?P<delimiter>___|__)(?P<wildcard_name>[a-zA-Z0-9_./\\*?\[\] -]+?)(?P=delimiter)"
+# Underscores name a file, tildes name a folder to pick a random file from.
+# Try three characters first so document wildcards cannot become line wildcards.
+WILDCARD_PATTERN = r"(?P<delimiter>___|__|~~~|~~)(?P<wildcard_name>[a-zA-Z0-9_./\\*?\[\] -]+?)(?P=delimiter)"
 WILDCARD_RE = re.compile(WILDCARD_PATTERN)
 
 # Regexes the processors use, extended to capture an optional source marker

@@ -130,8 +130,8 @@ def score_filename_match(name, filename, base_path=None, fuzzy_search=False):
 
     return (0, "no match")
 
-def find_best_match(search_term, file_list, log=False, wildcard_paths=None, fuzzy_search=False, max_logged=MAX_LOGGED_CANDIDATES):
-    """Find the best matching file from a list based on scoring."""
+def find_best_match(search_term, file_list, log=False, wildcard_paths=None, fuzzy_search=False, max_logged=MAX_LOGGED_CANDIDATES, kind="files"):
+    """Find the best matching file (or folder) from a list based on scoring."""
     matches = []
     if log:
         print(f"\nFinding matches for '{search_term}':")
@@ -172,7 +172,7 @@ def find_best_match(search_term, file_list, log=False, wildcard_paths=None, fuzz
     matches.sort(key=lambda x: x[0], reverse=True)
     
     if log and matches:
-        print(f"\nCandidate files (sorted by relevance, showing top {min(len(matches), max_logged)} of {len(matches)}):")
+        print(f"\nCandidate {kind} (sorted by relevance, showing top {min(len(matches), max_logged)} of {len(matches)}):")
         for score, file, reason, base_path in matches[:max_logged]:
             base_name = Path(file).name
             try:
@@ -193,7 +193,7 @@ def find_best_match(search_term, file_list, log=False, wildcard_paths=None, fuzz
             
         print(f"\nSelected: {selected_display}")
     elif log:
-        print("  No matching files found")
+        print(f"  No matching {kind} found")
     
     return matches[0][1] if matches else None
 

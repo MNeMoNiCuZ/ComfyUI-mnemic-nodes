@@ -20,7 +20,7 @@
 // Parsing
 // ---------------------------------------------------------------------------
 
-const WILDCARD_RE = /(___|__)([a-zA-Z0-9_./\\*?\[\] -]+?)\1/y;
+const WILDCARD_RE = /(___|__|~~~|~~)([a-zA-Z0-9_./\\*?\[\] -]+?)\1/y;
 const TAG_PREFIX_RE = /<([a-zA-Z_][a-zA-Z0-9_]*):/y;
 const COUNT_RE = /\d+(?:-\d+)?\$\$/y;
 const WEIGHT_RE = /\d+(?:\.\d+)?::/y;
@@ -55,7 +55,7 @@ function delim(start, end, kind) {
  *   vardef   ${name=!value} variable definition; has `name`
  *   varuse   ${name} variable use; has `name`
  *   varname  the name inside a vardef
- *   wildcard __file__ or ___file___ wildcard; has `name` and `wholeDocument`
+ *   wildcard __file__, ___file___, ~~folder~~ or ~~~folder~~~ wildcard; has `name`, `folder` and `wholeDocument`
  *   tag      <name:value> property/LoRA tag; has `name`
  *   comment  # comment inside a choice block
  *   delim    syntax characters; has `kind` (brace, pipe, weight, count, sep, var, tag)
@@ -134,10 +134,10 @@ export function parseWildcardText(text) {
                 children.push({ type: "comment", start: i, end: j, children: [] });
                 i = j;
                 continue;
-            } else if (c === "_" && text[i + 1] === "_") {
+            } else if ((c === "_" || c === "~") && text[i + 1] === c) {
                 const m = matchAt(WILDCARD_RE, text, i);
                 if (m) {
-                    children.push({ type: "wildcard", name: m[2], wholeDocument: m[1] === "___", start: i, end: i + m[0].length, children: [] });
+                    children.push({ type: "wildcard", name: m[2], folder: c === "~", wholeDocument: m[1].length === 3, start: i, end: i + m[0].length, children: [] });
                     i += m[0].length;
                     continue;
                 }
@@ -436,7 +436,7 @@ function assignColors(root, coloring) {
                 node.color = nameIndex(`var:${node.name.trim()}`);
                 break;
             case "wildcard":
-                node.color = nameIndex(`file:${node.name}`);
+                node.color = nameIndex(`${node.folder ? "folder" : "file"}:${node.name}`);
                 break;
             case "tag":
                 node.color = nameIndex(`tag:${node.name}`);

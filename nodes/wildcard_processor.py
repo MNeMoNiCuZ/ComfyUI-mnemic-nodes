@@ -51,6 +51,7 @@ class WildcardProcessor(io.ComfyNode):
         self.wildcard_cache = {}
         self.create_user_wildcard_paths_file()  # Ensure the user paths file exists
         self.wildcard_files = self._find_wildcard_files()
+        self.wildcard_folders = self._find_wildcard_folders()
         self.max_nested_passes = get_wildcard_max_nested_passes()
         # Variables for the current processing run
         self.variables = {}
@@ -71,6 +72,7 @@ class WildcardProcessor(io.ComfyNode):
                     tooltip=(
                         "The text prompt to process. Supports multiple features:\n\n"
                         "File Wildcards:\nUse __filename__ for a random line, or ___filename___ for the entire filename.txt document, from the supported wildcard directories. Whole documents keep line breaks and # lines. In single-line mode, lines starting with # are treated as comments and are ignored.\n\n"
+                        "Folder Wildcards:\nUse ~~foldername~~ for a random line, or ~~~foldername~~~ for the entire document, from a random .txt file in the best matching folder.\n\n"
                         "Inline Choices:\nUse {a|b|c} to randomly choose between a, b, or c.\nExample Input: A photo of a {red|green|blue} car.\nExample Output: A photo of a green car.\n\n"
                         "Weighted Choices:\nUse {5::black|green|red} to make black 5 times more likely to be chosen than green or red. Weights are normalized to 100% based on the sum of all weights in the block (e.g. {5::red|4::green|7::blue|black} sums to 17, giving red ~29%, green ~24%, blue ~41%, black ~6%).\n\n"
                         "Select Multiple Wildcards:\nUse {2$$a|b|c|d} to output a specific number of items from the result.\nExample Input: My favorite colors are {3$$red|green|blue|yellow|purple}.\nExample Output: My favorite colors are blue, yellow, purple.\n\n"
@@ -226,6 +228,27 @@ class WildcardProcessor(io.ComfyNode):
 
         return all_files
 
+    def _find_wildcard_folders(self):
+        """Groups wildcard files under every folder that contains them, including subfolders, for ~~folder~~ wildcards."""
+        roots = {Path(p) for p in self.get_all_wildcard_paths()}
+        folders = {}
+        for file_path in sorted(self.wildcard_files):
+            for parent in Path(file_path).parents:
+                if parent in roots:
+                    break
+                folders.setdefault(str(parent), []).append(file_path)
+        return folders
+
+    def _read_wildcard_file(self, file_path, whole_document=False):
+        """Reads a wildcard file as one document, or as its non-empty, non-comment lines."""
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                return [f.read()] if whole_document else [line.rstrip('\r\n') for line in f if line.rstrip('\r\n') and not line.lstrip().startswith('#')]
+        except UnicodeDecodeError:
+            self.wildcard_log(f"{Fore.YELLOW}Warning: Could not decode {os.path.basename(file_path)} as UTF-8. Trying with 'latin-1' encoding.", level=1)
+            with open(file_path, 'r', encoding='latin-1') as f:
+                return [f.read()] if whole_document else [line.rstrip('\r\n') for line in f if line.rstrip('\r\n') and not line.lstrip().startswith('#')]
+
     def get_wildcard_options(self, wildcard_name, whole_document=False):
         """
         Retrieves the content of a wildcard file using the prioritization schema.
@@ -252,14 +275,7 @@ class WildcardProcessor(io.ComfyNode):
             self.wildcard_cache[cache_key] = None # Cache the failure
             return None
 
-        try:
-            with open(best_match, 'r', encoding='utf-8') as f:
-                lines = [f.read()] if whole_document else [line.rstrip('\r\n') for line in f if line.rstrip('\r\n') and not line.lstrip().startswith('#')]
-        except UnicodeDecodeError:
-            self.wildcard_log(f"{Fore.YELLOW}Warning: Could not decode {os.path.basename(best_match)} as UTF-8. Trying with 'latin-1' encoding.", level=1)
-            with open(best_match, 'r', encoding='latin-1') as f:
-                lines = [f.read()] if whole_document else [line.rstrip('\r\n') for line in f if line.rstrip('\r\n') and not line.lstrip().startswith('#')]
-        
+        lines = self._read_wildcard_file(best_match, whole_document)
         self.wildcard_cache[cache_key] = lines
         return lines
 
@@ -339,6 +355,47 @@ class WildcardProcessor(io.ComfyNode):
         else:
             chosen_option = self._process_text(selected)
         self.wildcard_log(f"{Style.DIM}Evaluated glob {match.group(0)} -> {Style.NORMAL}{Fore.MAGENTA}{chosen_option}", level=1)
+        return self._protect_resolved_text(chosen_option)
+
+    def _evaluate_folder_wildcard(self, match, whole_document=False):
+        """
+        Replaces ~~folder~~ with a random line, or ~~~folder~~~ with a whole document,
+        from a random file in the best matching folder.
+        """
+        folder_name = match.group(1)
+        select_reference = getattr(self, "_select_document_reference", False)
+        read_document = whole_document and not select_reference
+
+        if self.console_log:
+            if self.first_wildcard_processed:
+                print(f"\n{Fore.CYAN}{'-----' * 21}{Style.RESET_ALL}\n")
+            print(f"{Fore.CYAN}Folder wildcard {match.group(0)}{Style.RESET_ALL}")
+            self.first_wildcard_processed = True
+        folder = find_best_match(folder_name, self.wildcard_folders, log=self.console_log, wildcard_paths=self.get_all_wildcard_paths(), fuzzy_search=is_wildcard_fuzzy_search_enabled(), max_logged=get_wildcard_max_logged_candidates(), kind="folders")
+        if not folder:
+            return match.group(0)
+
+        files = []
+        for file_path in self.wildcard_folders[folder]:
+            cache_key = (file_path, read_document)
+            if cache_key not in self.wildcard_cache:
+                self.wildcard_cache[cache_key] = self._read_wildcard_file(file_path, read_document)
+            if self.wildcard_cache[cache_key]:
+                files.append(file_path)
+        if not files:
+            self.wildcard_log(f"{Fore.YELLOW}Warning: Folder '{folder}' only contains empty or comment-only files.", level=1)
+            return match.group(0)
+
+        file_path = random.choice(files)
+        options = self.wildcard_cache[(file_path, read_document)]
+        self.wildcard_log(f"Picked file: {os.path.relpath(file_path, folder)} (1 of {len(files)} in folder)", level=1)
+        if select_reference:
+            chosen_option = random.choice(options)
+        elif whole_document:
+            chosen_option = resolve_document(self, file_path, options[0], match.group(0))
+        else:
+            chosen_option = self._process_text(random.choice(options))
+        self.wildcard_log(f"{Style.DIM}Evaluated {match.group(0)} -> {Style.NORMAL}{Fore.MAGENTA}{chosen_option}", level=1)
         return self._protect_resolved_text(chosen_option)
 
     def evaluate_curly_braces(self, match):
@@ -434,10 +491,13 @@ class WildcardProcessor(io.ComfyNode):
         return wrap(f"c{match.group(1)}", result) if match.group(1) else result
 
     def _evaluate_marked_wildcard(self, match):
-        """Resolve a line or document wildcard and retain its source offset."""
+        """Resolve a file or folder wildcard and retain its source offset."""
         delimiter = match.group("delimiter")
         inner = InnerMatch(match, delimiter, delimiter, content_group="wildcard_name")
-        result = self._evaluate_file_wildcard(inner, whole_document=delimiter == "___")
+        if delimiter[0] == "~":
+            result = self._evaluate_folder_wildcard(inner, whole_document=delimiter == "~~~")
+        else:
+            result = self._evaluate_file_wildcard(inner, whole_document=delimiter == "___")
         if not match.group(1) or result == inner.group(0):
             return result
         return wrap(f"w{match.group(1)}", result)
@@ -572,6 +632,7 @@ class WildcardProcessor(io.ComfyNode):
             # Re-scan all wildcard directories and clear the cache.
             # The logging is now handled inside _find_wildcard_files.
             self.wildcard_files = self._find_wildcard_files(log=self.console_log)
+            self.wildcard_folders = self._find_wildcard_folders()
             self.wildcard_cache.clear()
 
         if self.console_log:
