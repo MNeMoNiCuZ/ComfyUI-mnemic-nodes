@@ -27,6 +27,7 @@ from ..utils.image_save_with_metadata_saver import save_image
 from ..utils.image_save_with_metadata_utils import (
     full_checkpoint_path_for,
     full_lora_path_for,
+    get_sha256,
 )
 from ..utils.image_save_runtime_capture import capture_runtime_prompt_and_loras
 from ..utils.batch_wildcard_runtime import get_batch_prompts
@@ -570,13 +571,36 @@ def _build_a111_params(positive: str, negative: str, ctx: dict) -> str:
     direct_lora_names += ctx["runtime_loras"]
     models_used = [ctx["basemodelname"]] + direct_lora_names + all_lora_names
     models_used_str = "\n".join(dict.fromkeys([m for m in models_used if m]))
+    # Quoted like A1111 infotext values: Civitai only parses the single "Steps:" line and
+    # would otherwise read the extra lines as part of the negative prompt.
+    if any(c in models_used_str for c in ',\n:"'):
+        models_used_str = json.dumps(models_used_str, ensure_ascii=False)
+
+    # Civitai matches resources by AutoV2 hash (first 10 hex chars of the file's SHA-256)
+    # and only accepts lowercase "lora:"/"embed:" keys.
+    hashes = {}
+    if ctx["ckpt_path"]:
+        hashes["model"] = get_sha256(ctx["ckpt_path"])[:10]
+    lora_paths = {k.replace("LORA:", ""): v[0] for k, v in prompt_loras.items()}
+    lora_sources = [(os.path.splitext(os.path.basename(n))[0], n) for (n, _, _) in wf.get("loras", []) if n]
+    lora_sources += [(n, n) for n in ctx["runtime_loras"]]
+    for name, lora in lora_sources:
+        if name not in lora_paths:
+            lora_paths[name] = full_lora_path_for(lora)
+    for name, path in lora_paths.items():
+        if path:
+            hashes[f"lora:{name}"] = get_sha256(path)[:10]
+    for key, (path, _) in extractor.get_embeddings().items():
+        hashes[key] = get_sha256(path)[:10]
+    model_hash_str = f", Model hash: {hashes['model']}" if "model" in hashes else ""
+    hashes_str = f", Hashes: {json.dumps(hashes, separators=(',', ':'))}" if hashes else ""
 
     return (
         f"{pos_text}\n"
         f"Negative prompt: {neg_text}\n"
         f"Steps: {ctx['steps']}, Sampler: {ctx['display_sampler']}, CFG scale: {ctx['cfg']}, "
-        f"Seed: {ctx['seed']}, Size: {ctx['width']}x{ctx['height']}"
-        f", Model: {ctx['basemodelname']}, Models used: {models_used_str}, Version: ComfyUI"
+        f"Seed: {ctx['seed']}, Size: {ctx['width']}x{ctx['height']}{model_hash_str}"
+        f", Model: {ctx['basemodelname']}{hashes_str}, Models used: {models_used_str}, Version: ComfyUI"
     )
 
 

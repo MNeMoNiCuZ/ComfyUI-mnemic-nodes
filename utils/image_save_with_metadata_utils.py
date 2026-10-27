@@ -4,6 +4,7 @@ https://github.com/KChronoKnight/Chrono-Save-for-Civitai
 Adapted into ComfyUI-mnemic-nodes for the "Image Save With Metadata" node.
 """
 
+import hashlib
 import os
 import re
 from pathlib import Path
@@ -19,6 +20,23 @@ def sanitize_filename(filename: str) -> str:
     sanitized = re.sub(unsafe_chars, "", filename)
     sanitized = sanitized.rstrip(". ")
     return sanitized
+
+
+# Keyed by (path, size, mtime) so an edited or replaced file is hashed again.
+_SHA256_CACHE: dict[tuple[str, int, int], str] = {}
+
+
+def get_sha256(file_path: str) -> str:
+    stat = os.stat(file_path)
+    key = (file_path, stat.st_size, stat.st_mtime_ns)
+    if key not in _SHA256_CACHE:
+        print(f"[Image Save With Metadata] Hashing {os.path.basename(file_path)} for Civitai")
+        sha256 = hashlib.sha256()
+        with open(file_path, "rb") as f:
+            for chunk in iter(lambda: f.read(1024 * 1024), b""):
+                sha256.update(chunk)
+        _SHA256_CACHE[key] = sha256.hexdigest()
+    return _SHA256_CACHE[key]
 
 
 def full_embedding_path_for(embedding: str) -> Optional[str]:

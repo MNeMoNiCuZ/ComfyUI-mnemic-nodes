@@ -3,6 +3,11 @@
 Saves images with Civitai-compatible metadata written into the file, so an
 upload there shows the model, LoRAs, sampler, steps, seed and prompts.
 
+The model, LoRA and embedding files are hashed (SHA-256, written as the
+10-character AutoV2 hash) so Civitai can link them to their pages. Each file is
+hashed once per ComfyUI session, so the first save after a restart can take a
+few seconds longer with large models.
+
 Only **images** needs connecting: everything else is read out of the workflow
 graph automatically.
 

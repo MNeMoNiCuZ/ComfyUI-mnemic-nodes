@@ -1,7 +1,7 @@
 [project]
 name = "comfyui-mnemic-nodes"
-description = "Added folder wildcards: ~~folder~~ picks a random line, and ~~~folder~~~ a whole file, from a random file in the best matching folder."
-version = "3.2.1"
+description = "Fixed civitai resource detection"
+version = "3.2.2"
 license = { file = "LICENSE" }
 dependencies = ["configparser", "groq", "transformers", "torch", "tiktoken", "imageio", "tqdm", "piexif", "requests", "colorama", "opencv-python", "python-dotenv"]
 
