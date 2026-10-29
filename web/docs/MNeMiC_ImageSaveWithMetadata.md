@@ -45,10 +45,11 @@ Both `filename_prefix` and `folder` accept:
 ## How it works
 
 The node walks the prompt graph to find the checkpoint, LoRAs, sampler,
-scheduler, steps, cfg, seed and size, then follows text links backwards to
-recover the real prompt — through String Concat, Wildcard Processor, LoRA Tag
-Loader and Prompt Property Extractor nodes, so what gets recorded is the
-resolved text, not the template. Per-image prompts published by
+scheduler, steps, cfg, seed and size. The prompts are the text the sampler's
+positive and negative CLIP Text Encode nodes received in this run, so what gets
+recorded is the resolved text, not the template. If no known sampler leads to
+the image, the first CLIP Text Encode's text is used as the positive prompt and
+the negative is left empty. Per-image prompts published by
 🔀 Batch Wildcard Upscale Sampler are picked up automatically when that node is
 in the graph.
 

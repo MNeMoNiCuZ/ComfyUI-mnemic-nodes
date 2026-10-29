@@ -87,6 +87,17 @@ def _resolved_inputs(node_id: str):
         return {}
 
 
+def cached_output(node_id: str, output_index: int):
+    """The value a node already produced in this run, or None if it is not cached."""
+    if hook.prompt_executer is None:
+        return None
+    cached = hook.prompt_executer.caches.outputs.get_local(str(node_id))
+    if cached is None or cached.outputs is None or output_index >= len(cached.outputs):
+        return None
+    value = cached.outputs[output_index]
+    return value[0] if isinstance(value, list) and value else value
+
+
 def _extract_text_from_clip_node(node_id: str):
     inp = _resolved_inputs(node_id)
     for k in ("text", "text_g", "t5xxl", "prompt"):

@@ -8,8 +8,6 @@ https://github.com/KChronoKnight/Chrono-Save-for-Civitai
 import json
 import os
 import re
-import threading
-from collections import deque
 
 import folder_paths
 import numpy as np
@@ -29,9 +27,8 @@ from ..utils.image_save_with_metadata_utils import (
     full_lora_path_for,
     get_sha256,
 )
-from ..utils.image_save_runtime_capture import capture_runtime_prompt_and_loras
+from ..utils.image_save_runtime_capture import cached_output, capture_runtime_prompt_and_loras
 from ..utils.batch_wildcard_runtime import get_batch_prompts
-from .wildcard_processor import WildcardProcessor
 
 SEED_FIELDS = ("seed", "noise_seed")
 STEPS_FIELDS = ("steps",)
@@ -42,19 +39,6 @@ DENOISE_FIELDS = ("denoise",)
 WIDTH_FIELDS = ("width", "empty_latent_width")
 HEIGHT_FIELDS = ("height", "empty_latent_height")
 CKPT_NAME_FIELDS = ("ckpt_name", "unet_name")
-
-_WILDCARD_PROCESSOR = None
-_WILDCARD_PROCESSOR_LOCK = threading.Lock()
-
-
-def _get_wildcard_processor() -> WildcardProcessor:
-    global _WILDCARD_PROCESSOR
-    if _WILDCARD_PROCESSOR is not None:
-        return _WILDCARD_PROCESSOR
-    with _WILDCARD_PROCESSOR_LOCK:
-        if _WILDCARD_PROCESSOR is None:
-            _WILDCARD_PROCESSOR = WildcardProcessor()
-    return _WILDCARD_PROCESSOR
 
 
 def _is_node(class_type, *names) -> bool:
@@ -143,10 +127,8 @@ def _find_lora_info(prompt: dict) -> list:
 
         # Custom MNeMiC node: LoRA Loader Prompt Tags / LoraTagLoader
         if _is_node(ct, "loratagloader", "lora loader prompt tags"):
-            raw = inputs.get("STRING", "")
-            if isinstance(raw, list):
-                raw = _resolve_link_text(raw, prompt)
-            if isinstance(raw, str) and raw:
+            raw = _text_input(inputs.get("STRING"))
+            if raw:
                 for m in re.findall(r"<lora:([^>:]+)(?::([^>:]+))?(?::([^>:]+))?>", raw, flags=re.IGNORECASE):
                     name = (m[0] or "").strip()
                     if not name or name in seen_names:
@@ -165,330 +147,31 @@ def _find_lora_info(prompt: dict) -> list:
     return loras
 
 
-SAMPLER_FIELDS_MAP = {
-    "KSampler": {"positive": "positive", "negative": "negative"},
-    "KSamplerAdvanced": {"positive": "positive", "negative": "negative"},
-    "SamplerCustomAdvanced": {"positive": "guider"},
-}
-
 CLIP_ENCODER_TYPES = {"CLIPTextEncode", "CLIPTextEncodeSDXL", "CLIPTextEncodeFlux"}
 
 
-def _get_node(prompt: dict, node_id: str) -> dict:
-    return prompt.get(str(node_id), {})
+def _text_input(value) -> str:
+    """A text input as the node received it: typed in, or the output of the node it is linked to."""
+    if isinstance(value, list):
+        value = cached_output(value[0], value[1])
+    return value if isinstance(value, str) else ""
 
 
-def _node_class(node: dict) -> str:
-    return str(node.get("class_type", ""))
-
-
-def _node_widget(node: dict, index: int, default=None):
-    values = node.get("widgets_values", [])
-    if isinstance(values, list) and len(values) > index:
-        return values[index]
-    return default
-
-
-def _resolve_link_text(link, prompt: dict, depth=0, visited=None) -> str:
-    if visited is None:
-        visited = set()
-    if depth > 40 or not isinstance(link, list) or len(link) < 1:
-        return ""
-
-    node_id = str(link[0])
-    out_idx = int(link[1]) if len(link) > 1 and isinstance(link[1], int) else 0
-    key = (node_id, out_idx)
-    if key in visited:
-        return ""
-    visited.add(key)
-
-    node = _get_node(prompt, node_id)
-    class_type = _node_class(node)
-    inputs = node.get("inputs", {})
-    class_lower = class_type.lower()
-
-    if class_type in CLIP_ENCODER_TYPES:
-        for k in ("text", "text_g", "t5xxl", "prompt"):
-            v = inputs.get(k)
-            if isinstance(v, str) and v.strip():
-                return v
-            if isinstance(v, list):
-                r = _resolve_link_text(v, prompt, depth + 1, visited)
-                if r:
-                    return r
-
-    if _is_node(class_type, "stringconcat", "string concat"):
-        parts = []
-        keys = sorted([k for k in inputs.keys() if k.startswith("string_")], key=lambda x: int(x.split("_")[1]))
-        for k in keys:
-            v = inputs.get(k)
-            if isinstance(v, str) and v:
-                parts.append(v)
-            elif isinstance(v, list):
-                rv = _resolve_link_text(v, prompt, depth + 1, visited)
-                if rv:
-                    parts.append(rv)
-        delimiter = str(inputs.get("delimiter", _node_widget(node, 0, "")) or "")
-        return delimiter.join(parts)
-
-    if _is_node(class_type, "wildcardprocessor", "wildcard processor"):
-        wildcard_string = str(inputs.get("wildcard_string", _node_widget(node, 0, "")) or "")
-        seed_input = inputs.get("seed", _node_widget(node, 1, 0))
-        if isinstance(seed_input, list):
-            seed = _resolve_link_int(seed_input, prompt, depth + 1, visited)
-        else:
-            try:
-                seed = int(seed_input)
-            except Exception:
-                seed = 0
-        sep = str(inputs.get("multiple_separator", _node_widget(node, 3, " ")) or " ")
-        recache = bool(inputs.get("recache_wildcards", _node_widget(node, 4, False)))
-        try:
-            wp = _get_wildcard_processor()
-            return wp.process_wildcards(
-                wildcard_string=wildcard_string,
-                seed=seed,
-                recache_wildcards=recache,
-                tag_extraction_tags="",
-            )[0]
-        except Exception:
-            return wildcard_string
-
-    if _is_node(class_type, "loratagloader", "lora loader prompt tags"):
-        source = inputs.get("STRING", "")
-        if isinstance(source, list):
-            source = _resolve_link_text(source, prompt, depth + 1, visited)
-        if not isinstance(source, str):
-            source = ""
-        # Output index 2 is cleaned prompt string in this node; return cleaned text.
-        cleaned = re.sub(r"<[0-9a-zA-Z:\_\-\.\s/()\\]+>", "", source)
-        return re.sub(r"\s+", " ", cleaned).strip()
-
-    if _is_node(class_type, "promptpropertyextractor", "prompt property extractor"):
-        input_string = inputs.get("input_string", "")
-        if not isinstance(input_string, str):
-            input_string = ""
-        if out_idx == 4:
-            return _parse_neg_from_prompt_property_input(input_string)
-        return input_string
-
-    for key_name in ("text", "text_g", "t5xxl", "prompt", "string", "value", "STRING", "processed_text"):
-        val = inputs.get(key_name)
-        if isinstance(val, str) and val.strip():
-            return val
-        if isinstance(val, list):
-            resolved = _resolve_link_text(val, prompt, depth + 1, visited)
-            if resolved:
-                return resolved
-
+def _first_clip_text(prompt: dict) -> str:
+    for node in prompt.values():
+        if node.get("class_type", "") in CLIP_ENCODER_TYPES:
+            inputs = node.get("inputs", {})
+            for key in ("text", "text_g", "t5xxl", "prompt"):
+                text = _text_input(inputs.get(key))
+                if text.strip():
+                    return text
     return ""
-
-
-def _resolve_link_int(link, prompt: dict, depth=0, visited=None) -> int:
-    if visited is None:
-        visited = set()
-    if depth > 40 or not isinstance(link, list) or len(link) < 1:
-        return 0
-    node = _get_node(prompt, str(link[0]))
-    class_type = _node_class(node)
-    class_lower = class_type.lower()
-    if class_type == "Seed (rgthree)" or class_lower.startswith("seed"):
-        try:
-            return int(_node_widget(node, 0, 0))
-        except Exception:
-            return 0
-    # fall back: try widget[0]
-    try:
-        return int(_node_widget(node, 0, 0))
-    except Exception:
-        return 0
-
-
-def _parse_neg_from_prompt_property_input(input_string: str) -> str:
-    if not isinstance(input_string, str):
-        return ""
-    tags = re.findall(r"<((?:[^>\\]|\\.)*)>", input_string)
-    negatives = []
-    for tag in tags:
-        parts = tag.split(":", 1)
-        if len(parts) < 2:
-            continue
-        name = parts[0].strip().lower()
-        value = parts[1].replace(r"\>", ">").strip()
-        if name in ("neg", "negative") and value:
-            negatives.append(value)
-    return ", ".join(negatives)
-
-
-def _resolve_text_from_link(link, prompt: dict, depth=0, visited=None) -> str:
-    if visited is None:
-        visited = set()
-    if depth > 20 or not isinstance(link, list) or len(link) < 1:
-        return ""
-    node_id = str(link[0])
-    output_idx = int(link[1]) if len(link) > 1 and isinstance(link[1], int) else 0
-    key = (node_id, output_idx)
-    if key in visited:
-        return ""
-    visited.add(key)
-
-    node = prompt.get(node_id, {})
-    class_type = node.get("class_type", "")
-    inputs = node.get("inputs", {})
-
-    if _is_node(class_type, "loratagloader", "lora loader prompt tags"):
-        return _resolve_link_text(link, prompt, depth, visited)
-
-    if _is_node(class_type, "promptpropertyextractor", "prompt property extractor"):
-        input_string = inputs.get("input_string", "")
-        if output_idx == 4:
-            return _parse_neg_from_prompt_property_input(input_string)
-        return input_string if isinstance(input_string, str) else ""
-
-    return _resolve_link_text(link, prompt, depth, visited)
-
-
-def _extract_clip_text_from_node(node: dict, prompt: dict) -> str:
-    inputs = node.get("inputs", {})
-    for key in ("text", "text_g", "t5xxl", "prompt"):
-        val = inputs.get(key)
-        if isinstance(val, str) and val.strip():
-            return val
-        if isinstance(val, list):
-            resolved = _resolve_text_from_link(val, prompt)
-            if resolved:
-                return resolved
-    return ""
-
-
-def _find_conditioning_text(start_link, prompt: dict, expected: str) -> str:
-    if not isinstance(start_link, list) or len(start_link) < 1:
-        return ""
-    start_node_id = str(start_link[0])
-    start_output_idx = int(start_link[1]) if len(start_link) > 1 and isinstance(start_link[1], int) else 0
-    queue = deque([(start_node_id, start_output_idx)])
-    visited = set()
-    while queue:
-        nid, out_idx = queue.popleft()
-        if (nid, out_idx) in visited:
-            continue
-        visited.add((nid, out_idx))
-
-        node = prompt.get(nid, {})
-        class_type = node.get("class_type", "")
-        if class_type in CLIP_ENCODER_TYPES:
-            return _extract_clip_text_from_node(node, prompt)
-        if _is_node(class_type, "promptpropertyextractor", "prompt property extractor"):
-            input_string = node.get("inputs", {}).get("input_string", "")
-            if expected == "negative":
-                return _parse_neg_from_prompt_property_input(input_string)
-            if isinstance(input_string, str):
-                return input_string
-
-        for val in node.get("inputs", {}).values():
-            if isinstance(val, list) and len(val) >= 1:
-                next_id = str(val[0])
-                next_out = int(val[1]) if len(val) > 1 and isinstance(val[1], int) else 0
-                queue.append((next_id, next_out))
-    return ""
-
-
-def _looks_negative(text: str) -> bool:
-    t = (text or "").lower()
-    hints = ("bad", "worst", "lowres", "blurry", "nsfw", "artifact", "ugly", "deformed", "negative")
-    return any(h in t for h in hints)
-
-
-def _strip_lora_tags(text: str) -> str:
-    if not isinstance(text, str):
-        return ""
-    cleaned = re.sub(r"<lora:[^>]+>", "", text, flags=re.IGNORECASE)
-    return re.sub(r"\s+", " ", cleaned).strip()
-
-
-def _find_positive_from_lora_tag_loader(prompt: dict) -> str:
-    for _, node in prompt.items():
-        ct = str(node.get("class_type", "")).lower()
-        if _is_node(ct, "loratagloader", "lora loader prompt tags"):
-            src = node.get("inputs", {}).get("STRING", "")
-            if isinstance(src, list):
-                src = _resolve_link_text(src, prompt)
-            if isinstance(src, str) and src.strip():
-                return _strip_lora_tags(src)
-    return ""
-
-
-def _find_prompts(prompt: dict) -> tuple:
-    positive = ""
-    negative = ""
-
-    for _, node in prompt.items():
-        class_type = node.get("class_type", "")
-        inputs = node.get("inputs", {})
-        sampler_map = SAMPLER_FIELDS_MAP.get(class_type)
-        if not sampler_map:
-            continue
-
-        if not positive:
-            pos_field = sampler_map.get("positive")
-            pos_ref = inputs.get(pos_field) if pos_field else None
-            if isinstance(pos_ref, list) and len(pos_ref) >= 1:
-                positive = _find_conditioning_text(pos_ref, prompt, "positive")
-
-        if not negative:
-            neg_field = sampler_map.get("negative")
-            neg_ref = inputs.get(neg_field) if neg_field else None
-            if isinstance(neg_ref, list) and len(neg_ref) >= 1:
-                negative = _find_conditioning_text(neg_ref, prompt, "negative")
-
-        if positive and negative:
-            break
-
-    if not positive or not negative:
-        all_texts = []
-        for _, node in prompt.items():
-            if node.get("class_type", "") in CLIP_ENCODER_TYPES:
-                t = _extract_clip_text_from_node(node, prompt)
-                if t:
-                    all_texts.append(t)
-        dedup_texts = list(dict.fromkeys(all_texts))
-        all_texts = dedup_texts
-        neg_candidates = [t for t in all_texts if _looks_negative(t)]
-        pos_candidates = [t for t in all_texts if not _looks_negative(t)]
-        if not positive:
-            positive = (pos_candidates[0] if pos_candidates else (all_texts[0] if all_texts else ""))
-        if not negative:
-            negative = (neg_candidates[0] if neg_candidates else (all_texts[1] if len(all_texts) > 1 else ""))
-
-    if positive and negative and positive == negative:
-        all_texts = []
-        for _, node in prompt.items():
-            if node.get("class_type", "") in CLIP_ENCODER_TYPES:
-                t = _extract_clip_text_from_node(node, prompt)
-                if t:
-                    all_texts.append(t)
-        neg_candidates = [t for t in all_texts if _looks_negative(t) and t != positive]
-        pos_candidates = [t for t in all_texts if (not _looks_negative(t)) and t != negative]
-        if neg_candidates:
-            negative = neg_candidates[0]
-        if pos_candidates:
-            positive = pos_candidates[0]
-
-    # Systematic fallback for workflows where positive text is assembled upstream and fed
-    # through LoRA Loader Prompt Tags before CLIPTextEncode.
-    if (not positive or positive == negative) and prompt:
-        lora_loader_positive = _find_positive_from_lora_tag_loader(prompt)
-        if lora_loader_positive:
-            positive = lora_loader_positive
-
-    return positive, negative
 
 
 def _extract_from_workflow(prompt: dict) -> dict:
     if not prompt:
         return {
             "positive": "",
-            "negative": "",
             "modelname": "",
             "loras": [],
             "seed": 0,
@@ -501,15 +184,13 @@ def _extract_from_workflow(prompt: dict) -> dict:
             "denoise": 1.0,
         }
 
-    positive, negative = _find_prompts(prompt)
     all_widths = _all_direct(prompt, WIDTH_FIELDS)
     all_heights = _all_direct(prompt, HEIGHT_FIELDS)
     width = max((v for _, v in all_widths), default=512) if all_widths else 512
     height = max((v for _, v in all_heights), default=512) if all_heights else 512
 
     return {
-        "positive": positive,
-        "negative": negative,
+        "positive": _first_clip_text(prompt),
         "modelname": _find_checkpoint_name(prompt),
         "loras": _find_lora_info(prompt),
         "seed": _first_direct(prompt, SEED_FIELDS, 0),
@@ -785,7 +466,7 @@ class ImageSaveWithMetadata(io.ComfyNode):
         def negative_for(i):
             if batch_active and batch_neg:
                 return batch_neg[i % len(batch_neg)]
-            return runtime_negative or wf["negative"]
+            return runtime_negative
 
         def seed_for(i):
             if batch_active and batch_seed is not None:

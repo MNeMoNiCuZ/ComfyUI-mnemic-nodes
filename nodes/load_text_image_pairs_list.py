@@ -97,6 +97,14 @@ class LoadTextImagePairsList(io.ComfyNode):
         return cropped_tensor.permute(1, 2, 0)
 
     @classmethod
+    def _rotated_images(cls, batch, start, count):
+        """count images from start, wrapping around the batch. Copies only what is returned."""
+        end = start + count
+        if end <= batch.shape[0]:
+            return batch[start:end]
+        return torch.cat((batch[start:], batch[:end - batch.shape[0]]), dim=0)
+
+    @classmethod
     def execute(cls, seed, input_path=None, force_reload=False, limit_count=0, text_format_extension="txt", image_input=None, text_input=None, folder_path=None) -> io.NodeOutput:
         global _CACHED_DATA, _CACHED_FOLDER_PATH
 
@@ -128,7 +136,7 @@ class LoadTextImagePairsList(io.ComfyNode):
             # Re-batch images after potential truncation
             batched_images = torch.cat(all_images, dim=0) if all_images else torch.empty(0)
 
-            _CACHED_DATA = (all_images, all_texts, all_paths, all_basenames, batched_images)
+            _CACHED_DATA = (all_texts, all_paths, all_basenames, batched_images)
             _CACHED_FOLDER_PATH = None  # No folder path when using direct inputs
             
             # Skip folder loading logic and proceed to output processing
@@ -144,13 +152,12 @@ class LoadTextImagePairsList(io.ComfyNode):
                 final_texts = rotated_texts[:limit_count]
                 final_paths = rotated_paths[:limit_count]
                 final_basenames = rotated_basenames[:limit_count]
-                final_images = torch.cat((batched_images[current_index:], batched_images[:current_index]), dim=0)
-                final_images = final_images[:limit_count]
+                final_images = cls._rotated_images(batched_images, current_index, min(limit_count, total_count))
             else:
                 final_texts = rotated_texts
                 final_paths = rotated_paths
                 final_basenames = rotated_basenames
-                final_images = torch.cat((batched_images[current_index:], batched_images[:current_index]), dim=0)
+                final_images = cls._rotated_images(batched_images, current_index, total_count)
 
             return io.NodeOutput(final_images, final_texts, final_paths, final_basenames, total_count,
                                  ui={**ui.PreviewImage(final_images[:1], cls=cls).as_dict(), "pair_text": [final_texts[0]]} if len(final_images) else {"images": []})
@@ -158,7 +165,7 @@ class LoadTextImagePairsList(io.ComfyNode):
         input_path = resolve_image_pair_path(input_path if input_path is not None else folder_path)
         if not force_reload and _CACHED_FOLDER_PATH == input_path and _CACHED_DATA:
             print("LoadTextImagePairsList: Using cached data.")
-            all_images, all_texts, all_paths, all_basenames, batched_images = _CACHED_DATA
+            all_texts, all_paths, all_basenames, batched_images = _CACHED_DATA
         else:
             if not input_path or not os.path.isdir(input_path):
                 return io.NodeOutput(None, "", "", "", 0, ui={"images": []})
@@ -198,7 +205,7 @@ class LoadTextImagePairsList(io.ComfyNode):
                     processed_images.append(img_tensor)
             batched_images = torch.cat(processed_images, dim=0)
 
-            _CACHED_DATA = (all_images, all_texts, all_paths, all_basenames, batched_images)
+            _CACHED_DATA = (all_texts, all_paths, all_basenames, batched_images)
             _CACHED_FOLDER_PATH = input_path
 
         total_count = len(all_texts)
@@ -214,13 +221,12 @@ class LoadTextImagePairsList(io.ComfyNode):
             final_texts = rotated_texts[:limit_count]
             final_paths = rotated_paths[:limit_count]
             final_basenames = rotated_basenames[:limit_count]
-            final_images = torch.cat((batched_images[current_index:], batched_images[:current_index]), dim=0)
-            final_images = final_images[:limit_count]
+            final_images = cls._rotated_images(batched_images, current_index, min(limit_count, total_count))
         else:
             final_texts = rotated_texts
             final_paths = rotated_paths
             final_basenames = rotated_basenames
-            final_images = torch.cat((batched_images[current_index:], batched_images[:current_index]), dim=0)
+            final_images = cls._rotated_images(batched_images, current_index, total_count)
 
         return io.NodeOutput(final_images, final_texts, final_paths, final_basenames, total_count,
                              ui={**ui.PreviewImage(final_images[:1], cls=cls).as_dict(), "pair_text": [final_texts[0]]})

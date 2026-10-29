@@ -14,6 +14,9 @@ from collections.abc import Collection, Iterator
 import folder_paths
 import requests
 
+from .file_utils import find_best_match
+from .settings_utils import is_lora_fuzzy_search_enabled
+
 
 def sanitize_filename(filename: str) -> str:
     unsafe_chars = r'[<>:"|?*\x00-\x1f]'
@@ -48,16 +51,26 @@ def full_embedding_path_for(embedding: str) -> Optional[str]:
 
 
 def full_lora_path_for(lora: str) -> Optional[str]:
-    matching_lora = get_file_path_match("loras", lora)
-    if matching_lora is None:
+    path = folder_paths.get_full_path("loras", lora)
+    if path is None:
+        # Bare names from <lora:...> tags: match them the way the LoRA loader does,
+        # so the hash is of the file that was actually applied.
+        matching_lora = find_best_match(lora, folder_paths.get_filename_list("loras"), fuzzy_search=is_lora_fuzzy_search_enabled(), index_key="loras")
+        path = folder_paths.get_full_path("loras", matching_lora) if matching_lora else None
+    if path is None:
         print(f'ComfyUI-Image-Saver: could not find full path to lora "{lora}"')
-        return None
-    return folder_paths.get_full_path("loras", matching_lora)
+    return path
 
 
 def full_checkpoint_path_for(model_name: str) -> str:
     if not model_name:
         return ""
+
+    # ckpt_name / unet_name widgets hold the exact relative path.
+    for folder in ("checkpoints", "diffusion_models"):
+        path = folder_paths.get_full_path(folder, model_name)
+        if path:
+            return path
 
     supported_extensions = set(folder_paths.supported_pt_extensions) | {".gguf"}
 

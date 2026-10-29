@@ -106,9 +106,10 @@ def score_filename_match(name, filename, base_path=None, fuzzy_search=False):
     # "hair_color" regardless of word order. Only kicks in for multi-word
     # names — a single word with no delimiters falls through to the
     # prefix/contains checks below as before.
-    word_split = re.compile(r'[\s_-]+')
-    name_words = [w for w in word_split.split(name_no_ext.lower()) if w]
-    file_words = [w for w in word_split.split(base_name_no_ext.lower()) if w]
+    if fuzzy_search:
+        word_split = re.compile(r'[\s_-]+')
+        name_words = [w for w in word_split.split(name_no_ext.lower()) if w]
+        file_words = [w for w in word_split.split(base_name_no_ext.lower()) if w]
     if fuzzy_search and len(name_words) > 1:
         if sorted(name_words) == sorted(file_words):
             return (70 - path_penalty, f"fuzzy match, reordered words (depth: {path_depth}{path_bonus_note})")
@@ -130,13 +131,41 @@ def score_filename_match(name, filename, base_path=None, fuzzy_search=False):
 
     return (0, "no match")
 
-def find_best_match(search_term, file_list, log=False, wildcard_paths=None, fuzzy_search=False, max_logged=MAX_LOGGED_CANDIDATES, kind="files"):
-    """Find the best matching file (or folder) from a list based on scoring."""
+# Per index_key: (file list, {filename without extension: [(position, file), ...]}).
+_NAME_INDEXES = {}
+
+
+def _exact_name_matches(search_term, file_list, index_key):
+    """Files that score an exact name match for search_term, in list order."""
+    cached = _NAME_INDEXES.get(index_key)
+    if cached is None or cached[0] != file_list:
+        index = {}
+        for position, file_path in enumerate(file_list):
+            index.setdefault(Path(file_path).stem, []).append((position, file_path))
+        cached = _NAME_INDEXES[index_key] = (list(file_list), index)
+
+    p_name = Path(search_term)
+    found = {}
+    for key in (p_name.name, p_name.stem):
+        for position, file_path in cached[1].get(key, ()):
+            p_file = Path(file_path)
+            if p_file.stem == (p_name.stem if p_name.suffix == p_file.suffix else p_name.name):
+                found[position] = file_path
+    return [found[position] for position in sorted(found)]
+
+
+def find_best_match(search_term, file_list, log=False, wildcard_paths=None, fuzzy_search=False, max_logged=MAX_LOGGED_CANDIDATES, kind="files", index_key=None):
+    """Find the best matching file (or folder) from a list based on scoring.
+
+    Callers that search the same list repeatedly pass an index_key (e.g. "loras").
+    An exact name match always outscores every other match type, so when one exists
+    only those files are scored instead of the whole list.
+    """
+    if index_key is not None:
+        file_list = _exact_name_matches(search_term, file_list, index_key) or file_list
     matches = []
     if log:
         print(f"\nFinding matches for '{search_term}':")
-
-    seen_filenames = {}
 
     # Convert wildcard_paths to Path objects for comparison
     path_wildcard_paths = [Path(p) for p in wildcard_paths] if wildcard_paths else []
@@ -153,11 +182,6 @@ def find_best_match(search_term, file_list, log=False, wildcard_paths=None, fuzz
 
         score, reason = score_filename_match(search_term, file_path, base_path=base_path, fuzzy_search=fuzzy_search)
         if score > 0:
-            base_name = Path(file_path).name
-            if base_name in seen_filenames:
-                seen_filenames[base_name] = True
-            else:
-                seen_filenames[base_name] = False
             matches.append((score, file_path, reason, base_path))
     
     # A unique exact filename needs no depth penalty to break ties.

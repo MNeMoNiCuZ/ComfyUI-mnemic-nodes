@@ -8,6 +8,7 @@ import colorama
 
 from comfy_api.latest import io
 
+from ..utils.model_cache import load_cached
 from ..utils.settings_utils import is_load_random_checkpoint_console_log_enabled
 
 POOL_CACHE = {}
@@ -204,12 +205,12 @@ class LoadRandomCheckpoint(io.ComfyNode):
         if console_log:
             print(f"Loading checkpoint...")
 
-        model, clip, vae, _ = comfy.sd.load_checkpoint_guess_config(
-            path,
+        model, clip, vae, _ = load_cached("load_random_checkpoint", path, lambda p: comfy.sd.load_checkpoint_guess_config(
+            p,
             output_vae=True,
             output_clip=True,
             embedding_directory=folder_paths.get_folder_paths("embeddings")
-        )
+        ))
 
         if console_log:
             print(FOOTER)

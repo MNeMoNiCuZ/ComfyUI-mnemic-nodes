@@ -1,3 +1,4 @@
+import copy
 import re
 import random
 import os
@@ -267,7 +268,7 @@ class WildcardProcessor(io.ComfyNode):
                 # Add a separator between wildcard processing logs
                 print(f"\n{Fore.CYAN}{'-----' * 21}{Style.RESET_ALL}\n") # Match length of the start/end separator
             # Pass wildcard_paths to find_best_match for accurate logging
-            find_best_match(wildcard_name, self.wildcard_files, log=True, wildcard_paths=self.get_all_wildcard_paths(), fuzzy_search=is_wildcard_fuzzy_search_enabled(), max_logged=get_wildcard_max_logged_candidates())
+            find_best_match(wildcard_name, self.wildcard_files, log=True, wildcard_paths=self.get_all_wildcard_paths(), fuzzy_search=is_wildcard_fuzzy_search_enabled(), index_key="wildcards_advanced", max_logged=get_wildcard_max_logged_candidates())
             self.first_wildcard_processed = True
 
         # Now, get the content, using cache if possible.
@@ -276,7 +277,7 @@ class WildcardProcessor(io.ComfyNode):
             return self.wildcard_cache[cache_key]
 
         # Cache miss, so find the file (silently) and read it.
-        best_match = find_best_match(wildcard_name, self.wildcard_files, log=False, wildcard_paths=self.get_all_wildcard_paths(), fuzzy_search=is_wildcard_fuzzy_search_enabled())
+        best_match = find_best_match(wildcard_name, self.wildcard_files, log=False, wildcard_paths=self.get_all_wildcard_paths(), fuzzy_search=is_wildcard_fuzzy_search_enabled(), index_key="wildcards_advanced")
 
         if not best_match:
             self.wildcard_cache[cache_key] = None # Cache the failure
@@ -667,9 +668,9 @@ class WildcardProcessor(io.ComfyNode):
 
         for var_name, var_value_expr in definitions:
             var_name = var_name.strip()
-            # The value expression itself can contain wildcards. To evaluate it in isolation,
-            # we instantiate a temporary processor.
-            temp_processor = WildcardProcessor()
+            # The value expression itself can contain wildcards. It is evaluated by a copy so
+            # its run state stays separate, while the file list and caches are shared.
+            temp_processor = copy.copy(self)
             # Use a new random seed for variable evaluation to not interfere with main seed
             var_seed = random.randint(0, 0xffffffffffffffff)
             outer_random_state = random.getstate()

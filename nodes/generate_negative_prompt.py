@@ -5,6 +5,23 @@ from transformers import GPT2LMHeadModel, GPT2Tokenizer, GPT2Config
 
 from comfy_api.latest import io
 
+_MODEL_PATH = os.path.join(os.path.dirname(os.path.realpath(__file__)), "negativeprompt")
+
+# (tokenizer, model), loaded on first use and kept so later runs skip the reload.
+_MODEL = None
+
+
+def _get_model():
+    global _MODEL
+    if _MODEL is None:
+        print(f"Negative Prompt Model Path: {_MODEL_PATH}")
+        tokenizer = GPT2Tokenizer.from_pretrained(_MODEL_PATH)
+        model = GPT2LMHeadModel(GPT2Config.from_json_file(os.path.join(_MODEL_PATH, 'config.json')))
+        model.load_state_dict(torch.load(os.path.join(_MODEL_PATH, 'weights.pt')))
+        model.eval()
+        _MODEL = (tokenizer, model)
+    return _MODEL
+
 
 class GenerateNegativePrompt(io.ComfyNode):
     @classmethod
@@ -74,19 +91,7 @@ class GenerateNegativePrompt(io.ComfyNode):
 
     @classmethod
     def execute(cls, input_prompt, max_length, num_beams, temperature, top_k, top_p, blocked_words) -> io.NodeOutput:
-        current_directory = os.path.dirname(os.path.realpath(__file__))
-        model_directory = 'negativeprompt'
-        model_path = os.path.join(current_directory, model_directory)
-
-        print(f"Negative Prompt Model Path: {model_path}")
-        
-        tokenizer = GPT2Tokenizer.from_pretrained(model_path)
-        config = GPT2Config.from_json_file(os.path.join(model_path, 'config.json'))
-        model = GPT2LMHeadModel(config)
-        model_weights = torch.load(os.path.join(model_path, 'weights.pt'))
-        model.load_state_dict(model_weights)
-        model.eval()
-
+        tokenizer, model = _get_model()
         input_ids = tokenizer.encode(input_prompt, return_tensors='pt')
 
         output = model.generate(

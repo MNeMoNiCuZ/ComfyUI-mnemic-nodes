@@ -35,7 +35,7 @@ import comfy.samplers
 import comfy.model_management
 import comfy.utils
 
-from .wildcard_processor import WildcardProcessor
+from .wildcard_processor import get_shared_processor
 from .lora_tag_loader import LoraTagLoader, TAG_PATTERN, parse_lora_tag, load_lora_file
 from ..utils.batch_wildcard_runtime import set_batch_prompts
 from ..utils.settings_utils import is_wildcard_console_log_enabled, is_lora_console_log_enabled
@@ -247,9 +247,9 @@ class BatchWildcardSampler(io.ComfyNode):
         console_log = is_wildcard_console_log_enabled()
 
         # --- Resolve positive and negative prompts for each batch index ---
-        # A single processor instance is reused so its file caches persist across
-        # all indices. Recaching, if requested, is only performed on the first pass.
-        processor = WildcardProcessor()
+        # The shared processor keeps its file caches across indices and runs.
+        # Recaching, if requested, is only performed on the first pass.
+        processor = get_shared_processor()
         positive_prompts = []
         negative_prompts = []
         for i in range(batch_size):

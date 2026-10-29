@@ -7,7 +7,9 @@ import comfy.model_management
 import os
 from ..utils.file_utils import find_best_match
 from ..utils.settings_utils import is_prompt_property_extractor_console_log_enabled, is_lora_fuzzy_search_enabled
-from .wildcard_processor import WildcardProcessor
+from .wildcard_processor import get_shared_processor
+from .lora_tag_loader import load_lora_file
+from ..utils.model_cache import load_cached
 from comfy.samplers import SCHEDULER_NAMES  # Official global scheduler list – the correct one
 
 from comfy_api.latest import io
@@ -79,7 +81,7 @@ class PromptPropertyExtractor(io.ComfyNode):
         out_width, out_height, out_seed, out_start_step, out_end_step = width, height, seed, start_step, end_step
 
         # Initialize wildcard processor to handle wildcard logic
-        wildcard_processor = WildcardProcessor()
+        wildcard_processor = get_shared_processor()
         other_tags = []
         loras_to_apply = []
         positive_parts = []
@@ -131,14 +133,14 @@ class PromptPropertyExtractor(io.ComfyNode):
             try:
                 if (tag_name == "checkpoint" or tag_name == "model" or tag_name == "ckpt") and tag_value:
                     ckpt_name = tag_value
-                    ckpt_filename = find_best_match(ckpt_name, folder_paths.get_filename_list("checkpoints"), log=False, fuzzy_search=is_lora_fuzzy_search_enabled())
+                    ckpt_filename = find_best_match(ckpt_name, folder_paths.get_filename_list("checkpoints"), log=False, fuzzy_search=is_lora_fuzzy_search_enabled(), index_key="checkpoints")
                     if ckpt_filename:
                         ckpt_path = folder_paths.get_full_path("checkpoints", ckpt_filename)
                         if ckpt_path and os.path.exists(ckpt_path):
                             if console_log:
                                 print(f"  [CHECKPOINT] <{tag}> -> {os.path.basename(ckpt_path)}")
                             normalized_ckpt_path = os.path.normpath(os.path.abspath(ckpt_path)).replace('\\', '/')
-                            loaded_checkpoint = comfy.sd.load_checkpoint_guess_config(normalized_ckpt_path)
+                            loaded_checkpoint = load_cached("prompt_property_extractor_checkpoint", normalized_ckpt_path, comfy.sd.load_checkpoint_guess_config)
                             out_model = loaded_checkpoint[0]
 
                             # Only load CLIP from checkpoint if NOT already set by a tag AND enabled
@@ -157,26 +159,25 @@ class PromptPropertyExtractor(io.ComfyNode):
 
                 elif tag_name == "clip" and tag_value:
                     clip_name = tag_value.strip()
-                    clip_filename = find_best_match(clip_name, folder_paths.get_filename_list("clip"), log=False, fuzzy_search=is_lora_fuzzy_search_enabled())
+                    clip_filename = find_best_match(clip_name, folder_paths.get_filename_list("clip"), log=False, fuzzy_search=is_lora_fuzzy_search_enabled(), index_key="clip")
                     if clip_filename:
                         clip_path = folder_paths.get_full_path("clip", clip_filename)
                         if clip_path and os.path.exists(clip_path):
                             if console_log:
                                 print(f"  [CLIP] <{tag}> -> {os.path.basename(clip_path)}")
                             normalized_clip_path = os.path.normpath(os.path.abspath(clip_path)).replace('\\', '/')
-                            out_clip = comfy.sd.load_clip(ckpt_paths=[normalized_clip_path])
+                            out_clip = load_cached("prompt_property_extractor_clip", normalized_clip_path, lambda p: comfy.sd.load_clip(ckpt_paths=[p]))
                             clip_set_by_tag = True
 
                 elif tag_name == "vae" and tag_value:
                     vae_name = tag_value.strip()
-                    vae_filename = find_best_match(vae_name, folder_paths.get_filename_list("vae"), log=False, fuzzy_search=is_lora_fuzzy_search_enabled())
+                    vae_filename = find_best_match(vae_name, folder_paths.get_filename_list("vae"), log=False, fuzzy_search=is_lora_fuzzy_search_enabled(), index_key="vae")
                     if vae_filename:
                         vae_path = folder_paths.get_full_path("vae", vae_filename)
                         if vae_path and os.path.exists(vae_path):
                             if console_log:
                                 print(f"  [VAE] <{tag}> -> {os.path.basename(vae_path)}")
-                            vae_sd = comfy.utils.load_torch_file(vae_path)
-                            out_vae = comfy.sd.VAE(sd=vae_sd)
+                            out_vae = load_cached("prompt_property_extractor_vae", vae_path, lambda p: comfy.sd.VAE(sd=comfy.utils.load_torch_file(p)))
                             vae_set_by_tag = True
 
                 elif tag_name == "cfg" and tag_value:
@@ -277,13 +278,13 @@ class PromptPropertyExtractor(io.ComfyNode):
                         except ValueError:
                             print(f"  [WARNING] Invalid LoRA CLIP weight: {lora_parts[2]}")
 
-                    lora_filename = find_best_match(lora_name, folder_paths.get_filename_list("loras"), log=False, fuzzy_search=is_lora_fuzzy_search_enabled())
+                    lora_filename = find_best_match(lora_name, folder_paths.get_filename_list("loras"), log=False, fuzzy_search=is_lora_fuzzy_search_enabled(), index_key="loras")
                     if lora_filename:
                         lora_path = folder_paths.get_full_path("loras", lora_filename)
                         if lora_path and os.path.exists(lora_path):
                             if console_log:
                                 print(f"  [LORA QUEUED] <{tag}> -> {os.path.basename(lora_path)} (Model: {lora_model_weight}, CLIP: {lora_clip_weight})")
-                            loras_to_apply.append((lora_path, lora_model_weight, lora_clip_weight))
+                            loras_to_apply.append((lora_filename, lora_model_weight, lora_clip_weight))
 
                 elif (tag_name == "pos" or tag_name == "positive") and tag_value:
                     pos_value = tag_value.strip()
@@ -316,14 +317,14 @@ class PromptPropertyExtractor(io.ComfyNode):
 
         # STEP 5: Apply LoRAs
         if loras_to_apply and out_model and out_clip:
-            for lora_path, lora_model_weight, lora_clip_weight in loras_to_apply:
+            for lora_filename, lora_model_weight, lora_clip_weight in loras_to_apply:
                 try:
-                    lora = comfy.utils.load_torch_file(lora_path, safe_load=True)
+                    lora = load_lora_file(lora_filename)
                     if console_log:
-                        print(f"  [LORA APPLIED] {os.path.basename(lora_path)} (Model: {lora_model_weight}, CLIP: {lora_clip_weight})")
+                        print(f"  [LORA APPLIED] {os.path.basename(lora_filename)} (Model: {lora_model_weight}, CLIP: {lora_clip_weight})")
                     out_model, out_clip = comfy.sd.load_lora_for_models(out_model, out_clip, lora, lora_model_weight, lora_clip_weight)
                 except Exception as e:
-                    print(f"  [ERROR] Failed to load LoRA {lora_path}: {e}")
+                    print(f"  [ERROR] Failed to load LoRA {lora_filename}: {e}")
 
         # Final cleaning of the string (collapse multiple spaces)
         cleaned_string = re.sub(r"\s+", " ", cleaned_string_final).strip()

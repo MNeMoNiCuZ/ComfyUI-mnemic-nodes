@@ -38,6 +38,20 @@ except Exception:  # noqa: BLE001 - any failure means "library unavailable"
 _WMIN = None
 _WMAX = None
 
+# (parts of speech, min length, max length) -> word list. wonderwords filters and
+# sorts the whole dictionary on every word() call, so each list is built once.
+_POOLS = {}
+
+
+def _pool(parts, lo, hi):
+    key = (tuple(parts), lo, hi)
+    if key not in _POOLS:
+        try:
+            _POOLS[key] = _RW.filter(include_categories=parts or None, word_min_length=lo, word_max_length=hi)
+        except ValueError:  # min above max, e.g. bias 1 with no randomness
+            _POOLS[key] = []
+    return _POOLS[key]
+
 
 def _word(parts):
     """Return one random dictionary word for the given part(s) of speech.
@@ -48,11 +62,10 @@ def _word(parts):
     reproducible for a given seed.
     """
     for lo, hi in ((_WMIN, _WMAX), (None, None)):
-        try:
-            return _RW.word(include_parts_of_speech=parts, word_min_length=lo, word_max_length=hi)
-        except Exception:  # noqa: BLE001 - e.g. NoWordsToChoseFrom for a tight window
-            continue
-    return _RW.word()
+        pool = _pool(parts, lo, hi)
+        if pool:
+            return random.choice(pool)
+    return random.choice(_pool([], None, None))
 
 
 def _noun():

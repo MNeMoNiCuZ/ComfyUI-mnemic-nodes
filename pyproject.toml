@@ -1,7 +1,7 @@
 [project]
 name = "comfyui-mnemic-nodes"
-description = "Fixed civitai resource detection"
-version = "3.2.2"
+description = "Faster wildcard processing. Faster Save Image With Metadata. Faster LoRA tag loading. LoRAs, checkpoints and the negative prompt model stay loaded between runs. Faster Ideogram 4 Random Prompter, now reproducible by seed. Lower RAM use in Load Text-Image Pairs List"
+version = "3.3.0"
 license = { file = "LICENSE" }
 dependencies = ["configparser", "groq", "transformers", "torch", "tiktoken", "imageio", "tqdm", "piexif", "requests", "colorama", "opencv-python", "python-dotenv"]
 

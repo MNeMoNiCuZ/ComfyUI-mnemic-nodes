@@ -34,6 +34,10 @@ PROMPT_PROPERTY_EXTRACTOR_CONSOLE_LOG_SETTING_ID = "MNeMiC.PromptPropertyExtract
 
 LOAD_RANDOM_CHECKPOINT_CONSOLE_LOG_SETTING_ID = "MNeMiC.LoadRandomCheckpoint.ConsoleLogging"
 
+# (path, mtime, parsed settings): reparsed only when the file changes.
+_SETTINGS_CACHE = None
+
+
 def get_comfy_setting(setting_id, default=None):
     """Read a value from the (default) user's comfy.settings.json.
 
@@ -41,15 +45,18 @@ def get_comfy_setting(setting_id, default=None):
     execution has no request/user context, so this looks at the "default"
     user, which is what a standard single-user install uses.
     """
+    global _SETTINGS_CACHE
     try:
         if hasattr(folder_paths, "get_public_user_directory"):
             user_dir = folder_paths.get_public_user_directory("default")
         else:
             user_dir = os.path.join(folder_paths.get_user_directory(), "default")
         settings_path = os.path.join(user_dir, "comfy.settings.json")
-        with open(settings_path, "r", encoding="utf-8") as f:
-            settings = json.load(f)
-        return settings.get(setting_id, default)
+        mtime = os.stat(settings_path).st_mtime_ns
+        if _SETTINGS_CACHE is None or _SETTINGS_CACHE[:2] != (settings_path, mtime):
+            with open(settings_path, "r", encoding="utf-8") as f:
+                _SETTINGS_CACHE = (settings_path, mtime, json.load(f))
+        return _SETTINGS_CACHE[2].get(setting_id, default)
     except (OSError, ValueError, AttributeError):
         return default
 

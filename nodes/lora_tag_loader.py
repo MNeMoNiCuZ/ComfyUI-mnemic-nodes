@@ -1,8 +1,10 @@
 import folder_paths
 import logging
+import os
 import re
 
 from comfy_api.latest import io
+from comfy_execution.utils import get_executing_context
 
 from ..utils.file_utils import find_best_match
 from ..utils.settings_utils import is_lora_console_log_enabled, is_lora_fuzzy_search_enabled, get_lora_max_logged_candidates
@@ -51,9 +53,11 @@ def z_image_to_diffusers(mmdit_config, output_prefix=""):
         key_map[k[1]] = "{}{}".format(output_prefix, k[0])
     return key_map
 
-# Cache of the most recently loaded LoRA, kept at module level because V3 nodes
-# execute as classmethods on a per-run class clone and cannot hold instance state.
-_LOADED_LORA = None
+# LoRA files used by the current and the previous run: path -> ((size, mtime), state
+# dict, prompt id). Module level because V3 nodes execute as classmethods on a
+# per-run class clone and cannot hold instance state.
+_LORA_CACHE = {}
+_LORA_CACHE_PROMPT = None
 
 # Regular expression pattern to match tags enclosed in angle brackets
 TAG_PATTERN = r"\<[0-9a-zA-Z:=,\_\-\.\s/()\\]+\>"
@@ -299,7 +303,7 @@ def parse_lora_tag(tag_text, has_clip, lora_files, console_log):
         return None
 
     # Use our new matching system
-    lora_name = find_best_match(name, lora_files, log=console_log, fuzzy_search=is_lora_fuzzy_search_enabled(), max_logged=get_lora_max_logged_candidates())
+    lora_name = find_best_match(name, lora_files, log=console_log, fuzzy_search=is_lora_fuzzy_search_enabled(), max_logged=get_lora_max_logged_candidates(), index_key="loras")
 
     if lora_name is None:
         if console_log:
@@ -321,16 +325,25 @@ def parse_lora_tag(tag_text, has_clip, lora_files, console_log):
 
 
 def load_lora_file(lora_name):
-    """Load a LoRA state dict, reusing the cached file when it was the last one loaded."""
-    global _LOADED_LORA
+    """Load a LoRA state dict, reusing it while the file on disk is unchanged."""
+    global _LORA_CACHE_PROMPT
     lora_path = folder_paths.get_full_path("loras", lora_name)
-    if _LOADED_LORA is not None and _LOADED_LORA[0] == lora_path:
-        return _LOADED_LORA[1]
-    # Release the previous file before loading the next one.
-    _LOADED_LORA = None
-    lora = comfy.utils.load_torch_file(lora_path, safe_load=True)
-    _LOADED_LORA = (lora_path, lora)
-    return lora
+    context = get_executing_context()
+    prompt_id = context.prompt_id if context is not None else None
+    if prompt_id != _LORA_CACHE_PROMPT:
+        # A new run: release LoRAs the previous run did not use.
+        for path in [p for p, entry in _LORA_CACHE.items() if entry[2] != _LORA_CACHE_PROMPT]:
+            del _LORA_CACHE[path]
+        _LORA_CACHE_PROMPT = prompt_id
+
+    stat = os.stat(lora_path)
+    file_key = (stat.st_size, stat.st_mtime_ns)
+    entry = _LORA_CACHE.get(lora_path)
+    if entry is None or entry[0] != file_key:
+        _LORA_CACHE.pop(lora_path, None)
+        entry = (file_key, comfy.utils.load_torch_file(lora_path, safe_load=True), prompt_id)
+    _LORA_CACHE[lora_path] = (entry[0], entry[1], prompt_id)
+    return entry[1]
 
 
 class LoraTagLoader(io.ComfyNode):

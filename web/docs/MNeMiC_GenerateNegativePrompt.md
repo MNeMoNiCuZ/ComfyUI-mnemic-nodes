@@ -24,6 +24,6 @@ not a recommendation. NSFW terms can appear.
 
 ## Notes
 
-The model files live in `nodes/negativeprompt/` and are loaded on every run, so
-the first call after a fresh start is slow. The node is not an output node, so
+The model files live in `nodes/negativeprompt/`. They are loaded on the first
+run and kept in memory, so only the first call after a fresh start is slow. The node is not an output node, so
 it only runs when something downstream needs its result.
