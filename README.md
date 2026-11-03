@@ -22,6 +22,10 @@ links to workflow libraries on other drives are supported. See
 [Workflow folders](./README/workflow_folders.md) for usage and compatibility.
 Restart ComfyUI and refresh the browser after installing this feature.
 
+## Bookmarked nodes first in search
+
+Node search lists your bookmarked nodes (the bookmark icon in the search list or Node Library) at the top of the results, in their usual match order. ComfyUI itself ranks by text match only. Turn it off under **Settings → ⚡MNeMiC Nodes → Node Search → Bookmarked nodes first**.
+
 # Nodes
 
 ## 🔀 [Batch Wildcard Upscale Sampler](./README/batch_wildcard_sampler.md)
@@ -36,7 +40,7 @@ Save images with Civitai-compatible metadata auto-detected from the workflow. Ad
 
 ## 📝 [Wildcard Processor](./README/wildcard_processor.md)
 
-A versatile text processor that replaces wildcards with content from wildcard files or inline lists. The prompt box colors each `{a|b}` block, variable and wildcard so complex prompts stay readable.
+A versatile text processor that replaces wildcards with content from wildcard files or inline lists, with variables and `if{...}` blocks to pick text by a variable. The prompt box colors each `{a|b}` block, variable and wildcard so complex prompts stay readable.
 <img width="1649" height="417" alt="image" src="https://github.com/user-attachments/assets/ed495b54-3e53-44d7-8655-d7b5f105cc1f" />
 
 ## 🏷️ [LoRA Loader Prompt Tags](./README/lora_tag_loader.md)
@@ -119,6 +123,10 @@ Creates resolutions and a latent from presets, user presets, or input images.
 ## 🖼️ [Load Images From Path](./README/load_images_from_path.md)
 
 Loads an image or steps through a folder, with a mask and separate, configurable path or filename outputs.
+
+## 📂 [Load File From Path](./README/load_file_from_path.md)
+
+Loads matching files by seed, such as an image and its caption. Each output picks an extension and a type: image, mask, text, audio, video or path.
 
 ## 🖼️ [Load Image Advanced](./README/load_image_advanced.md)
 

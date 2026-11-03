@@ -33,8 +33,10 @@ _ANY_MARKER_RE = re.compile(
 )
 # Underscores name a file, tildes name a folder to pick a random file from.
 # Try three characters first so document wildcards cannot become line wildcards.
-WILDCARD_PATTERN = r"(?P<delimiter>___|__|~~~|~~)(?P<wildcard_name>[a-zA-Z0-9_./\\*?\[\] -]+?)(?P=delimiter)"
+_WILDCARD_NAME_CHAR = r"[a-zA-Z0-9_./\\*?\[\] -]"
+WILDCARD_PATTERN = r"(?P<delimiter>___|__|~~~|~~)(?P<wildcard_name>" + _WILDCARD_NAME_CHAR + r"+?)(?P=delimiter)"
 WILDCARD_RE = re.compile(WILDCARD_PATTERN)
+WILDCARD_NAME_RE = re.compile(_WILDCARD_NAME_CHAR + "+")
 
 # Regexes the processors use, extended to capture an optional source marker
 # in front of the construct. Group 1 is the source offset (or None).
@@ -43,8 +45,19 @@ MARKED_BRACES_RE = re.compile(r"(?:" + SOURCE_START + r"(\d+)" + SOURCE_END + r"
 MARKED_DOCUMENT_CHOICE_RE = re.compile(
     r"___(?:" + SOURCE_START + r"(\d+)" + SOURCE_END + r")?{([^{}]*?)}___"
 )
+# The start of an if{...} block; its end is found by counting braces.
+MARKED_CONDITION_START_RE = re.compile(
+    r"(?<![a-zA-Z0-9])if(?:" + SOURCE_START + r"(\d+)" + SOURCE_END + r")?{"
+)
+# A name can be built from ${variables} and {...} blocks, as in
+# __people/${location}__. Those resolve first and leave their markers and
+# @@MNM_PROTECTED_n@@ tokens in the name; the processor checks the plain name
+# against WILDCARD_NAME_RE.
 MARKED_WILDCARD_RE = re.compile(
-    r"(?:" + SOURCE_START + r"(\d+)" + SOURCE_END + r")?" + WILDCARD_PATTERN
+    r"(?:" + SOURCE_START + r"(\d+)" + SOURCE_END + r")?"
+    r"(?P<delimiter>___|__|~~~|~~)(?P<wildcard_name>(?:"
+    + _WILDCARD_NAME_CHAR + "|" + OPEN + "[^" + OPEN_END + "]*" + OPEN_END + "|" + CLOSE + r"|@@MNM_PROTECTED_\d+@@"
+    + r")+?)(?P=delimiter)"
 )
 
 

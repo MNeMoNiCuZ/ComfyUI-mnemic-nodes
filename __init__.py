@@ -34,6 +34,7 @@ from .nodes.prompt_property_extractor import PromptPropertyExtractor
 from .nodes.colorful_starting_image import ColorfulStartingImage
 from .nodes.load_random_checkpoint import LoadRandomCheckpoint
 from .nodes.load_images import LoadImagesFromPath, register_load_images_routes
+from .nodes.load_file_from_path import LoadFileFromPath, register_load_file_routes
 from .nodes.random_int_in_range import RandomIntInRange
 from .nodes.random_float_in_range import RandomFloatInRange
 from .nodes.random_bool import RandomBool
@@ -190,6 +191,7 @@ class MnemicExtension(ComfyExtension):
         ensure_env_file()
         register_llm_routes()
         register_load_images_routes()
+        register_load_file_routes()
         register_workflow_folder_routes()
 
         by_new_id = {}
@@ -233,6 +235,7 @@ class MnemicExtension(ComfyExtension):
             ColorfulStartingImage,
             LoadRandomCheckpoint,
             LoadImagesFromPath,
+            LoadFileFromPath,
             RandomIntInRange,
             RandomFloatInRange,
             RandomBool,

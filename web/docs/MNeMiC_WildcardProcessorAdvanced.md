@@ -2,9 +2,7 @@
 
 The same wildcard engine as **📝 Wildcard Processor**, with control over the
 multi-pick separator and extra outputs for the seed and for extracted tags.
-Use `__filename__` for a random line or `___filename___` for a whole text file.
-Use `~~folder~~` or `~~~folder~~~` to do the same with a random file from a folder.
-The full syntax reference is included below.
+The **Feature Summary** below lists every syntax.
 
 ## Inputs
 
@@ -27,6 +25,5 @@ The full syntax reference is included below.
 - **raw_tags_string** — Resolved tag content with delimiters included.
 - **raw_tags_list** — The same, as a list.
 
-Tag extraction is currently inactive in the UI (the delimiter input is
-disabled), so the four tag outputs are empty in normal use. They stay on the
-node so existing workflows keep their wiring.
+Tag extraction is disabled, so the four tag outputs are always empty. They
+stay on the node so saved workflows keep their connections.

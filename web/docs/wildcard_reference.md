@@ -1,3 +1,30 @@
+## Feature Summary
+
+| Feature | Example | Result |
+| --- | --- | --- |
+| Random line from a file | `__animals__` | one line from `animals.txt` |
+| Whole file | `___scenes/forest___` | all of `forest.txt` |
+| Random file from a folder, one line | `~~outfits~~` | a line from a random file in `outfits/` |
+| Random file from a folder, whole file | `~~~scenes~~~` | all of a random file in `scenes/` |
+| Glob patterns | `__animals/*__` | a line from any file in `animals/` |
+| Pick a reference, load its whole file | `___{__scene_list__}___` | all of the one file picked from the list |
+| Inline choice | `{red\|green\|blue}` | `green` |
+| Empty option | `{red\|blue\|}` | `red`, `blue` or nothing |
+| Weights | `{4::red\|blue\|}` | `red` 4/6, `blue` 1/6, nothing 1/6 |
+| Pick several | `{2$$red\|green\|blue}` | `red blue` |
+| Pick a range | `{1-3$$red\|green\|blue}` | 1 to 3 items |
+| Custom separator | `{2$$, $$red\|green\|blue}` | `red, blue` |
+| Variables | `${c=!{red\|blue}} a ${c} car, a ${c} bike` | the same colour both times |
+| If | `if{${c}==red:a fire truck}` | `a fire truck` when `c` is `red`, otherwise nothing |
+| If / else | `if{${c}==red:a fire truck\|a taxi}` | `a fire truck` when `c` is `red`, otherwise `a taxi` |
+| If / else if / else | `if{${c}==red:a fire truck\|${c}==blue:a police car\|a taxi}` | the first branch that matches, otherwise `a taxi` |
+| Not equal | `if{${c}!=red:not red}` | `not red` when `c` is anything but `red` |
+| Nesting | `{{rose\|white} gold\|platinum}` | `rose gold` |
+| Names built from variables or choices | `__people/${c}-woman__`, `__people/{France\|Spain}-woman__` | the file is picked by the resolved name |
+| Comments | `# note` in a block or at the start of a file line | ignored; whole-file wildcards keep `#` lines |
+
+Each feature is covered in detail below.
+
 ## How it works
 
 Write a template in **wildcard_string**, choose a **seed**, and run the workflow.
@@ -163,9 +190,10 @@ A {5::black|green|red} car.
 
 ### Fixed multiple selections
 
-`{2$$a|b|c|d}` selects exactly two items. Items are selected without replacement
-within each round; counts exceeding the available choices start another round.
-Weights also apply to multiple selections.
+`{2$$a|b|c|d}` selects exactly two different items. When the count is larger
+than the number of options, every option is used once and the rest are picked
+again, so `{5$$a|b|c}` gives all three plus two repeats. Weights also apply to
+multiple selections.
 
 The default separator is a **single space**. The Advanced node lets you change
 it with **multiple_separator**.
@@ -213,11 +241,22 @@ ${animal=!__animals__} The ${animal} plays with another ${animal}.
 
 ${color=!{red|{dark|light} blue}} A ${color} car and a ${color} bike.
 → A dark blue car and a dark blue bike.
+
+${vehicle=!car|bike} A ${vehicle}.
+→ A bike.
 ```
 
-Each variable value is evaluated separately: it can use variables defined
-inside that value, but cannot rely on variables defined in the outer template.
-Undefined references stay as text and are marked as errors by the highlighter.
+A bare choice list such as `${vehicle=!car|bike}` works like
+`${vehicle=!{car|bike}}`.
+
+A value can use variables defined before it, and variables defined inside
+that value. Variables defined later, or inside another value, are not
+available. The highlighter marks those uses as errors.
+
+```text
+${name=!Anna} ${greeting=!Hello ${name}} ${greeting}!
+→ Hello Anna!
+```
 
 ### Nesting
 
@@ -229,6 +268,72 @@ Increase that setting if a deep chain is not fully resolving.
 A {{rose|yellow|white} gold|platinum} band.
 → A rose gold band.
 ```
+
+### If blocks
+
+`if{...}` picks text by comparing values, usually variables. Each branch is
+`left==right:text` or `left!=right:text`; the first branch whose comparison
+holds is used. A branch without a comparison always holds, so put it last as
+the else. With no match and no else the block is empty.
+
+```text
+${mode=!one|two|three}
+if{${mode}==one:a red car}                                   → if
+if{${mode}==one:a red car|a blue car}                        → if / else
+if{${mode}==one:a red car|${mode}==two:a bus|a blue car}     → if / else if / else
+if{${mode}!=one:not one}                                     → not equal
+```
+
+- Comparisons ignore case and the spaces around each side.
+- Only the chosen branch is resolved, so wildcards and blocks in the other
+  branches are never read. Branches can contain blocks, wildcards and other
+  `if{...}` blocks.
+- `|`, `:` and `==` inside a variable's value or a nested block do not split
+  the branch. A plain value written in a condition cannot contain `:`.
+- `if` must not end a longer word: `motif{a|b}` is a normal block.
+- The highlighter marks a branch with `==` but no `:`, and branches after an
+  else, which are never used.
+
+### Building wildcard names
+
+A wildcard name can contain `${variables}` and `{...}` blocks. They are resolved
+first, then the finished name is looked up. This works for `__`, `___`, `~~`
+and `~~~`.
+
+```text
+${location=!__countries__}
+A __people/${location}-woman__ in a cafe in ${location}.
+→ A line from people/France-woman.txt, in a cafe in France.
+
+__people/{3::France|Spain}-woman__  → a line from people/France-woman.txt or people/Spain-woman.txt
+___scenes/${location}___            → all of scenes/France.txt
+~~outfits/${location}~~             → a line from a random file in outfits/France
+```
+
+The finished name may only contain letters, digits, spaces, `_ - . /` and glob
+characters; otherwise the token stays in the output as text. A wildcard cannot
+be written directly inside another name: `__people/__countries__-woman__` is
+read as `__people/__` followed by text. Use a variable or wrap it in a block,
+as in `__people/{__countries__}-woman__`.
+
+### Resolution order
+
+1. **Variable definitions.** Every `${name=!value}` is removed from the
+   template, and its value is resolved once, in the order the definitions
+   appear. A value can use the variables defined before it.
+2. **Passes** over the remaining text, repeated until nothing changes or
+   **Max nested passes** is reached. Each pass:
+   1. replaces every `${name}` with its value;
+   2. resolves `if{...}` blocks: picks a branch, then resolves it completely;
+   3. resolves `___{...}___` document choices;
+   4. resolves the innermost `{...}` blocks: reads the count, separator and
+      weights, picks the options, then resolves the picked text completely;
+   5. resolves `__file__`, `___file___`, `~~folder~~`, `~~~folder~~~` and globs,
+      then resolves the picked line or document completely.
+
+So nested blocks resolve from the inside out, wildcards inside a block are only
+read when their option is picked (`{__a__|__b__}` reads one file), and variables
+and blocks are always ready before the wildcard name that contains them.
 
 ### Comments and line breaks
 
@@ -250,6 +355,13 @@ ${animal=!{cat|dog}} A {3::large|small} ${animal} with a
 {2$$, $$red|blue|green} collar, beside another ${animal}.
 
 → A large dog with a red, green collar, beside another dog.
+```
+
+```text
+${mode=!portrait|scene}
+if{${mode}==portrait:a close-up portrait of __hero__|a wide shot of __location__}
+
+→ a wide shot of Abandoned Asylum
 ```
 
 ## Notes
@@ -278,7 +390,8 @@ Wildcard Upscale Sampler, and Prompt Property Extractor prompt boxes.
 Blocks have separate colours; variables, file wildcards, and tags are coloured
 by name. Braces, pipes, weights, counts, and separators can use a stronger shade.
 Comments are greyed out. Unclosed braces, stray closing braces, malformed
-definitions, and undefined variables can be underlined in red.
+definitions, undefined variables, an `if{...}` branch with `==` but no `:`,
+and branches after an `if{...}` else can be underlined in red.
 
 ```text
 {red|{dark|light} blue}       → separate colours for the nested blocks
@@ -286,6 +399,7 @@ ${animal=!cat} ${animal}     → matching colours for the definition and use
 __animals__ __animals__     → matching colours for the same file wildcard
 <lora:{styleA|styleB}:0.8>   → tag and its inner choice are highlighted
 ${undefined}               → red wavy underline when error highlighting is on
+if{${m}==a:x|y|z}          → z is underlined: it comes after the else y
 ```
 
 | Setting | Options |
@@ -335,31 +449,10 @@ Template: {2$$ - $$red|green|blue}
 
 ### Advanced tag outputs
 
-Tag extraction is currently disabled in the UI, so the Advanced node's four
-tag outputs are normally empty. They remain for compatibility with saved
-workflows. When extraction is supplied by an existing integration, delimiter
-pairs such as `[],<>` remove tagged content from the main prompt and resolve its
-wildcards separately. Delimiters cannot use `( ) { } |`.
-
-For `[photo by __artist__]<{realistic|painterly}>`, possible extracted values are:
-
-```text
-Delimiter pairs: [],<>
-Template: A landscape [photo by __artist__]<{realistic|painterly}>
-
-processed_text:        A landscape
-extracted_tags_string: photo by Ansel Adams|realistic
-extracted_tags_list:   ['photo by Ansel Adams', 'realistic']
-raw_tags_string:       [photo by Ansel Adams]<realistic>
-raw_tags_list:         ['[photo by Ansel Adams]', '<realistic>']
-```
-
-The raw outputs retain delimiters but contain **resolved** wildcard values.
-Use **String Text Splitter** to split the pipe-separated extracted string, or
-**String Text Extractor** to capture content enclosed by delimiters.
+Tag extraction is disabled, so the Advanced node's four tag outputs are always
+empty. They stay on the node so saved workflows keep their connections.
 
 ### Related nodes
 
-- **Wildcard Processor Advanced** adds separator control, seed, and tag outputs.
+- **Wildcard Processor Advanced** adds separator control and a seed output.
 - **Batch Wildcard Upscale Sampler** resolves fresh prompts per image and samples them.
-- **String Text Splitter** and **String Text Extractor** help route extracted text.

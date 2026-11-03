@@ -6,6 +6,7 @@ import folder_paths
 LORA_FUZZY_SEARCH_SETTING_ID = "MNeMiC.LoRALoading.FuzzySearch"
 LORA_CONSOLE_LOG_SETTING_ID = "MNeMiC.LoRALoading.ConsoleLogging"
 LORA_MAX_LOGGED_CANDIDATES_SETTING_ID = "MNeMiC.LoRALoading.MaxLoggedCandidates"
+LORA_HIDE_UNLOADED_KEYS_SETTING_ID = "MNeMiC.LoRALoading.HideUnloadedKeys"
 
 WILDCARD_FUZZY_SEARCH_SETTING_ID = "MNeMiC.WildcardProcessing.FuzzySearch"
 WILDCARD_CONSOLE_LOG_SETTING_ID = "MNeMiC.WildcardProcessing.ConsoleLogging"
@@ -74,6 +75,10 @@ def is_lora_fuzzy_search_enabled():
 
 def is_lora_console_log_enabled():
     return bool(get_comfy_setting(LORA_CONSOLE_LOG_SETTING_ID, False))
+
+
+def is_lora_unloaded_keys_hidden():
+    return bool(get_comfy_setting(LORA_HIDE_UNLOADED_KEYS_SETTING_ID, True))
 
 
 def is_wildcard_fuzzy_search_enabled():

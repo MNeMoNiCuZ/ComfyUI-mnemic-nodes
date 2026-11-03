@@ -10,7 +10,10 @@ whole batch is sampled in one go. VRAM use grows with `batch_size`.
 ## Inputs
 
 - **text** — Positive prompt. Full wildcard syntax (see 📝 Wildcard Processor)
-  plus `<lora:name:strength>` tags.
+  plus `<lora:name:strength>` tags. The best matching LoRA file is found by
+  name. Strength is optional (default 1.0); a second value sets a separate CLIP
+  strength, e.g. `<lora:mylora:0.8:0.6>`. The tag stays in the resolved prompt
+  for metadata and is removed before encoding.
 - **negative** — Negative prompt. Same wildcard syntax; resolved per image too.
 - **seed** — Base seed. Image *n* uses `seed + n`, for both wildcard resolution
   and sampling noise.

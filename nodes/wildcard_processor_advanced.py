@@ -6,11 +6,12 @@ from pathlib import Path
 import folder_paths
 import json
 from ..utils.file_utils import find_best_match
-from ..utils.wildcard_variables import split_variable_definitions
+from ..utils.wildcard_variables import resolve_conditions, split_variable_definitions
 from ..utils.wildcard_provenance import (
     MARKED_BRACES_RE,
     MARKED_DOCUMENT_CHOICE_RE,
     MARKED_WILDCARD_RE,
+    WILDCARD_NAME_RE,
     InnerMatch,
     build_segments,
     mark_sources,
@@ -69,17 +70,7 @@ class WildcardProcessor(io.ComfyNode):
                     "wildcard_string",
                     multiline=True,
                     dynamic_prompts=False,
-                    tooltip=(
-                        "The text prompt to process. Supports multiple features:\n\n"
-                        "File Wildcards:\nUse __filename__ for a random line, or ___filename___ for the entire filename.txt document, from the supported wildcard directories. Whole documents keep line breaks and # lines. In single-line mode, lines starting with # are treated as comments and are ignored.\n\n"
-                        "Folder Wildcards:\nUse ~~foldername~~ for a random line, or ~~~foldername~~~ for the entire document, from a random .txt file in the best matching folder.\n\n"
-                        "Inline Choices:\nUse {a|b|c} to randomly choose between a, b, or c.\nExample Input: A photo of a {red|green|blue} car.\nExample Output: A photo of a green car.\n\n"
-                        "Weighted Choices:\nUse {5::black|green|red} to make black 5 times more likely to be chosen than green or red. Weights are normalized to 100% based on the sum of all weights in the block (e.g. {5::red|4::green|7::blue|black} sums to 17, giving red ~29%, green ~24%, blue ~41%, black ~6%).\n\n"
-                        "Select Multiple Wildcards:\nUse {2$$a|b|c|d} to output a specific number of items from the result.\nExample Input: My favorite colors are {3$$red|green|blue|yellow|purple}.\nExample Output: My favorite colors are blue, yellow, purple.\n\n"
-                        "Ranged Select Multiple:\nUse {1-3$$red|green|blue|yellow|purple} to select a random number of 1-3 items within a range.\n\n"
-                        "Custom Separator:\nUse {1-3$$, $$red|green|blue|yellow|purple} to join the selected items with a custom separator (here, \", \") instead of the default.\n\n"
-                        "Variables:\nDefine a variable to reuse a value. Can be defined directly, or using a wildcard\nExample Input: ${animal=!__animals__} The ${animal} is friends with the other ${animal}.\nExample Output: The cat is friends with the other cat."
-                    ),
+                    tooltip="The template to resolve. Click ? in the title bar for the full syntax.",
                     placeholder="A photo of a __sample_colors__ {dog|cat|monkey}.",
                 ),
                 io.Int.Input(
@@ -501,7 +492,11 @@ class WildcardProcessor(io.ComfyNode):
     def _evaluate_marked_wildcard(self, match):
         """Resolve a file or folder wildcard and retain its source offset."""
         delimiter = match.group("delimiter")
-        inner = InnerMatch(match, delimiter, delimiter, content_group="wildcard_name")
+        # A name built from variables or {...} blocks is read as plain text.
+        name = WILDCARD_NAME_RE.fullmatch(strip_markers(self._restore_protected_text(match.group("wildcard_name"))))
+        if not name:
+            return match.group(0)
+        inner = InnerMatch(name, delimiter, delimiter, content_group=0)
         if delimiter[0] == "~":
             result = self._evaluate_folder_wildcard(inner, whole_document=delimiter == "~~~")
         else:
@@ -522,6 +517,9 @@ class WildcardProcessor(io.ComfyNode):
             # First, substitute any defined variables.
             for var_name, var_value in self.variables.items():
                 text = text.replace(f"${{{var_name}}}", wrap(f"v{var_name}", var_value))
+
+            # Pick if{...} branches before blocks split them at "|".
+            text = resolve_conditions(self, text)
 
             # Select a reference before ordinary recursion consumes its first line.
             text = MARKED_DOCUMENT_CHOICE_RE.sub(lambda match: resolve_document_choice(self, match), text)
@@ -631,7 +629,8 @@ class WildcardProcessor(io.ComfyNode):
         tag_extraction_tags = kwargs.get("tag_extraction_tags", "")
 
         random.seed(seed)
-        self.variables = {} # Reset variables for each run
+        # A variable value sees the variables defined before it.
+        self.variables = dict(kwargs.get("_variables", {}))
         self.first_wildcard_processed = False # Reset for each run
         self._protected_segments = {}
         self._protect_counter = 0
@@ -674,7 +673,7 @@ class WildcardProcessor(io.ComfyNode):
             # Use a new random seed for variable evaluation to not interfere with main seed
             var_seed = random.randint(0, 0xffffffffffffffff)
             outer_random_state = random.getstate()
-            evaluated_value = temp_processor.process_wildcards(**{"wildcard_string": var_value_expr, "seed": var_seed, "_definition_depth": definition_depth + 1})[0]
+            evaluated_value = temp_processor.process_wildcards(**{"wildcard_string": var_value_expr, "seed": var_seed, "_definition_depth": definition_depth + 1, "_variables": self.variables})[0]
             random.setstate(outer_random_state)
             
             self.variables[var_name] = evaluated_value

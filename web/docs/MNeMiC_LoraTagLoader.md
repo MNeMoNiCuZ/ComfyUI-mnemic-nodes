@@ -268,9 +268,13 @@ the new ramp needs verification in your ComfyUI workflow.
 ## Notes
 
 Tags that match no file are skipped with a console note rather than failing the
-run. The most recently used LoRA is kept in memory, so repeated runs with the
-same one do not re-read it from disk. Lumina2 / ZiT models get an extra key
-mapping applied automatically.
+run. LoRAs used in the current and previous run stay in memory, so repeated
+runs do not re-read them from disk unless the file changed. Lumina2 / ZiT
+models get an extra key mapping applied automatically.
 
-Console logging, fuzzy search and the candidate-log cap are in
-**Settings → ⚡MNeMiC Nodes → LoRA Loading**.
+When a LoRA only partly matches the model, ComfyUI's per-key "lora key not
+loaded" warnings are replaced with one summary line per LoRA. Turn off
+**Hide unloaded key warnings** to see every key.
+
+Console logging, fuzzy search, the candidate-log cap and the unloaded key
+warnings are in **Settings → ⚡MNeMiC Nodes → LoRA Loading**.

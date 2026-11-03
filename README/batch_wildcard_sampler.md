@@ -66,6 +66,7 @@ Wildcard resolution is handled by the exact same engine as the [Wildcard Process
 - **Weighted Choices** — `{5::black|green|red}` makes `black` 5× as likely.
 - **Multiple Selections** — `{2$$a|b|c|d}` (fixed count) and `{1-3$$a|b|c|d}` (ranged count), with an optional inline custom separator: `{1-3$$, $$a|b|c|d}`.
 - **Variables** — `${animal=!__animals__} ... ${animal}` to reuse a resolved value.
+- **If Blocks** — `if{${mode}==a:text|${mode}!=b:other|else}` picks text based on a variable.
 - **Nesting** — all of the above can be combined.
 
 See the [Wildcard Processor documentation](./wildcard_processor.md) for full details, examples, and the list of supported wildcard directories.

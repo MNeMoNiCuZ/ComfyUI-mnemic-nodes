@@ -7,7 +7,7 @@ from comfy_api.latest import io
 from comfy_execution.utils import get_executing_context
 
 from ..utils.file_utils import find_best_match
-from ..utils.settings_utils import is_lora_console_log_enabled, is_lora_fuzzy_search_enabled, get_lora_max_logged_candidates
+from ..utils.settings_utils import is_lora_console_log_enabled, is_lora_fuzzy_search_enabled, get_lora_max_logged_candidates, is_lora_unloaded_keys_hidden
 
 # Import ComfyUI files
 import comfy.sd
@@ -191,6 +191,48 @@ class _ScheduledLora:
                             callback, disable_pbar, seed, **kwargs)
         finally:
             guider.conds = original_conds
+
+
+class _UnloadedKeyFilter(logging.Filter):
+    """Drops ComfyUI's per-key "lora key not loaded" warnings and counts them."""
+
+    def __init__(self):
+        super().__init__()
+        self.count = 0
+
+    def filter(self, record):
+        if record.getMessage().startswith("lora key not loaded:"):
+            self.count += 1
+            return False
+        return True
+
+
+def _apply_lora_to_model(model, clip, lora, model_strength, clip_strength, ranges, scheduled, time_options, console_log):
+    if not (hasattr(comfy.model_base, "Lumina2") and isinstance(model.model, comfy.model_base.Lumina2)):
+        return _apply_lora(model, clip, lora, model_strength, clip_strength, ranges, scheduled, time_options)
+
+    if console_log:
+        print(f"LoraTagLoader: ZiT model detected, applying custom key mapping via monkeypatch.")
+    # Monkeypatch approach: temporarily modify model_lora_keys_unet to include ZiT support
+    # This replicates the logic from the ComfyUI commit
+    original_model_lora_keys_unet = comfy.lora.model_lora_keys_unet
+
+    def patched_model_lora_keys_unet(model, key_map={}):
+        key_map = original_model_lora_keys_unet(model, key_map)
+        if isinstance(model, comfy.model_base.Lumina2):
+            diffusers_keys = z_image_to_diffusers(model.model_config.unet_config, output_prefix="diffusion_model.")
+            for k in diffusers_keys:
+                to = diffusers_keys[k]
+                key_lora = k[:-len(".weight")]
+                key_map["diffusion_model.{}".format(key_lora)] = to
+                key_map["lycoris_{}".format(key_lora.replace(".", "_"))] = to
+        return key_map
+
+    comfy.lora.model_lora_keys_unet = patched_model_lora_keys_unet
+    try:
+        return _apply_lora(model, clip, lora, model_strength, clip_strength, ranges, scheduled, time_options)
+    finally:
+        comfy.lora.model_lora_keys_unet = original_model_lora_keys_unet
 
 
 def _apply_lora(model, clip, lora, model_strength, clip_strength, ranges, scheduled, time_options=None):
@@ -399,45 +441,16 @@ class LoraTagLoader(io.ComfyNode):
             lora_name, wModel, wClip, ranges, scheduled, time_options = spec
             lora = load_lora_file(lora_name)
 
-            # Apply the LoRA
-            is_zit = False
-            if hasattr(comfy.model_base, "Lumina2"):
-                if isinstance(model_lora.model, comfy.model_base.Lumina2):
-                    is_zit = True
-
-            if is_zit:
-                if console_log:
-                    print(f"LoraTagLoader: ZiT model detected, applying custom key mapping via monkeypatch.")
-                # Monkeypatch approach: temporarily modify model_lora_keys_unet to include ZiT support
-                # This replicates the logic from the ComfyUI commit
-                original_model_lora_keys_unet = comfy.lora.model_lora_keys_unet
-                
-                def patched_model_lora_keys_unet(model, key_map={}):
-                    # Call the original function first
-                    key_map = original_model_lora_keys_unet(model, key_map)
-                    
-                    # Add ZiT-specific mappings if it's a Lumina2 model
-                    if isinstance(model, comfy.model_base.Lumina2):
-                        diffusers_keys = z_image_to_diffusers(model.model_config.unet_config, output_prefix="diffusion_model.")
-                        for k in diffusers_keys:
-                            to = diffusers_keys[k]
-                            key_lora = k[:-len(".weight")]
-                            key_map["diffusion_model.{}".format(key_lora)] = to
-                            key_map["lycoris_{}".format(key_lora.replace(".", "_"))] = to
-                    
-                    return key_map
-                
-                # Temporarily replace the function
-                comfy.lora.model_lora_keys_unet = patched_model_lora_keys_unet
-                
-                try:
-                    # Use the standard loading path, which will now use our patched function
-                    model_lora, clip_lora = _apply_lora(model_lora, clip_lora, lora, wModel, wClip, ranges, scheduled, time_options)
-                finally:
-                    # Always restore the original function
-                    comfy.lora.model_lora_keys_unet = original_model_lora_keys_unet
-            else:
-                model_lora, clip_lora = _apply_lora(model_lora, clip_lora, lora, wModel, wClip, ranges, scheduled, time_options)
+            key_filter = _UnloadedKeyFilter() if is_lora_unloaded_keys_hidden() else None
+            if key_filter:
+                logging.getLogger().addFilter(key_filter)
+            try:
+                model_lora, clip_lora = _apply_lora_to_model(model_lora, clip_lora, lora, wModel, wClip, ranges, scheduled, time_options, console_log)
+            finally:
+                if key_filter:
+                    logging.getLogger().removeFilter(key_filter)
+            if key_filter and key_filter.count:
+                print(f"LoraTagLoader: {lora_name}: {key_filter.count} LoRA keys not loaded (warnings hidden in settings).")
 
         # Remove the LoRA tags from the text
         plain_prompt = re.sub(TAG_PATTERN, "", STRING)

@@ -1,10 +1,8 @@
 # 📝 Wildcard Processor
 
-Resolves a prompt template into one concrete prompt: pulls random lines out of
-wildcard files (or whole documents with `___filename___`), or from a random file
-in a folder with `~~folder~~` and `~~~folder~~~`, picks between inline
-choices, applies weights, and expands variables. The resolved text is shown on
-the node and sent to the output.
+Resolves a prompt template with wildcards, choices, variables and if blocks
+into one concrete prompt. The resolved text is shown on the node and sent to
+the output. The **Feature Summary** below lists every syntax.
 
 ## Inputs
 

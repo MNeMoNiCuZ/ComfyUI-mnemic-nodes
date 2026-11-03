@@ -27,7 +27,7 @@ from ..utils.image_save_with_metadata_utils import (
     full_lora_path_for,
     get_sha256,
 )
-from ..utils.image_save_runtime_capture import cached_output, capture_runtime_prompt_and_loras
+from ..utils.image_save_runtime_capture import capture_runtime_prompt_and_loras, encoder_text, is_text_encoder, text_input
 from ..utils.batch_wildcard_runtime import get_batch_prompts
 
 SEED_FIELDS = ("seed", "noise_seed")
@@ -127,7 +127,7 @@ def _find_lora_info(prompt: dict) -> list:
 
         # Custom MNeMiC node: LoRA Loader Prompt Tags / LoraTagLoader
         if _is_node(ct, "loratagloader", "lora loader prompt tags"):
-            raw = _text_input(inputs.get("STRING"))
+            raw = text_input(inputs.get("STRING"))
             if raw:
                 for m in re.findall(r"<lora:([^>:]+)(?::([^>:]+))?(?::([^>:]+))?>", raw, flags=re.IGNORECASE):
                     name = (m[0] or "").strip()
@@ -147,24 +147,12 @@ def _find_lora_info(prompt: dict) -> list:
     return loras
 
 
-CLIP_ENCODER_TYPES = {"CLIPTextEncode", "CLIPTextEncodeSDXL", "CLIPTextEncodeFlux"}
-
-
-def _text_input(value) -> str:
-    """A text input as the node received it: typed in, or the output of the node it is linked to."""
-    if isinstance(value, list):
-        value = cached_output(value[0], value[1])
-    return value if isinstance(value, str) else ""
-
-
 def _first_clip_text(prompt: dict) -> str:
     for node in prompt.values():
-        if node.get("class_type", "") in CLIP_ENCODER_TYPES:
-            inputs = node.get("inputs", {})
-            for key in ("text", "text_g", "t5xxl", "prompt"):
-                text = _text_input(inputs.get(key))
-                if text.strip():
-                    return text
+        if is_text_encoder(node):
+            text = encoder_text(node)
+            if text:
+                return text
     return ""
 
 

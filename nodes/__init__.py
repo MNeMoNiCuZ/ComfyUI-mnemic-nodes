@@ -27,6 +27,7 @@ from .load_image_advanced import LoadImageAdvanced
 from .colorful_starting_image import ColorfulStartingImage
 from .load_random_checkpoint import LoadRandomCheckpoint
 from .load_images import LoadImagesFromPath
+from .load_file_from_path import LoadFileFromPath
 from .random_int_in_range import RandomIntInRange
 from .random_float_in_range import RandomFloatInRange
 from .random_bool import RandomBool
@@ -73,6 +74,7 @@ __all__ = [
     "ColorfulStartingImage",
     "LoadRandomCheckpoint",
     "LoadImagesFromPath",
+    "LoadFileFromPath",
     "RandomIntInRange",
     "RandomFloatInRange",
     "RandomBool",

@@ -18,6 +18,14 @@ app.registerExtension({
       onChange: () => window.dispatchEvent(new Event("mnemic-workflow-folders-changed")),
     },
     {
+      id: "MNeMiC.NodeSearch.BookmarksFirst",
+      name: "Bookmarked nodes first",
+      category: ["⚡MNeMiC Nodes", "Node Search", "Bookmarks First"],
+      tooltip: "List bookmarked nodes at the top of node search results, in their usual match order. Applies to the next search.",
+      type: "boolean",
+      defaultValue: true,
+    },
+    {
       id: "MNeMiC.LoRALoading.ConsoleLogging",
       name: "Console logging",
       category: ["⚡MNeMiC Nodes", "LoRA Loading", "Console Logging"],
@@ -32,6 +40,14 @@ app.registerExtension({
       tooltip: "Allow LoRA Tag Loader to fall back to fuzzy (partial/reordered word) filename matching when no exact match is found. Disabled by default so only exact, base, numbered and prefix/contains matches are used.",
       type: "boolean",
       defaultValue: false,
+    },
+    {
+      id: "MNeMiC.LoRALoading.HideUnloadedKeys",
+      name: "Hide unloaded key warnings",
+      category: ["⚡MNeMiC Nodes", "LoRA Loading", "Hide Unloaded Keys"],
+      tooltip: "Replace ComfyUI's per-key \"lora key not loaded\" warnings with one summary line per LoRA when LoRA Loader Prompt Tags loads a LoRA that only partly matches the model.",
+      type: "boolean",
+      defaultValue: true,
     },
     {
       id: "MNeMiC.WildcardProcessing.ConsoleLogging",

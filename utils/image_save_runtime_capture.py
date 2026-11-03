@@ -11,7 +11,7 @@ SAMPLER_FIELD_MAP = {
     "KSamplerAdvanced": {"positive": "positive", "negative": "negative", "model": "model"},
     "SamplerCustomAdvanced": {"positive": "guider", "negative": None, "model": "model"},
 }
-CLIP_TYPES = {"CLIPTextEncode", "CLIPTextEncodeSDXL", "CLIPTextEncodeFlux"}
+TEXT_KEYS = ("text", "text_g", "t5xxl", "prompt")
 
 
 def _find_sampler_for_save_node(prompt: dict, save_node_id: str):
@@ -33,23 +33,23 @@ def _find_sampler_for_save_node(prompt: dict, save_node_id: str):
     return None
 
 
-def _walk_to_clip(start_link, prompt: dict):
-    if not isinstance(start_link, list) or len(start_link) < 1:
-        return None
-    q = deque([str(start_link[0])])
+def _walk_to_encoder(start_link, prompt: dict):
+    """The first text encode node upstream of a conditioning link, and which of its outputs was followed."""
+    q = deque([start_link])
     seen = set()
     while q:
-        nid = q.popleft()
+        link = q.popleft()
+        nid = str(link[0])
         if nid in seen:
             continue
         seen.add(nid)
         node = prompt.get(nid, {})
-        if node.get("class_type", "") in CLIP_TYPES:
-            return nid
-        for _, v in node.get("inputs", {}).items():
-            if isinstance(v, list) and len(v) >= 1:
-                q.append(str(v[0]))
-    return None
+        if is_text_encoder(node):
+            return node, link[1]
+        for v in node.get("inputs", {}).values():
+            if isinstance(v, list) and len(v) == 2:
+                q.append(v)
+    return None, 0
 
 
 def _resolved_inputs(node_id: str):
@@ -98,14 +98,26 @@ def cached_output(node_id: str, output_index: int):
     return value[0] if isinstance(value, list) and value else value
 
 
-def _extract_text_from_clip_node(node_id: str):
-    inp = _resolved_inputs(node_id)
-    for k in ("text", "text_g", "t5xxl", "prompt"):
-        v = inp.get(k)
-        if isinstance(v, str):
-            return v
-        if isinstance(v, list) and len(v) > 0 and isinstance(v[0], str):
-            return v[0]
+def text_input(value) -> str:
+    """A text input as the node received it: typed in, or the output of the node it is linked to."""
+    if isinstance(value, list):
+        value = cached_output(value[0], value[1])
+    return value if isinstance(value, str) else ""
+
+
+def is_text_encoder(node: dict) -> bool:
+    # CLIPTextEncode, CLIPTextEncodeSDXL, TextEncodeQwenImage21, ...
+    return "TextEncode" in node.get("class_type", "")
+
+
+def encoder_text(node: dict, output_index: int = 0) -> str:
+    """The prompt a text encode node received. Encoders with their own negative output read negative_prompt for it."""
+    inputs = node.get("inputs", {})
+    keys = ("negative_prompt",) if output_index == 1 and "negative_prompt" in inputs else TEXT_KEYS
+    for key in keys:
+        text = text_input(inputs.get(key))
+        if text.strip():
+            return text
     return ""
 
 
@@ -179,15 +191,15 @@ def capture_runtime_prompt_and_loras():
 
     pos_field = fmap.get("positive")
     if pos_field and isinstance(sinputs.get(pos_field), list):
-        clip_id = _walk_to_clip(sinputs.get(pos_field), prompt)
-        if clip_id:
-            pos_text = _extract_text_from_clip_node(clip_id)
+        node, index = _walk_to_encoder(sinputs.get(pos_field), prompt)
+        if node:
+            pos_text = encoder_text(node, index)
 
     neg_field = fmap.get("negative")
     if neg_field and isinstance(sinputs.get(neg_field), list):
-        clip_id = _walk_to_clip(sinputs.get(neg_field), prompt)
-        if clip_id:
-            neg_text = _extract_text_from_clip_node(clip_id)
+        node, index = _walk_to_encoder(sinputs.get(neg_field), prompt)
+        if node:
+            neg_text = encoder_text(node, index)
 
     model_field = fmap.get("model")
     loras = []

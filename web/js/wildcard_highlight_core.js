@@ -50,7 +50,9 @@ function delim(start, end, kind) {
  * { type, start, end, children } where start/end are offsets into text.
  *
  * Node types:
- *   choice   {a|b|c} inline choice block
+ *   choice   {a|b|c} inline choice block; has `brace` (offset of its "{").
+ *            if{a==b:text|fallback} is a choice with `condition` set,
+ *            starting at the "if"
  *   option   one option of a choice block; has `index`
  *   vardef   ${name=!value} variable definition; has `name`
  *   varuse   ${name} variable use; has `name`
@@ -58,7 +60,7 @@ function delim(start, end, kind) {
  *   wildcard __file__, ___file___, ~~folder~~ or ~~~folder~~~ wildcard; has `name`, `folder` and `wholeDocument`
  *   tag      <name:value> property/LoRA tag; has `name`
  *   comment  # comment inside a choice block
- *   delim    syntax characters; has `kind` (brace, pipe, weight, count, sep, var, tag)
+ *   delim    syntax characters; has `kind` (brace, pipe, weight, count, sep, var, tag, condition)
  *   error    stray or unclosed syntax characters; has `message`
  * Nodes that are usable but wrong (undefined variables, a definition cut
  * off at the first "}") get `error` set.
@@ -160,7 +162,7 @@ export function parseWildcardText(text) {
      * it is parsed again as normal text (the processor leaves it as-is too).
      */
     function strayError(node) {
-        const length = node.type === "vardef" ? 2 : 1;
+        const length = node.type === "vardef" ? 2 : node.condition ? 3 : 1;
         return { type: "error", start: node.start, end: node.start + length, message: node.error, children: [] };
     }
 
@@ -174,14 +176,18 @@ export function parseWildcardText(text) {
         return text.slice(i, j).includes("\n") ? j : i;
     }
 
-    /** Parse the {a|b|c} block that opens at `start`. Sets `error` if it never closes. */
+    /** Parse the {a|b|c} or if{...} block whose "{" is at `start`. Sets `error` if it never closes. */
     function parseChoice(start) {
-        const node = { type: "choice", start, end: n, children: [delim(start, start + 1, "brace")] };
+        // "if" right before the brace, not ending a longer word, makes an if{...} block.
+        const isIf = start >= 2 && text.startsWith("if", start - 2) && !/[a-zA-Z0-9]/.test(text[start - 3] || "");
+        const open = isIf ? start - 2 : start;
+        const node = { type: "choice", start: open, brace: start, end: n, children: [delim(open, start + 1, "brace")] };
+        if (isIf) node.condition = true;
         let i = start + 1;
 
-        // Optional count prefix (N$$ or N-M$$), then an optional custom separator (sep$$).
+        // Optional count prefix (N$ or N-M$), then an optional custom separator (sep$).
         const countAt = skipLineBreak(i);
-        const count = matchAt(COUNT_RE, text, countAt);
+        const count = !isIf && matchAt(COUNT_RE, text, countAt);
         if (count) {
             i = countAt;
             node.children.push(delim(i, i + count[0].length, "count"));
@@ -202,7 +208,7 @@ export function parseWildcardText(text) {
         while (true) {
             const option = { type: "option", index: index++, start: i, end: i, children: [] };
             const weightAt = skipLineBreak(i);
-            const weight = matchAt(WEIGHT_RE, text, weightAt);
+            const weight = !isIf && matchAt(WEIGHT_RE, text, weightAt);
             if (weight) {
                 i = weightAt;
                 option.children.push(delim(i, i + weight[0].length, "weight"));
@@ -211,6 +217,7 @@ export function parseWildcardText(text) {
             const seq = parseSequence(i, "option");
             option.children.push(...seq.children);
             option.end = seq.end;
+            if (isIf) markCondition(option, node);
             node.children.push(option);
             i = seq.end;
 
@@ -227,6 +234,39 @@ export function parseWildcardText(text) {
                 node.end = n;
             }
             return node;
+        }
+    }
+
+    /**
+     * Mark the "==" or "!=" and the ":" of an if{...} branch. A branch without
+     * a condition always applies, so any branch after it is never used.
+     */
+    function markCondition(option, node) {
+        const free = (k) => !option.children.some((child) => child.start <= k && k < child.end);
+        let colon = option.end;
+        for (let k = option.start; k < option.end; k++) {
+            step();
+            if (text[k] === ":" && free(k)) {
+                colon = k;
+                break;
+            }
+        }
+        let op = -1;
+        for (let k = option.start; k < option.end - 1; k++) {
+            step();
+            if ((text[k] === "=" || text[k] === "!") && text[k + 1] === "=" && free(k)) {
+                op = k;
+                break;
+            }
+        }
+        if (node.fallback) {
+            option.error = "Never used: an earlier branch has no condition, so it always applies";
+        } else if (op !== -1 && op < colon && colon < option.end) {
+            option.children.push(delim(op, op + 2, "condition"), delim(colon, colon + 1, "condition"));
+            option.children.sort((a, b) => a.start - b.start);
+        } else {
+            node.fallback = true;
+            if (op !== -1 && colon === option.end) option.error = "Missing : after the condition, so this branch always applies";
         }
     }
 
@@ -304,31 +344,32 @@ export function parseWildcardText(text) {
         return { type: "root", start: 0, end: n, children: [], tooComplex: true };
     }
 
-    // Link variable definitions and uses. Each definition's value is
-    // resolved on its own, so it is a separate scope: it sees only the
-    // definitions inside it, and the rest of the text does not see those.
-    function checkScope(node, defs, uses) {
+    // Link variable definitions and uses. Each definition's value is a
+    // separate scope: it sees the definitions before it and inside it, and
+    // the rest of the text does not see the ones inside it.
+    function checkScope(node, defs, uses, earlier) {
         for (const child of node.children) {
             if (child.type === "vardef") {
-                defs.add(child.name);
+                const visible = new Set([...earlier, ...defs]);
                 const innerDefs = new Set();
                 const innerUses = [];
-                checkScope(child, innerDefs, innerUses);
+                checkScope(child, innerDefs, innerUses, visible);
                 for (const use of innerUses) {
-                    if (!innerDefs.has(use.name)) {
-                        use.error = "Undefined here: a variable's value only sees variables defined inside that value";
+                    if (!innerDefs.has(use.name) && !visible.has(use.name)) {
+                        use.error = "Undefined here: a variable's value only sees variables defined before it or inside it";
                     }
                 }
+                defs.add(child.name);
             } else if (child.type === "varuse") {
                 uses.push(child);
             } else {
-                checkScope(child, defs, uses);
+                checkScope(child, defs, uses, earlier);
             }
         }
     }
     const defs = new Set();
     const uses = [];
-    checkScope(root, defs, uses);
+    checkScope(root, defs, uses, new Set());
     for (const use of uses) {
         if (!defs.has(use.name)) use.error = "Undefined variable";
     }
@@ -535,7 +576,7 @@ export function renderPreviewHTML(source, segments, options = {}) {
     const byKey = new Map();
     walk(root, (node) => {
         if (node.color === undefined) return;
-        if (node.type === "choice") byKey.set(`c${node.start}`, node);
+        if (node.type === "choice") byKey.set(`c${node.brace}`, node);
         else if (node.type === "wildcard") byKey.set(`w${node.start}`, node);
         else if (node.type === "vardef" && !byKey.has(`v${node.name}`)) byKey.set(`v${node.name}`, node);
     });

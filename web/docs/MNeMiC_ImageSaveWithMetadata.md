@@ -46,9 +46,10 @@ Both `filename_prefix` and `folder` accept:
 
 The node walks the prompt graph to find the checkpoint, LoRAs, sampler,
 scheduler, steps, cfg, seed and size. The prompts are the text the sampler's
-positive and negative CLIP Text Encode nodes received in this run, so what gets
-recorded is the resolved text, not the template. If no known sampler leads to
-the image, the first CLIP Text Encode's text is used as the positive prompt and
+positive and negative text encode nodes received in this run (CLIP Text Encode,
+Text Encode Qwen Image and other `*TextEncode*` nodes), so what gets recorded is
+the resolved text, not the template. If no known sampler leads to the image,
+the first text encode node's text is used as the positive prompt and
 the negative is left empty. Per-image prompts published by
 🔀 Batch Wildcard Upscale Sampler are picked up automatically when that node is
 in the graph.

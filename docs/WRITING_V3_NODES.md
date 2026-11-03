@@ -492,6 +492,34 @@ io.MultiType.Input(io.String.Input("model_file", default=""),
 Prefer `MatchType` / `MultiType` over `io.AnyType`. `AnyType` gives the user no
 guard rails and no error until execution.
 
+### Rows added with buttons, and dynamic outputs
+
+The V3 API only grows inputs: Autogrow, DynamicCombo and DynamicSlot are all
+inputs, and `DynamicOutput` in `_io.py` is an empty abstract class. When the
+user adds rows of settings with a button, or outputs that follow those rows,
+this pack does it in JS on top of a fixed schema. 🧽 String Cleaning (rows) and
+📂 Load Images From Path (rows plus outputs) are the examples.
+
+- **Storage.** The rows live in one hidden `io.String.Input` holding JSON
+  (`extra_operations`, `extra_path_formats`). It is the only serialized part,
+  so API prompts can set it directly. `execute` parses and validates it, and
+  raises a clear error for anything malformed.
+- **Widgets.** JS hides the storage widget and draws one set of unserialized
+  widgets per row, with Add and Remove buttons. Every change writes the JSON
+  back.
+- **Outputs.** The schema declares the maximum number of outputs
+  (`MAX_PATH_OUTPUTS`), and `execute` pads the unused ones with empty
+  values. On load and on every Add or Remove, JS trims the slots to the
+  current row count. Put fixed outputs before the dynamic ones, so adding or
+  removing a row never moves a connected slot.
+- **Typed outputs.** If a row picks its output type, declare those outputs
+  `io.AnyType`. JS then sets each `output.type` from its row, so the canvas
+  only allows matching links, and disconnects the slot when the type changes.
+  📂 Load File From Path does this.
+- **Restore.** Rebuild the rows in `onConfigure` as well as
+  `onNodeCreated`, so loaded, pasted and cloned nodes get their rows and
+  outputs back.
+
 ---
 
 ## 10. Async and progress

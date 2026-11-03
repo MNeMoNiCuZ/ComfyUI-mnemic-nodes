@@ -1,6 +1,6 @@
 # Wildcard Processor
 
-The Wildcard Processor is a powerful and flexible custom node for ComfyUI designed to add dynamic content to your prompts. It allows you to pull random elements from lists, use weighted choices, select multiple items, define variables, and nest these features for complex and varied outputs.
+The Wildcard Processor is a powerful and flexible custom node for ComfyUI designed to add dynamic content to your prompts. It allows you to pull random elements from lists, use weighted choices, select multiple items, define variables, pick text based on a variable with `if{...}` blocks, and nest these features for complex and varied outputs.
 
 This node is a complete rewrite of a previous version, designed for stability, performance, and a rich feature set.
 
@@ -26,7 +26,8 @@ The prompt boxes of the Wildcard Processor, Wildcard Processor Advanced, Batch W
 - Every `{a|b|c}` block gets its own color, including nested blocks. The braces and `|` separators, weights (`5::`), counts (`2$$`, `1-3$$`) and custom separators get a stronger shade of the block's color.
 - A variable's definition (`${animal=!cat}`) and every use of it (`${animal}`) share one color. File wildcards (`__animals__`) and tags (`<lora:name:1>`) are colored by name the same way. Syntax inside a tag, like `<lora:{styleA|styleB}:0.8>`, is highlighted too.
 - `#` comments inside blocks are greyed out.
-- Mistakes are underlined in red: an unclosed `{` or `${`, a stray `}`, and variables that are used where they are not defined. Each variable's value is worked out on its own, so inside a value you can only use variables defined in that same value.
+- `if{...}` blocks are colored like other blocks, with a stronger shade on `if{`, `==`/`!=` and the `:` that ends each condition.
+- Mistakes are underlined in red: an unclosed `{` or `${`, a stray `}`, variables that are used where they are not defined, an `if{...}` branch with `==` but no `:`, and branches after an `if{...}` else (they are never used). Inside a variable's value you can only use variables defined before it, or inside that same value.
 - A definition whose braces don't balance, like `${hair=!{red|blond} hair`, is cut off at the first `}` on its line. It is shown that way, underlined.
 
 Configure it under **Settings → ⚡MNeMiC Nodes → Wildcard Processing** (the highlighting options are at the top):
@@ -235,6 +236,16 @@ Define a variable to reuse a value. Can be defined directly, or using a wildcard
 
 ---
 
+### If Blocks
+
+Pick text based on a variable, such as a mode selector.
+
+-   **Syntax**: `if{${var}==value:text|${var}!=value:text|else text}`
+-   **Description**: The first branch whose comparison holds is used; a last branch without a comparison is the else. Only the chosen branch is resolved. See [If Blocks](#if-blocks-1) below for details.
+-   **Example**: `${mode=!portrait|scene} if{${mode}==portrait:a portrait of __hero__|a wide shot of __location__}` -> `a wide shot of Abandoned Asylum`
+
+---
+
 ### Nesting
 
 Everything can be combined into more complex prompts.
@@ -309,6 +320,7 @@ Advanced functionality that lets you extract encapsulated results from the final
     - **Ranged**: Choose a random number of items within a range: `{1-3$$item1|item2|item3|item4}`.
 - **Custom Separator**: An input field on the node lets you define the string used to join multiple selected items from a single wildcard (e.g., a space, a comma, or nothing).
 - **Variables**: Define and reuse a dynamic value within your prompt: `${my_var=!{a|b|c}} ... ${my_var}`.
+- **If Blocks**: Pick text based on a variable: `if{${my_var}==a:text|${my_var}!=b:other|else}`.
 - **Nesting**: Combine any of the above features, like `A {__colors__} {car|truck} with a {__animal__|__colors__} decal.`
 - **Comments & Whitespace**: Add comments (`#`) and line breaks inside `{}` blocks to keep your prompts readable.
 - **Intelligent File Matching**: When looking for `__wildcard__` files, the processor uses a smart matching system to find the best possible file, prioritizing exact matches and handling subdirectories gracefully.
@@ -409,6 +421,51 @@ You can combine all of these features for incredibly dynamic and complex prompts
 
 -   **Example**: `a {{red|black}__animal__|__color__ __animal__}`
 -   **Explanation**: This gives a 50% chance of a `red` or `black` animal (e.g., `a red cat`), and a 50% chance of a random color and a random animal (e.g., `a blue dog`).
+
+### If Blocks
+
+`if{...}` picks text by comparing values, usually variables. Each branch is `left==right:text` or `left!=right:text`; the first branch whose comparison holds is used. A branch without a comparison always holds, so put it last as the else. With no match and no else the block is empty.
+
+-   **Example**:
+    ```
+    ${mode=!one|two|three}
+    if{${mode}==one:a red car}
+    if{${mode}==one:a red car|a blue car}
+    if{${mode}==one:a red car|${mode}==two:a bus|a blue car}
+    if{${mode}!=one:not one}
+    ```
+-   **Explanation**: an if, an if/else, an if/else if/else, and a not-equal test. If `mode` is `two`, the lines give nothing, `a blue car`, `a bus` and `not one`.
+-   Comparisons ignore case and the spaces around each side.
+-   Only the chosen branch is resolved, so wildcards and blocks in the other branches are never read. Branches can contain blocks, wildcards and other `if{...}` blocks.
+-   `|`, `:` and `==` inside a variable's value or a nested block do not split the branch. A plain value written in a condition cannot contain `:`.
+-   `if` must not end a longer word: `motif{a|b}` is a normal block.
+
+### Building Wildcard Names
+
+A wildcard name can contain `${variables}` and `{...}` blocks. They are resolved first, then the finished name is looked up. This works for `__`, `___`, `~~` and `~~~`.
+
+-   **Example**:
+    ```
+    ${location=!__countries__}
+    A __people/${location}-woman__ in a cafe in ${location}.
+    ```
+-   **Explanation**: If `__countries__` picks `France`, the wildcard becomes `__people/France-woman__` and a line from `people/France-woman.txt` is inserted.
+-   `__people/{France|Spain}-woman__`, `___scenes/${location}___` and `~~outfits/${location}~~` work the same way.
+-   The finished name may only contain letters, digits, spaces, `_ - . /` and glob characters; otherwise the token stays in the output as text.
+-   A wildcard cannot be written directly inside another name (`__people/__countries__-woman__` is read as `__people/__`). Use a variable or a block: `__people/{__countries__}-woman__`.
+
+### Resolution Order
+
+1.  **Variable definitions**: every `${name=!value}` is removed from the template and its value is resolved once, in the order the definitions appear. A value can use the variables defined before it: `${name=!Anna} ${greeting=!Hello ${name}}`.
+2.  **Tags** (Advanced, when extraction is enabled) are removed and resolved separately with the same rules.
+3.  **Passes** over the remaining text, repeated until nothing changes or **Max nested passes** is reached. Each pass:
+    1.  replaces every `${name}` with its value;
+    2.  resolves `if{...}` blocks: picks a branch, then resolves it completely;
+    3.  resolves `___{...}___` document choices;
+    4.  resolves the innermost `{...}` blocks: reads the count, separator and weights, picks the options, then resolves the picked text completely;
+    5.  resolves `__file__`, `___file___`, `~~folder~~`, `~~~folder~~~` and globs, then resolves the picked line or document completely.
+
+So nested blocks resolve from the inside out, wildcards inside a block are only read when their option is picked (`{__a__|__b__}` reads one file), and variables and blocks are always ready before the wildcard name that contains them.
 
 ### Comments and Whitespace
 
