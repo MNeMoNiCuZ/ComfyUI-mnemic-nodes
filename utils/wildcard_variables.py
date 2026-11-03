@@ -76,6 +76,17 @@ def split_variable_definitions(text):
     return definitions, "".join(parts)
 
 
+UNDEFINED_VARIABLE_RE = re.compile(r"\$\{([^{}\n]*)\}")
+
+
+def drop_undefined_variables(text, names):
+    """Remove every ${name} still in text after resolution, adding each name to names."""
+    def drop(match):
+        names.add(match.group(1))
+        return ""
+    return UNDEFINED_VARIABLE_RE.sub(drop, text)
+
+
 def _find_top_level(text, tokens):
     """Return (index, token) of the first token outside {...} blocks and
     resolved values, or (-1, None)."""

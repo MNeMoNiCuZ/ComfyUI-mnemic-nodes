@@ -148,6 +148,10 @@ Creates a colorful random shape-based image. Use it as a starting latent for fun
 Creates a visualizer from an input audio. Custom visualizer scripts can be created, and outputs can be saved as images or video.
 <img width="2205" height="638" alt="image" src="https://github.com/user-attachments/assets/35e70f68-09f2-4dfe-9676-18fe54a9af89" />
 
+## 🎞️ [Video Compare Diff](./README/video_compare_diff.md)
+
+Plays two videos or images side by side with their difference. Connect them or drop files on it. Several diff modes, scrubbing, loop sections and sound. Exports the diff or a mask on demand or on every run.
+
 ## 🧩 [Ideogram 4 Prompt Builder](./README/ideogram4_prompt_builder.md)
 
 Visual bounding-box for Ideogram 4 with added automatic string input for each region. Use with wildcard processor to get more variation in your prompts. Adapted from [kijai's ComfyUI-KJNodes](https://github.com/kijai/ComfyUI-KJNodes).

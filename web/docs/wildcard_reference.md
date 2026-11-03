@@ -111,6 +111,10 @@ With `___{__scene_list__}___`, the result is the complete `forest.txt` or the
 complete `beach.txt`. It does not combine the two files. Ordinary wildcards
 inside the selected document still select individual lines as usual.
 
+When the picked line is not a reference, its own file is the document:
+`___{__scenes/forest__|__scenes/beach__}___` and `___{~~scenes~~}___` load a
+whole forest, beach, or random `scenes` file.
+
 You can also choose a document by name directly: `___{scenes/forest|scenes/beach}___`.
 Alternatively, put `___scenes/forest___` and `___scenes/beach___` in the list
 itself and use the normal `__scene_list__` token to pick one of those entries.
@@ -234,6 +238,8 @@ Empty separator: {2$$$$red|green|blue}
 Define a value with `${name=!value}` and reuse it with `${name}`. The value is
 evaluated once and the definition itself is removed from the output. Values
 may be literal text, file wildcards, inline choices, or nested expressions.
+A `${name}` that is never defined anywhere in the run becomes empty, with a
+console warning.
 
 ```text
 ${animal=!__animals__} The ${animal} plays with another ${animal}.
@@ -248,6 +254,10 @@ ${vehicle=!car|bike} A ${vehicle}.
 
 A bare choice list such as `${vehicle=!car|bike}` works like
 `${vehicle=!{car|bike}}`.
+
+Definitions also work inside wildcard files. When a line or document is picked,
+its definitions are evaluated and removed first, so its `${name}` uses get the
+value. The variable stays defined for the rest of the run.
 
 A value can use variables defined before it, and variables defined inside
 that value. Variables defined later, or inside another value, are not
@@ -381,7 +391,8 @@ Click **?** to open the resizable help panel. Press **Escape** to close help.
 | Console logging | Print matching and processing details; off by default |
 | Fuzzy search | Enable fuzzy filename matching; off by default |
 | Max logged candidates | Limit candidate files printed per match; default 15 |
-| Max nested passes | Limit nested resolution passes; default 10 |
+| Max nested passes | Limit nested resolution passes and how deep wildcards can include wildcards (a file that includes itself stops here); default 10 |
+| Preview tooltip max length | Characters of template text shown when hovering the Preview; default 800, 0 shows all |
 
 ### Syntax highlighting
 
@@ -421,15 +432,18 @@ use a fallback whose alignment can vary with wrapping.
 
 Both processors have a collapsible **Preview** section. Open it and run the
 workflow to see the resolved prompt coloured by its source in the template.
-Hover a coloured segment to see the template text that produced it. Variable
-values retain their variable's colour.
+Hover a coloured segment to see the template text that produced it and, for
+wildcards, the file the text was picked from and, for a single line, its line
+number in that file. Comment and empty lines count, so the number matches your
+editor. Variable values retain their variable's colour. The text can be
+selected and copied, and the mouse wheel scrolls a long preview.
 
 ```text
 Template: A {red|blue} __animal__.
 Preview:  A blue fox.
 
 Hover "blue" → {red|blue}
-Hover "fox"  → __animal__
+Hover "fox"  → __animal__, File: …\wildcards\animal.txt, line 12
 ```
 
 ### Advanced default separator

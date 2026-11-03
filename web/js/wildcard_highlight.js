@@ -44,6 +44,7 @@ function highlightOptions() {
         emphasizeSyntax: getSetting("EmphasizeSyntax", true),
         markErrors: getSetting("MarkErrors", true),
         customColors: getSetting("CustomColors", ""),
+        tooltipLength: getSetting("TooltipLength", 800),
     };
 }
 
@@ -155,8 +156,16 @@ const PREVIEW_STYLE = `
 .mnm-wildcard-preview-header:hover { opacity: 1; }
 .mnm-wildcard-preview-body { flex: none; box-sizing: border-box; min-height: 40px; resize: vertical; overflow: auto; white-space: pre-wrap; overflow-wrap: break-word;
   font-family: monospace; line-height: 1.5; padding: 4px 6px; border-radius: 6px;
-  background: var(--comfy-input-bg, rgba(0,0,0,0.25)); }
+  background: var(--comfy-input-bg, rgba(0,0,0,0.25));
+  /* Readable text, not part of the node's drag handle. */
+  cursor: text; user-select: text; -webkit-user-select: text; }
 .mnm-wildcard-preview-empty { opacity: 0.6; font-style: italic; }
+.mnm-wildcard-source-tip { position: fixed; z-index: 10000; pointer-events: none; max-width: min(720px, 80vw); max-height: 80vh; overflow: hidden; padding: 5px 8px; border-radius: 6px;
+  background: var(--comfy-menu-bg, #222); color: var(--fg-color, #ddd); border: 1px solid var(--border-color, #444); box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+  font-size: 12px; line-height: 1.4; white-space: pre-wrap; overflow-wrap: anywhere; }
+.mnm-wildcard-source-tip-kind { opacity: 0.65; font-size: 11px; }
+.mnm-wildcard-source-tip-from { font-family: monospace; }
+.mnm-wildcard-source-tip-file { margin-top: 3px; }
 `;
 
 let previewStyleAdded = false;
@@ -168,6 +177,35 @@ function addPreviewStyle() {
     const style = document.createElement("style");
     style.textContent = PREVIEW_STYLE;
     document.head.appendChild(style);
+}
+
+let sourceTip = null;
+
+/** Show where a Preview part came from, next to the cursor. */
+function showSourceTip(span, x, y) {
+    if (!sourceTip) {
+        sourceTip = document.createElement("div");
+        sourceTip.className = "mnm-wildcard-source-tip";
+        document.body.appendChild(sourceTip);
+    }
+    if (sourceTip.mnmSpan !== span) {
+        sourceTip.mnmSpan = span;
+        const line = (name, text) => Object.assign(document.createElement("div"), { className: `mnm-wildcard-source-tip-${name}`, textContent: text });
+        const { kind, from, file, line: number } = span.dataset;
+        sourceTip.replaceChildren(line("kind", kind), line("from", from));
+        if (file) sourceTip.append(line("file", number ? `File: ${file}, line ${number}` : `File: ${file}`));
+    }
+    sourceTip.style.display = "";
+    const gap = 14;
+    const { offsetWidth: width, offsetHeight: height } = sourceTip;
+    sourceTip.style.left = `${Math.max(0, x + gap + width > innerWidth ? x - gap - width : x + gap)}px`;
+    sourceTip.style.top = `${Math.max(0, y + gap + height > innerHeight ? y - gap - height : y + gap)}px`;
+}
+
+function hideSourceTip() {
+    if (!sourceTip) return;
+    sourceTip.style.display = "none";
+    sourceTip.mnmSpan = null;
 }
 
 const HEADER_HEIGHT = 22;
@@ -201,6 +239,7 @@ function addPreview(node) {
     };
 
     const render = () => {
+        hideSourceTip();
         header.textContent = `${isOpen() ? "▾" : "▸"} Preview`;
         body.style.display = isOpen() ? "" : "none";
         body.style.height = `${bodyHeight()}px`;
@@ -222,6 +261,20 @@ function addPreview(node) {
     widget.computeSize = (width) => [width ?? node.size[0], height()];
     widget.computeLayoutSize = undefined;
     element.addEventListener("pointerdown", (event) => event.stopPropagation());
+
+    body.addEventListener("pointermove", (event) => {
+        const span = event.target.closest?.(".mnm-wh-from");
+        if (span) showSourceTip(span, event.clientX, event.clientY);
+        else hideSourceTip();
+    });
+    body.addEventListener("pointerleave", hideSourceTip);
+    body.addEventListener("scroll", hideSourceTip);
+    // The node hands wheel events to the canvas, which zooms. Keep them while
+    // the preview has something to scroll; Ctrl+wheel still zooms the canvas.
+    body.addEventListener("wheel", (event) => {
+        if (event.ctrlKey || event.metaKey) return;
+        if (body.scrollHeight > body.clientHeight || body.scrollWidth > body.clientWidth) event.stopPropagation();
+    }, { passive: true });
 
     header.addEventListener("click", () => {
         node.properties.mnmPreviewOpen = !isOpen();
@@ -286,6 +339,7 @@ app.registerExtension({
         const onRemoved = nodeType.prototype.onRemoved;
         nodeType.prototype.onRemoved = function () {
             detachNode(this);
+            if (hasPreview) hideSourceTip();
             return onRemoved?.apply(this, arguments);
         };
 

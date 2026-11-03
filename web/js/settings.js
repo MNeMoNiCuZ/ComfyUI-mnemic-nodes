@@ -191,6 +191,17 @@ app.registerExtension({
       onChange: () => refreshWildcardHighlighters(),
     },
     {
+      id: "MNeMiC.WildcardHighlight.TooltipLength",
+      name: "Preview tooltip max length",
+      category: [...WILDCARD_CATEGORY, "Tooltip Length"],
+      sortOrder: 192,
+      tooltip: "Maximum number of characters of the template shown when hovering a part of the Wildcard Preview. Longer sources are cut off with …. 0 shows everything.",
+      type: "number",
+      attrs: { min: 0, max: 100000, step: 100 },
+      defaultValue: 800,
+      onChange: () => refreshWildcardHighlighters(),
+    },
+    {
       id: "MNeMiC.GroqLLM.ConsoleLogging",
       name: "Console logging",
       category: ["⚡MNeMiC Nodes", "Groq LLM API", "Console Logging"],

@@ -47,7 +47,7 @@ Highlighting works in both the classic node display and the Vue-based node displ
 
 ### Preview
 
-Both Wildcard Processor nodes have a collapsible **Preview** section. Click it to open it; after the workflow runs it shows the resolved prompt, with each part colored like the part of the template it came from. Hover a colored part to see the template text that produced it. Variable values are shown in the variable's color.
+Both Wildcard Processor nodes have a collapsible **Preview** section. Click it to open it; after the workflow runs it shows the resolved prompt, with each part colored like the part of the template it came from. Hover a colored part to see the template text that produced it and, for wildcards, the file and line it was picked from. Variable values are shown in the variable's color. The text can be selected, and the mouse wheel scrolls a long preview. **Preview tooltip max length** (Wildcard Processing settings, default 800 characters, 0 for no limit) sets how much template text the hover shows.
 
 Other nodes can opt in by adding their node id and text widget names to `WILDCARD_TEXT_WIDGETS` in `web/js/wildcard_highlight.js`, or by calling `attachWildcardHighlight(node, widgetName)` from their own script.
 
@@ -130,7 +130,9 @@ __scenes/beach__
 
 `___{__scene_list__}___` returns all of `forest.txt` or all of `beach.txt`.
 Wildcards inside that chosen document keep their ordinary line-selection
-behavior. You can also use `___{scenes/forest|scenes/beach}___` to choose a
+behavior. If the picked line is not a reference, its own file is loaded:
+`___{__scenes/forest__|__scenes/beach__}___` and `___{~~scenes~~}___` return a
+whole file. You can also use `___{scenes/forest|scenes/beach}___` to choose a
 document directly, or store triple-underscore references in the list and call
 it with `__scene_list__`.
 
@@ -456,7 +458,7 @@ A wildcard name can contain `${variables}` and `{...}` blocks. They are resolved
 
 ### Resolution Order
 
-1.  **Variable definitions**: every `${name=!value}` is removed from the template and its value is resolved once, in the order the definitions appear. A value can use the variables defined before it: `${name=!Anna} ${greeting=!Hello ${name}}`.
+1.  **Variable definitions**: every `${name=!value}` is removed from the template and its value is resolved once, in the order the definitions appear. A value can use the variables defined before it: `${name=!Anna} ${greeting=!Hello ${name}}`. A `${name}` never defined in the run becomes empty, with a console warning.
 2.  **Tags** (Advanced, when extraction is enabled) are removed and resolved separately with the same rules.
 3.  **Passes** over the remaining text, repeated until nothing changes or **Max nested passes** is reached. Each pass:
     1.  replaces every `${name}` with its value;

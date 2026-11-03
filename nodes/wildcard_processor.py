@@ -6,7 +6,7 @@ from pathlib import Path
 import folder_paths
 import json
 from ..utils.file_utils import find_best_match
-from ..utils.wildcard_variables import resolve_conditions, split_variable_definitions
+from ..utils.wildcard_variables import drop_undefined_variables, resolve_conditions, split_variable_definitions
 from ..utils.wildcard_provenance import (
     MARKED_BRACES_RE,
     MARKED_DOCUMENT_CHOICE_RE,
@@ -68,6 +68,13 @@ class WildcardProcessor(io.ComfyNode):
         # Variables for the current processing run
         self.variables = {}
         self.last_preview = None
+        # The file and line number the last resolved wildcard was picked from, for the Preview.
+        self._picked = (None, None)
+        # How deep in variable values this run is; 0 for the node's own template.
+        self._definition_depth = 0
+        # How many wildcards the one being resolved is nested in. A wildcard file
+        # can include itself, so past max_nested_passes the token is left as text.
+        self._wildcard_depth = 0
 
     @classmethod
     def define_schema(cls) -> io.Schema:
@@ -240,19 +247,26 @@ class WildcardProcessor(io.ComfyNode):
         return folders
 
     def _read_wildcard_file(self, file_path, whole_document=False):
-        """Reads a wildcard file as one document, or as its non-empty, non-comment lines."""
+        """
+        Reads a wildcard file as one document, or as its non-empty, non-comment lines.
+        Returns (lines, line numbers): 1-based numbers in the file, for the Preview. A whole document has number None.
+        """
         try:
             with open(file_path, 'r', encoding='utf-8') as f:
-                return [f.read()] if whole_document else [line.rstrip('\r\n') for line in f if line.rstrip('\r\n') and not line.lstrip().startswith('#')]
+                content = f.read()
         except UnicodeDecodeError:
             self.wildcard_log(f"{Fore.YELLOW}Warning: Could not decode {os.path.basename(file_path)} as UTF-8. Trying with 'latin-1' encoding.", level=1)
             with open(file_path, 'r', encoding='latin-1') as f:
-                return [f.read()] if whole_document else [line.rstrip('\r\n') for line in f if line.rstrip('\r\n') and not line.lstrip().startswith('#')]
+                content = f.read()
+        if whole_document:
+            return [content], [None]
+        rows = [(number, line) for number, line in enumerate(content.split('\n'), 1) if line and not line.lstrip().startswith('#')]
+        return [line for _, line in rows], [number for number, _ in rows]
 
     def get_wildcard_options(self, wildcard_name, whole_document=False):
         """
-        Retrieves the content of a wildcard file using the prioritization schema.
-        Caches results for efficiency.
+        Retrieves the content of a wildcard file using the prioritization schema,
+        as (file path, lines, line numbers). Caches results for efficiency.
         """
         # If logging is on, we always want to show the search process.
         if self.console_log:
@@ -272,12 +286,11 @@ class WildcardProcessor(io.ComfyNode):
         best_match = find_best_match(wildcard_name, self.wildcard_files, log=False, wildcard_paths=self.get_all_wildcard_paths(), fuzzy_search=is_wildcard_fuzzy_search_enabled(), index_key="wildcards")
 
         if not best_match:
-            self.wildcard_cache[cache_key] = None # Cache the failure
-            return None
+            self.wildcard_cache[cache_key] = (None, None, None) # Cache the failure
+            return self.wildcard_cache[cache_key]
 
-        lines = self._read_wildcard_file(best_match, whole_document)
-        self.wildcard_cache[cache_key] = lines
-        return lines
+        self.wildcard_cache[cache_key] = (best_match, *self._read_wildcard_file(best_match, whole_document))
+        return self.wildcard_cache[cache_key]
 
     def _evaluate_file_wildcard(self, match, whole_document=False):
         """
@@ -293,16 +306,21 @@ class WildcardProcessor(io.ComfyNode):
 
         # If it's not a glob pattern, use the existing efficient method.
         if not is_glob:
-            options = self.get_wildcard_options(wildcard_name, whole_document=read_document)
+            file_path, options, numbers = self.get_wildcard_options(wildcard_name, whole_document=read_document)
             if not options:
                 return match.group(0)
+            # randrange draws exactly like random.choice, so a seed keeps giving the same picks.
             if select_reference:
-                chosen_option = random.choice(options)
+                index = random.randrange(len(options))
+                chosen_option = options[index]
             elif whole_document:
+                index = 0
                 chosen_option = resolve_document(self, wildcard_name, options[0], match.group(0))
             else:
-                chosen_option = self._process_text(random.choice(options))
+                index = random.randrange(len(options))
+                chosen_option = self._process_text(options[index])
             self.wildcard_log(f"{Style.DIM}Evaluated {match.group(0)} -> {Style.NORMAL}{Fore.MAGENTA}{chosen_option}", level=1)
+            self._picked = (file_path, numbers[index])
             return self._protect_resolved_text(chosen_option)
 
         # If it is a glob pattern, perform a file search.
@@ -336,9 +354,9 @@ class WildcardProcessor(io.ComfyNode):
                 base_path = next(p for p in wildcard_paths if Path(p) in file_path.parents)
                 relative_path = file_path.relative_to(base_path)
                 file_wildcard_name = str(relative_path).replace('\\', '/').replace('.txt', '')
-                lines = self.get_wildcard_options(file_wildcard_name, whole_document=read_document)
+                matched_file, lines, numbers = self.get_wildcard_options(file_wildcard_name, whole_document=read_document)
                 if lines:
-                    all_lines.extend(lines)
+                    all_lines.extend((matched_file, number, line) for number, line in zip(numbers, lines))
             except StopIteration:
                  self.wildcard_log(f"{Fore.YELLOW}Warning: Could not determine base path for {file_path}. Skipping.", level=1)
 
@@ -347,7 +365,7 @@ class WildcardProcessor(io.ComfyNode):
             self.wildcard_log(f"{Fore.YELLOW}Warning: Glob pattern '{wildcard_name}' matched files, but they are empty or contain only comments.", level=1)
             return match.group(0)
 
-        selected = random.choice(all_lines)
+        picked_file, picked_line, selected = random.choice(all_lines)
         if select_reference:
             chosen_option = selected
         elif whole_document:
@@ -355,6 +373,7 @@ class WildcardProcessor(io.ComfyNode):
         else:
             chosen_option = self._process_text(selected)
         self.wildcard_log(f"{Style.DIM}Evaluated glob {match.group(0)} -> {Style.NORMAL}{Fore.MAGENTA}{chosen_option}", level=1)
+        self._picked = (picked_file, picked_line)
         return self._protect_resolved_text(chosen_option)
 
     def _evaluate_folder_wildcard(self, match, whole_document=False):
@@ -379,23 +398,27 @@ class WildcardProcessor(io.ComfyNode):
         for file_path in self.wildcard_folders[folder]:
             cache_key = (file_path, read_document)
             if cache_key not in self.wildcard_cache:
-                self.wildcard_cache[cache_key] = self._read_wildcard_file(file_path, read_document)
-            if self.wildcard_cache[cache_key]:
+                self.wildcard_cache[cache_key] = (file_path, *self._read_wildcard_file(file_path, read_document))
+            if self.wildcard_cache[cache_key][1]:
                 files.append(file_path)
         if not files:
             self.wildcard_log(f"{Fore.YELLOW}Warning: Folder '{folder}' only contains empty or comment-only files.", level=1)
             return match.group(0)
 
         file_path = random.choice(files)
-        options = self.wildcard_cache[(file_path, read_document)]
+        _, options, numbers = self.wildcard_cache[(file_path, read_document)]
         self.wildcard_log(f"Picked file: {os.path.relpath(file_path, folder)} (1 of {len(files)} in folder)", level=1)
         if select_reference:
-            chosen_option = random.choice(options)
+            index = random.randrange(len(options))
+            chosen_option = options[index]
         elif whole_document:
+            index = 0
             chosen_option = resolve_document(self, file_path, options[0], match.group(0))
         else:
-            chosen_option = self._process_text(random.choice(options))
+            index = random.randrange(len(options))
+            chosen_option = self._process_text(options[index])
         self.wildcard_log(f"{Style.DIM}Evaluated {match.group(0)} -> {Style.NORMAL}{Fore.MAGENTA}{chosen_option}", level=1)
+        self._picked = (file_path, numbers[index])
         return self._protect_resolved_text(chosen_option)
 
     def evaluate_curly_braces(self, match):
@@ -498,19 +521,51 @@ class WildcardProcessor(io.ComfyNode):
         if not name:
             return match.group(0)
         inner = InnerMatch(name, delimiter, delimiter, content_group=0)
-        if delimiter[0] == "~":
-            result = self._evaluate_folder_wildcard(inner, whole_document=delimiter == "~~~")
-        else:
-            result = self._evaluate_file_wildcard(inner, whole_document=delimiter == "___")
+        if self._wildcard_depth >= self.max_nested_passes:
+            return match.group(0)
+        self._wildcard_depth += 1
+        try:
+            if delimiter[0] == "~":
+                result = self._evaluate_folder_wildcard(inner, whole_document=delimiter == "~~~")
+            else:
+                result = self._evaluate_file_wildcard(inner, whole_document=delimiter == "___")
+        finally:
+            self._wildcard_depth -= 1
         if not match.group(1) or result == inner.group(0):
             return result
-        return wrap(f"w{match.group(1)}", result)
+        return wrap(f"w{match.group(1)}", result, *self._picked)
+
+    def _define_variables(self, text):
+        """Evaluate every ${name=value} definition in text, in order, and return the text without them.
+
+        Values may contain nested {...} blocks, so this is brace-aware.
+        """
+        if self._definition_depth >= MAX_VARIABLE_DEFINITION_DEPTH:
+            return text
+        definitions, text = split_variable_definitions(text)
+        for var_name, var_value_expr in definitions:
+            var_name = var_name.strip()
+            # The value expression itself can contain wildcards. It is evaluated by a copy so
+            # its run state stays separate, while the file list and caches are shared.
+            temp_processor = copy.copy(self)
+            # Use a new random seed for variable evaluation to not interfere with main seed
+            var_seed = random.randint(0, 0xffffffffffffffff)
+            outer_random_state = random.getstate()
+            evaluated_value = temp_processor.process_wildcards(**{"wildcard_string": var_value_expr, "seed": var_seed, "_definition_depth": self._definition_depth + 1, "_variables": self.variables})[0]
+            random.setstate(outer_random_state)
+
+            self.variables[var_name] = evaluated_value
+            self.wildcard_log(f"Defined variable ${{{var_name}}} = {strip_markers(evaluated_value)}")
+        return text
 
     def _process_text(self, text):
         """
         Iteratively processes a string, resolving wildcards from the inside out.
         This function handles both __file__ wildcards and {inline|wildcards}.
         """
+        # Lines and documents picked from files can define variables too.
+        text = self._define_variables(text)
+
         # Limit nested passes so inner resolutions cannot spin or bleed indefinitely.
         for _ in range(self.max_nested_passes):
             original_text = text
@@ -655,30 +710,11 @@ class WildcardProcessor(io.ComfyNode):
         # The top-level call marks where each block and wildcard sits in the
         # template, so the Preview can show which part produced which text.
         # Nested calls (variable values) receive already-marked text.
-        definition_depth = kwargs.get("_definition_depth", 0)
-        text = mark_sources(wildcard_string) if definition_depth == 0 else wildcard_string
+        self._definition_depth = kwargs.get("_definition_depth", 0)
+        text = mark_sources(wildcard_string) if self._definition_depth == 0 else wildcard_string
 
         # 1. Find and evaluate variable definitions: ${var=!{...}}
-        # Values may contain nested {...} blocks, so this is brace-aware.
-        # Also creates a clean version of the text with definitions removed.
-        if definition_depth < MAX_VARIABLE_DEFINITION_DEPTH:
-            definitions, text_no_defs = split_variable_definitions(text)
-        else:
-            definitions, text_no_defs = [], text
-
-        for var_name, var_value_expr in definitions:
-            var_name = var_name.strip()
-            # The value expression itself can contain wildcards. It is evaluated by a copy so
-            # its run state stays separate, while the file list and caches are shared.
-            temp_processor = copy.copy(self)
-            # Use a new random seed for variable evaluation to not interfere with main seed
-            var_seed = random.randint(0, 0xffffffffffffffff)
-            outer_random_state = random.getstate()
-            evaluated_value = temp_processor.process_wildcards(**{"wildcard_string": var_value_expr, "seed": var_seed, "_definition_depth": definition_depth + 1, "_variables": self.variables})[0]
-            random.setstate(outer_random_state)
-            
-            self.variables[var_name] = evaluated_value
-            self.wildcard_log(f"Defined variable ${{{var_name}}} = {strip_markers(evaluated_value)}")
+        text_no_defs = self._define_variables(text)
 
         # 2. Extract and process tags
         text_after_extraction, processed_tags, raw_tags = self.extract_and_process_tags(text_no_defs, tag_extraction_tags)
@@ -686,7 +722,14 @@ class WildcardProcessor(io.ComfyNode):
         # 3. Process the main text (which has definitions and tags removed)
         processed_text = self._process_text(text_after_extraction)
 
-        if definition_depth == 0:
+        if self._definition_depth == 0:
+            # A variable never defined in the whole run is left empty.
+            undefined = set()
+            processed_text = drop_undefined_variables(processed_text, undefined)
+            processed_tags = [drop_undefined_variables(tag, undefined) for tag in processed_tags]
+            raw_tags = [drop_undefined_variables(tag, undefined) for tag in raw_tags]
+            if undefined:
+                print(f"{Fore.YELLOW}WildcardProcessor: undefined variables left empty: {', '.join(f'${{{n}}}' for n in sorted(undefined))}{Style.RESET_ALL}")
             self.last_preview = {"source": wildcard_string, "segments": build_segments(processed_text)}
             processed_text = strip_markers(processed_text)
             processed_tags = [strip_markers(tag) for tag in processed_tags]

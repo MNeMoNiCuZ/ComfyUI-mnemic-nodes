@@ -408,6 +408,7 @@ export const DEFAULT_OPTIONS = {
     emphasizeSyntax: true,
     markErrors: true,
     customColors: "",
+    tooltipLength: 800,
 };
 
 const HUE_START = 200;
@@ -559,13 +560,17 @@ function blockPaint(rgb, opts) {
     return paint;
 }
 
+const SOURCE_KINDS = { choice: "Random choice", wildcard: "Wildcard", vardef: "Variable" };
+
 /**
  * Render a processed prompt for the node's Preview, colored by where each
  * part came from. `source` is the template the processor ran on, and
- * `segments` is the processor's tree of [{ text } | { key, children }],
+ * `segments` is the processor's tree of [{ text } | { key, children, file?, line? }],
  * where key is "c<offset>" (a {…} block), "w<offset>" (a __wildcard__) or
  * "v<name>" (a variable). Each part gets the color that source has in the
- * template's own highlighting. Hovering a part shows the source it came from.
+ * template's own highlighting, and carries its source for the hover tooltip:
+ * data-kind, data-from (the template text), and data-file and data-line (the
+ * wildcard file and line it was picked from, when known).
  */
 export function renderPreviewHTML(source, segments, options = {}) {
     const opts = { ...DEFAULT_OPTIONS, ...options };
@@ -598,9 +603,13 @@ export function renderPreviewHTML(source, segments, options = {}) {
                 continue;
             }
             const origin = source.slice(node.start, node.end);
-            const title = origin.length > 200 ? `${origin.slice(0, 200)}…` : origin;
+            const max = opts.tooltipLength;
+            const from = max > 0 && origin.length > max ? `${origin.slice(0, max)}…` : origin;
+            const kind = SOURCE_KINDS[node.type];
+            const file = item.file ? ` data-file="${escapeHTML(item.file)}"` : "";
+            const line = Number.isInteger(item.line) ? ` data-line="${item.line}"` : "";
             const css = paintToSpanCSS(blockPaint(colorOf(node.color), opts));
-            html += `<span class="mnm-wh-from" style="${css}" title="${escapeHTML(title)}">${inner}</span>`;
+            html += `<span class="mnm-wh-from" style="${css}" data-kind="${kind}" data-from="${escapeHTML(from)}"${file}${line}>${inner}</span>`;
         }
         return html;
     };

@@ -50,6 +50,7 @@ from .nodes.load_image_temporarily import LoadImageTemporarily
 from .nodes.ideogram4_prompt_builder import Ideogram4PromptBuilder
 from .nodes.ideogram4_random_prompter import Ideogram4RandomPrompter
 from .nodes.image_save_with_metadata import ImageSaveWithMetadata
+from .nodes.video_compare_diff import VideoCompareDiff, register_video_compare_diff_routes
 from .utils.image_save_runtime_hook import install_runtime_hooks
 from .utils.llm_routes import register_llm_routes
 from .utils.workflow_folders import register_workflow_folder_routes
@@ -192,6 +193,7 @@ class MnemicExtension(ComfyExtension):
         register_llm_routes()
         register_load_images_routes()
         register_load_file_routes()
+        register_video_compare_diff_routes()
         register_workflow_folder_routes()
 
         by_new_id = {}
@@ -251,6 +253,7 @@ class MnemicExtension(ComfyExtension):
             Ideogram4PromptBuilder,
             Ideogram4RandomPrompter,
             ImageSaveWithMetadata,
+            VideoCompareDiff,
         ]
 
 

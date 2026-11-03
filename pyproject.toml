@@ -1,7 +1,7 @@
 [project]
 name = "comfyui-mnemic-nodes"
-description = "Save Image With Metadata records prompts from Qwen Image and other text encode nodes. LoRA Loader Prompt Tags shows one summary line instead of per-key unloaded LoRA warnings (setting). Fixed wildcard names built from variables and {...} blocks (#45). Wildcard if{...} blocks with ==, != and else. Variables can use variables defined before them. New Load File From Path node: loads matching files (image, mask, text, audio, video, path) by seed. Bookmarked nodes are listed first in node search (setting). Wildcard help: Feature Summary at the top, clearer docs. Shorter wildcard prompt tooltips"
-version = "3.3.1"
+description = "Added Video Compare Diff node. Wildcard Preview improvements. Fixed wildcard resolution bugs"
+version = "3.3.2"
 license = { file = "LICENSE" }
 dependencies = ["configparser", "groq", "transformers", "torch", "tiktoken", "imageio", "tqdm", "piexif", "requests", "colorama", "opencv-python", "python-dotenv"]
 

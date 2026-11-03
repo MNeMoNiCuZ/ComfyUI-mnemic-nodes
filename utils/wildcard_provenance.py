@@ -12,6 +12,8 @@ Source keys match what the frontend highlighter colors:
   w<offset>  the __wildcard__, ___document___, ~~folder~~ or ~~~folder~~~
              starting at <offset>
   v<name>    the variable <name>
+A key can be followed by FILE and the path of the wildcard file the text
+was picked from, then FILE and the line number in that file.
 """
 
 import re
@@ -21,6 +23,7 @@ SOURCE_END = ""
 OPEN = ""
 OPEN_END = ""
 CLOSE = ""
+FILE = ""
 
 _MARKER_CHARS = SOURCE_START + SOURCE_END + OPEN + OPEN_END + CLOSE
 _SOURCE_RE = re.compile(SOURCE_START + r"\d+" + SOURCE_END)
@@ -40,7 +43,9 @@ WILDCARD_NAME_RE = re.compile(_WILDCARD_NAME_CHAR + "+")
 
 # Regexes the processors use, extended to capture an optional source marker
 # in front of the construct. Group 1 is the source offset (or None).
-MARKED_BRACES_RE = re.compile(r"(?:" + SOURCE_START + r"(\d+)" + SOURCE_END + r")?{([^{}]*?)}")
+# A ${name} use is not a block: it stays until the variable is defined, which
+# can happen later in the run, inside a document.
+MARKED_BRACES_RE = re.compile(r"(?<!\$)(?:" + SOURCE_START + r"(\d+)" + SOURCE_END + r")?{((?:\$\{[^{}]*\}|[^{}])*?)}")
 # A document wrapper selects a reference before expanding the selected file.
 MARKED_DOCUMENT_CHOICE_RE = re.compile(
     r"___(?:" + SOURCE_START + r"(\d+)" + SOURCE_END + r")?{([^{}]*?)}___"
@@ -72,8 +77,12 @@ def mark_sources(text):
     return "".join(parts)
 
 
-def wrap(key, text):
-    """Wrap resolved text in markers for the given source key."""
+def wrap(key, text, file=None, line=None):
+    """Wrap resolved text in markers for the given source key, and the file and line it came from."""
+    if file:
+        key = f"{key}{FILE}{file}"
+        if line:
+            key = f"{key}{FILE}{line}"
     return f"{OPEN}{key}{OPEN_END}{text}{CLOSE}"
 
 
@@ -87,7 +96,9 @@ def strip_markers(text):
 def build_segments(marked):
     """Turn marked output into a list of segments for the Preview.
 
-    Each segment is either {"text": str} or {"key": str, "children": [...]}.
+    Each segment is either {"text": str} or {"key": str, "children": [...]},
+    with "file" added when the text was picked from a wildcard file, and
+    "line" (1-based) when it was one line of that file.
     Unbalanced markers are ignored.
     """
     text = _SOURCE_RE.sub("", marked)
@@ -109,7 +120,13 @@ def build_segments(marked):
                 i += 1
                 continue
             flush()
-            node = {"key": text[i + 1:end], "children": []}
+            key, _, origin = text[i + 1:end].partition(FILE)
+            file, _, line = origin.partition(FILE)
+            node = {"key": key, "children": []}
+            if file:
+                node["file"] = file
+            if line:
+                node["line"] = int(line)
             stack[-1].append(node)
             stack.append(node["children"])
             i = end + 1
