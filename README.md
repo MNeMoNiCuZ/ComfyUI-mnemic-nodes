@@ -138,6 +138,10 @@ Loads an image, extracts metadata, provides the alpha channel as a mask, and out
 Loads an image and stores it in ComfyUI /temp-folder instead of the /input folder.
 <img width="1477" height="494" alt="image" src="https://github.com/user-attachments/assets/5c0aa05c-6c6d-48df-a6a9-12356cc4ea4f" />
 
+## 🎞️ [Load Video Temporarily](./README/load_video_temporarily.md)
+
+Loads a video and stores it in ComfyUI /temp-folder instead of the /input folder.
+
 ## 🎨 [Colorful Starting Image](./README/colorful_starting_image.md)
 
 Creates a colorful random shape-based image. Use it as a starting latent for fun and varying shapes. Great for abstract wallpaper creation.

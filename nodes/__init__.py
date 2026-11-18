@@ -40,6 +40,7 @@ from .literal_int import LiteralInt
 from .literal_float import LiteralFloat
 from .literal_string import LiteralString
 from .load_image_temporarily import LoadImageTemporarily
+from .load_video_temporarily import LoadVideoTemporarily
 from .ideogram4_prompt_builder import Ideogram4PromptBuilder
 from .ideogram4_random_prompter import Ideogram4RandomPrompter
 from .image_save_with_metadata import ImageSaveWithMetadata
@@ -88,6 +89,7 @@ __all__ = [
     "LiteralFloat",
     "LiteralString",
     "LoadImageTemporarily",
+    "LoadVideoTemporarily",
     "Ideogram4PromptBuilder",
     "Ideogram4RandomPrompter",
     "ImageSaveWithMetadata",

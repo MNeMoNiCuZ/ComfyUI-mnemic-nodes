@@ -11,12 +11,26 @@ from PIL import Image, ImageOps, ImageSequence
 from comfy_api.latest import io
 
 
-def _temp_image_path(image):
+def temp_files(content_types):
+    """Files of the given content types in ComfyUI's temp folder, for a file picker. Empty first, so new nodes start with no file."""
+    # The temp folder does not exist until ComfyUI first writes to it, and a
+    # failure here would take down the whole extension: schemas are built at
+    # load time.
     temp_dir = folder_paths.get_temp_directory()
-    image_path = folder_paths.get_annotated_filepath(image, default_dir=temp_dir)
-    if not folder_paths.is_within_directory(temp_dir, image_path) or not os.path.isfile(image_path):
-        raise ValueError(f"Invalid temporary image: {image!r}")
-    return image_path
+    try:
+        files = [f for f in os.listdir(temp_dir) if os.path.isfile(os.path.join(temp_dir, f))]
+    except OSError:
+        files = []
+    return [""] + sorted(folder_paths.filter_files_content_types(files, content_types))
+
+
+def temp_file_path(name):
+    """The path of a file chosen from the temp folder, refusing anything outside it."""
+    temp_dir = folder_paths.get_temp_directory()
+    path = folder_paths.get_annotated_filepath(name, default_dir=temp_dir)
+    if not folder_paths.is_within_directory(temp_dir, path) or not os.path.isfile(path):
+        raise ValueError(f"Temporary file not found: {name!r}. The temp folder is cleared when ComfyUI restarts; upload the file again.")
+    return path
 
 
 class LoadImageTemporarily(io.ComfyNode):
@@ -26,18 +40,7 @@ class LoadImageTemporarily(io.ComfyNode):
 
     @classmethod
     def define_schema(cls) -> io.Schema:
-        # The temp folder does not exist until ComfyUI first writes to it, and a
-        # failure here would take down the whole extension: schemas are built at
-        # load time.
-        temp_dir = folder_paths.get_temp_directory()
-        try:
-            files = [f for f in os.listdir(temp_dir) if os.path.isfile(os.path.join(temp_dir, f))]
-        except OSError:
-            files = []
-        files = folder_paths.filter_files_content_types(files, ["image"])
-        # Keep new node instances clear by default instead of preselecting
-        # whichever temp file currently exists first.
-        files = [""] + sorted(files)
+        files = temp_files(["image"])
         return io.Schema(
             node_id="MNeMiC_LoadImageTemporarily",
             display_name="🖼️ Load Image Temporarily",
@@ -64,7 +67,7 @@ class LoadImageTemporarily(io.ComfyNode):
     def execute(cls, image) -> io.NodeOutput:
         if not image:
             raise ValueError("Select an image.")
-        image_path = _temp_image_path(image)
+        image_path = temp_file_path(image)
         img = node_helpers.pillow(Image.open, image_path)
 
         output_images = []
@@ -117,7 +120,7 @@ class LoadImageTemporarily(io.ComfyNode):
     def fingerprint_inputs(cls, image):
         if not image:
             return None
-        image_path = _temp_image_path(image)
+        image_path = temp_file_path(image)
         m = hashlib.sha256()
         with open(image_path, "rb") as f:
             m.update(f.read())
@@ -129,7 +132,7 @@ class LoadImageTemporarily(io.ComfyNode):
         if not image:
             return True
         try:
-            _temp_image_path(image)
+            temp_file_path(image)
         except ValueError as e:
             return str(e)
         return True

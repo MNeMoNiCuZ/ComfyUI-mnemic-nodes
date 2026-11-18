@@ -18,6 +18,8 @@ from PIL import Image, ImageOps, ImageSequence
 
 from comfy_api.latest import Input, InputImpl, Types, io
 
+from .load_image_temporarily import temp_file_path, temp_files
+
 TEMP_SUBFOLDER = "mnemic_video_diff"
 DEFAULT_FPS = 24.0
 EXPORT_FOLDER = "video_compare_diff"
@@ -37,27 +39,6 @@ TURBO = np.array([
     [0.09140261, 2.19418839, 4.84296658, -14.18503333, 4.27729857, 2.82956604],
     [0.10667330, 12.64194608, -60.58204836, 110.36276771, -89.90310912, 27.34824973],
 ], dtype=np.float32)
-
-
-def _temp_media():
-    """Video and image files in ComfyUI's temp folder, for the file pickers. Empty first, for no file."""
-    # The temp folder does not exist until ComfyUI first writes to it, and a
-    # failure here would take down the whole extension: schemas are built at load time.
-    temp_dir = folder_paths.get_temp_directory()
-    try:
-        files = [f for f in os.listdir(temp_dir) if os.path.isfile(os.path.join(temp_dir, f))]
-    except OSError:
-        files = []
-    return [""] + sorted(folder_paths.filter_files_content_types(files, ["video", "image"]))
-
-
-def _temp_file_path(name):
-    """The path of a file chosen from the temp folder, refusing anything outside it."""
-    temp_dir = folder_paths.get_temp_directory()
-    path = folder_paths.get_annotated_filepath(name, default_dir=temp_dir)
-    if not folder_paths.is_within_directory(temp_dir, path) or not os.path.isfile(path):
-        raise ValueError(f"Temporary file not found: {name!r}. The temp folder is cleared when ComfyUI restarts; drop the file on the node again.")
-    return path
 
 
 def _load_image_file(path):
@@ -91,7 +72,7 @@ def _source(video, file, letter):
     if video is not None:
         return _video_parts(video)
     if file:
-        path = _temp_file_path(file)
+        path = temp_file_path(file)
         if folder_paths.filter_files_content_types([path], ["image"]):
             return _load_image_file(path)
         return _video_parts(InputImpl.VideoFromFile(path))
@@ -120,7 +101,7 @@ def _save_frames(pool, frames, folder, prefix):
 class VideoCompareDiff(io.ComfyNode):
     @classmethod
     def define_schema(cls) -> io.Schema:
-        files = _temp_media()
+        files = temp_files(["video", "image"])
         return io.Schema(
             node_id="MNeMiC_VideoCompareDiff",
             display_name="🎞️ Video Compare Diff",
@@ -217,7 +198,7 @@ class VideoCompareDiff(io.ComfyNode):
     @classmethod
     def fingerprint_inputs(cls, file_a="", file_b="", **kwargs):
         # A file dropped again under the same name must re-run.
-        return [os.path.getmtime(_temp_file_path(name)) if name else None for name in (file_a, file_b)]
+        return [os.path.getmtime(temp_file_path(name)) if name else None for name in (file_a, file_b)]
 
     @classmethod
     def validate_inputs(cls, file_a="", file_b=""):
@@ -225,7 +206,7 @@ class VideoCompareDiff(io.ComfyNode):
         for name in (file_a, file_b):
             if name:
                 try:
-                    _temp_file_path(name)
+                    temp_file_path(name)
                 except ValueError as e:
                     return str(e)
         return True

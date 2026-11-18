@@ -1,12 +1,18 @@
 import { app } from "../../../scripts/app.js";
 import { api } from "../../../scripts/api.js";
 
+// Widget holding the temp file name, per node.
+const TEMP_FILE_WIDGETS = {
+    MNeMiC_LoadImageTemporarily: "image",
+    MNeMiC_LoadVideoTemporarily: "video",
+};
+
 const loadedNodes = new Set();
 
 app.registerExtension({
     name: "mnemic.LoadImageTemporarily",
     loadedGraphNode(node) {
-        if (node.comfyClass === "MNeMiC_LoadImageTemporarily") {
+        if (node.comfyClass in TEMP_FILE_WIDGETS) {
             loadedNodes.add(node);
         }
     },
@@ -14,7 +20,7 @@ app.registerExtension({
         const nodes = [...loadedNodes];
         loadedNodes.clear();
         await Promise.all(nodes.map(async (node) => {
-            const widget = node.widgets?.find((widget) => widget.name === "image");
+            const widget = node.widgets?.find((widget) => widget.name === TEMP_FILE_WIDGETS[node.comfyClass]);
             const value = widget?.value;
             if (typeof value !== "string" || !value) return;
             if (value.endsWith("[input]") || value.endsWith("[output]")) return;
