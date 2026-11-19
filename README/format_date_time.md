@@ -1,7 +1,9 @@
 # 📅 Format Date Time
 This node converts date and time formats into literal outputs for you to use.
 
-`respect_system_locale` toggle functionality: This option allows you to choose between standard SI formats (when disabled) or system-specific locale formats (when enabled) for the `%x` and `%c` directives.
+`sync_time`: every Format Date Time node with this on uses the same time for the whole run, so file and folder names made in different parts of a workflow match.
+
+**Respect system locale** (Settings → ⚡MNeMiC Nodes → Format Date Time) chooses between standard SI formats (off) and your system's locale formats (on) for the `%x` and `%c` directives.
 - **Disabled (Default):** `%x` forces `YYYY-MM-DD`, and `%c` forces `YYYY-MM-DD HH.MM.SS`. providing consistent results across different systems.
 - **Enabled:** `%x` and `%c` use your operating system's locale settings, which may result in formats like `MM/DD/YY`.
 
@@ -16,9 +18,9 @@ This node converts date and time formats into literal outputs for you to use.
 %%H = %H = Hour
 %%S = %S = Second
 %%f = %f = Microsecond
-%%x = %x = Date (Affected by respect_system_locale)
+%%x = %x = Date (Affected by Respect system locale)
 %%X = %X = Time
-%%c = %c = Date + Time (Affected by respect_system_locale)
+%%c = %c = Date + Time (Affected by Respect system locale)
 %%p = %p = am/pm
 %%A = %A = Weekday
 %%a = %a = Weekday short

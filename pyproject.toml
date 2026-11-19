@@ -1,7 +1,7 @@
 [project]
 name = "comfyui-mnemic-nodes"
-description = "Added Load Video Temporarily node. Clearer message for missing temp files"
-version = "3.3.3"
+description = "Format Date Time: shared time option, locale option moved to Settings. Save Text File: folders from the filename, seconds no longer dropped"
+version = "3.3.4"
 license = { file = "LICENSE" }
 dependencies = ["configparser", "groq", "transformers", "torch", "tiktoken", "imageio", "tqdm", "piexif", "requests", "colorama", "opencv-python", "python-dotenv"]
 

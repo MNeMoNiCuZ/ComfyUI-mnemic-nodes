@@ -46,7 +46,7 @@ class SaveTextFile(io.ComfyNode):
                     default="[time(%Y-%m-%d - %H.%M.%S)].txt",
                     multiline=False,
                     placeholder="[time(%Y-%m-%d)].txt",
-                    tooltip="Filename, with or without an extension. Supports date and hostname tokens.",
+                    tooltip="Filename, with or without an extension. Supports date and hostname tokens. Folders before a / are created under the path.",
                 ),
                 io.String.Input(
                     "suffix",
@@ -100,10 +100,19 @@ class SaveTextFile(io.ComfyNode):
         if mode == "increment filename" and number_format not in ("1", "01", "001", "0001"):
             raise ValueError("Choose a supported number format.")
         # Inspect literal text so dots inside time tokens are not extensions.
-        filename_extension = os.path.splitext(re.sub(r'\[[^\]]*\]', 'token', prefix).strip())[1]
+        literal_name = re.split(r'[\\/]', re.sub(r'\[[^\]]*\]', 'token', prefix))[-1]
+        filename_extension = os.path.splitext(literal_name.strip())[1]
+        # Digits after a dot are part of the name, such as the seconds in 11.58.44.
+        if filename_extension[1:].isdigit():
+            filename_extension = ''
         path = replace_tokens(path)
         prefix = replace_tokens(prefix)
         suffix = replace_tokens(suffix)
+
+        # Folders in the filename go under the path: 2026-11-19/notes saves notes in 2026-11-19.
+        *folders, prefix = re.split(r'[\\/]', prefix)
+        folders = [sanitize_filename(folder) for folder in folders]
+        path = os.path.join(path, *[folder for folder in folders if folder])
 
         if filename_extension and prefix.rstrip().endswith(filename_extension):
             prefix = prefix.rstrip()[:-len(filename_extension)]

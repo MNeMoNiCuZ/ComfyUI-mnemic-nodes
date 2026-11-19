@@ -1,8 +1,14 @@
 from datetime import datetime
-import re
 import time
 
 from comfy_api.latest import io
+from comfy_execution.utils import get_executing_context
+
+from ..utils.date_templates import format_date_time
+from ..utils.settings_utils import is_format_date_time_locale_respected
+
+# (prompt id, time) shared by every Format Date Time node with sync_time on in that run.
+_SYNCED_TIME = (None, None)
 
 
 class FormatDateTime(io.ComfyNode):
@@ -41,9 +47,9 @@ class FormatDateTime(io.ComfyNode):
                             "%%: A literal '%' character",
                 ),
                 io.Boolean.Input(
-                    "respect_system_locale",
+                    "sync_time",
                     default=False,
-                    tooltip="If enabled, %x and %c will use the system's locale settings (which might be MM/DD/YY). If disabled, %x forces YYYY-MM-DD.",
+                    tooltip="Use one shared time for every Format Date Time node with this on, so their outputs match across the whole run instead of differing by when each node runs.",
                 ),
             ],
             outputs=[
@@ -56,64 +62,13 @@ class FormatDateTime(io.ComfyNode):
         return time.time()
 
     @classmethod
-    def execute(cls, date_format, respect_system_locale=False) -> io.NodeOutput:
-        """
-        Formats the current date and time using the provided format string.
-        The format string directly uses Python's strftime directives.
-        Adjusts time separators for %X and %c to use '.' instead of ':'.
-        Includes custom handling for %w (Monday is 0) and %u (Sunday is 0).
-        """
+    def execute(cls, date_format, sync_time=False) -> io.NodeOutput:
+        global _SYNCED_TIME
         now = datetime.now()
-
-        # Store original format to check for %X and %c later
-        original_date_format = date_format
-
-        # Step 1: Temporarily replace '%%' with a unique placeholder
-        # This prevents '%%w' from becoming '%w' prematurely and being
-        # caught by our custom %w/%u replacement logic.
-        temp_format = date_format.replace('%%', '__DOUBLE_PERCENT_PLACEHOLDER__')
-
-        # Step 1.5: If system locale is not respected, force SI formats for %x and %c
-        if not respect_system_locale:
-            temp_format = temp_format.replace('%x', '%Y-%m-%d')
-            temp_format = temp_format.replace('%c', '%Y-%m-%d %H.%M.%S')
-
-        # Step 2: Replace custom %w and %u directives with their calculated values
-        # We use regex with a negative lookbehind to ensure we only replace
-        # standalone %w and %u (i.e., not preceded by another '%').
-        custom_w_value = str(now.weekday())  # Monday is 0
-        custom_u_value = str(now.isoweekday() % 7)  # Sunday is 0
-
-        # Replace %w and %u with their custom values directly in temp_format
-        temp_format = re.sub(r'(?<!%)%w', custom_w_value, temp_format)
-        temp_format = re.sub(r'(?<!%)%u', custom_u_value, temp_format)
-
-        # Step 3: Perform strftime on the modified format string.
-        # strftime will process all standard directives and pass through
-        # our '__DOUBLE_PERCENT_PLACEHOLDER__' as it's not a valid directive.
-        formatted_string = now.strftime(temp_format)
-
-        # Step 4: Restore '%%' from the placeholder. strftime converts '%%' to '%',
-        # so we replace our placeholder with a single '%' to match strftime's behavior.
-        formatted_string = formatted_string.replace('__DOUBLE_PERCENT_PLACEHOLDER__', '%')
-
-        # Step 5: Custom replacement for %X and %c to use '.' instead of ':' for time separators
-        # These replacements should happen after the main strftime call
-        # and should target the actual formatted output of %X and %c.
-        if '%X' in original_date_format:
-            # Get the default strftime output for %X
-            formatted_x_from_strftime = now.strftime("%X")
-            # Replace colons with dots
-            formatted_x_with_dots = formatted_x_from_strftime.replace(':', '.')
-            # Replace the original %X output in the final string with the dot version
-            formatted_string = formatted_string.replace(formatted_x_from_strftime, formatted_x_with_dots)
-
-        if '%c' in original_date_format:
-            # Get the default strftime output for %c
-            formatted_c_from_strftime = now.strftime("%c")
-            # Replace colons with dots
-            formatted_c_with_dots = formatted_c_from_strftime.replace(':', '.')
-            # Replace the original %c output in the final string with the dot version
-            formatted_string = formatted_string.replace(formatted_c_from_strftime, formatted_c_with_dots)
-
-        return io.NodeOutput(formatted_string)
+        if sync_time:
+            context = get_executing_context()
+            prompt_id = context.prompt_id if context else None
+            if prompt_id is None or _SYNCED_TIME[0] != prompt_id:
+                _SYNCED_TIME = (prompt_id, now)
+            now = _SYNCED_TIME[1]
+        return io.NodeOutput(format_date_time(date_format, now, is_format_date_time_locale_respected()))

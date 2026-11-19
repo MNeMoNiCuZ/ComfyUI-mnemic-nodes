@@ -35,6 +35,8 @@ PROMPT_PROPERTY_EXTRACTOR_CONSOLE_LOG_SETTING_ID = "MNeMiC.PromptPropertyExtract
 
 LOAD_RANDOM_CHECKPOINT_CONSOLE_LOG_SETTING_ID = "MNeMiC.LoadRandomCheckpoint.ConsoleLogging"
 
+FORMAT_DATE_TIME_LOCALE_SETTING_ID = "MNeMiC.FormatDateTime.RespectSystemLocale"
+
 # (path, mtime, parsed settings): reparsed only when the file changes.
 _SETTINGS_CACHE = None
 
@@ -139,6 +141,10 @@ def is_prompt_property_extractor_console_log_enabled():
 
 def is_load_random_checkpoint_console_log_enabled():
     return bool(get_comfy_setting(LOAD_RANDOM_CHECKPOINT_CONSOLE_LOG_SETTING_ID, False))
+
+
+def is_format_date_time_locale_respected():
+    return bool(get_comfy_setting(FORMAT_DATE_TIME_LOCALE_SETTING_ID, False))
 
 
 def is_llm_console_log_enabled():

@@ -4,8 +4,8 @@ import re
 from datetime import datetime
 
 
-def _format_like_format_date_time(date_format: str, respect_system_locale: bool = False) -> str:
-    now = datetime.now()
+def format_date_time(date_format: str, now: datetime, respect_system_locale: bool = False) -> str:
+    """Format Date Time's strftime rules: %w Monday = 0, %u Sunday = 0, dots instead of colons in %X and %c."""
     temp_format = date_format.replace("%%", "__DOUBLE_PERCENT_PLACEHOLDER__")
     if not respect_system_locale:
         temp_format = temp_format.replace("%x", "%Y-%m-%d")
@@ -33,7 +33,7 @@ def resolve_date_template(text: str) -> str:
                 .replace("mm", "%M")
                 .replace("ss", "%S")
             )
-            return _format_like_format_date_time(converted)
+            return format_date_time(converted, datetime.now())
 
         return pattern.sub(repl, text)
-    return _format_like_format_date_time(text)
+    return format_date_time(text, datetime.now())

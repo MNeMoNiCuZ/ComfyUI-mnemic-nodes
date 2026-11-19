@@ -6,7 +6,7 @@ Saves text under ComfyUI's output folder, with automatic extensions and a choice
 
 - **file_text**: Text to save.
 - **path**: Folder under `output`. Empty uses `output` itself.
-- **filename**: Name with or without an extension.
+- **filename**: Name with or without an extension. Folders before a `/` are created under **path**.
 - **extension**: Optional override, such as `txt` or `.md`. Empty uses the filename's extension, or `txt` if none.
 - **if file exists**: Defaults to **overwrite**, without numbering.
 
@@ -37,6 +37,7 @@ Advanced: **suffix** adds optional text before the extension.
 | `notes.md` | Extension `txt` | `notes.txt` |
 | `notes.md` already exists | Increment filename | `notes_1.md` |
 | `notes_009.md` already exists | Increment filename | `notes_010.md` |
+| `2026-11-19/2026-11-19 - 11.58.44` | Empty extension | `2026-11-19/2026-11-19 - 11.58.44.txt` |
 
 ## Notes
 

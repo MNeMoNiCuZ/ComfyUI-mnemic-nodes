@@ -465,6 +465,14 @@ app.registerExtension({
       defaultValue: false,
     },
     {
+      id: "MNeMiC.FormatDateTime.RespectSystemLocale",
+      name: "Respect system locale",
+      category: ["⚡MNeMiC Nodes", "Format Date Time", "Respect System Locale"],
+      tooltip: "Let %x and %c in Format Date Time follow your system's locale, which may be MM/DD/YY. Off forces %x to YYYY-MM-DD and %c to YYYY-MM-DD HH.MM.SS.",
+      type: "boolean",
+      defaultValue: false,
+    },
+    {
       id: "MNeMiC.LoadRandomCheckpoint.ConsoleLogging",
       name: "Console logging",
       category: ["⚡MNeMiC Nodes", "Load Random Checkpoint", "Console Logging"],

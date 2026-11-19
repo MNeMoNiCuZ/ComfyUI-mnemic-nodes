@@ -8,9 +8,11 @@ The node re-runs on every queue, so the timestamp is always current.
 ## Inputs
 
 - **date_format** — The format string. Directives are listed below.
-- **respect_system_locale** — When on, `%x` and `%c` follow your OS locale
-  (which may be MM/DD/YY). When off, `%x` is forced to `YYYY-MM-DD` and `%c` to
-  `YYYY-MM-DD HH.MM.SS`.
+- **sync_time** — When on, every Format Date Time node with this on uses the same time for the whole run, so file and folder names made in different parts of a workflow match. Each node still uses its own format.
+
+## Settings
+
+- **Respect system locale** (Settings → ⚡MNeMiC Nodes → Format Date Time) — When on, `%x` and `%c` follow your OS locale (which may be MM/DD/YY). When off, `%x` is forced to `YYYY-MM-DD` and `%c` to `YYYY-MM-DD HH.MM.SS`.
 
 ## Outputs
 
