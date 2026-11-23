@@ -142,6 +142,10 @@ Loads an image and stores it in ComfyUI /temp-folder instead of the /input folde
 
 Loads a video and stores it in ComfyUI /temp-folder instead of the /input folder.
 
+## 💾 [Save Video (MNeMiC)](./README/save_video.md)
+
+Saves a video like the native Save Video, with date codes in the file name and the final positive and negative prompt stored in the file.
+
 ## 🎨 [Colorful Starting Image](./README/colorful_starting_image.md)
 
 Creates a colorful random shape-based image. Use it as a starting latent for fun and varying shapes. Great for abstract wallpaper creation.

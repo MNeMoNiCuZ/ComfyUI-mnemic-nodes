@@ -51,6 +51,7 @@ from .nodes.load_video_temporarily import LoadVideoTemporarily
 from .nodes.ideogram4_prompt_builder import Ideogram4PromptBuilder
 from .nodes.ideogram4_random_prompter import Ideogram4RandomPrompter
 from .nodes.image_save_with_metadata import ImageSaveWithMetadata
+from .nodes.save_video import SaveVideo
 from .nodes.video_compare_diff import VideoCompareDiff, register_video_compare_diff_routes
 from .utils.image_save_runtime_hook import install_runtime_hooks
 from .utils.llm_routes import register_llm_routes
@@ -255,6 +256,7 @@ class MnemicExtension(ComfyExtension):
             Ideogram4PromptBuilder,
             Ideogram4RandomPrompter,
             ImageSaveWithMetadata,
+            SaveVideo,
             VideoCompareDiff,
         ]
 

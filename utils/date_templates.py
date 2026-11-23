@@ -1,4 +1,4 @@
-"""Date templates shared by image download and image saving nodes."""
+"""Date templates shared by image download and image and video saving nodes."""
 
 import re
 from datetime import datetime
@@ -20,20 +20,40 @@ def format_date_time(date_format: str, now: datetime, respect_system_locale: boo
     return formatted_string
 
 
+def _date_token_to_strftime(fmt: str) -> str:
+    return (
+        fmt.replace("yyyy", "%Y")
+        .replace("MM", "%m")
+        .replace("dd", "%d")
+        .replace("hh", "%H")
+        .replace("mm", "%M")
+        .replace("ss", "%S")
+    )
+
+
 def resolve_date_template(text: str) -> str:
     pattern = re.compile(r"%date:([^%]+)%")
     if pattern.search(text):
         def repl(match):
-            fmt = match.group(1)
-            converted = (
-                fmt.replace("yyyy", "%Y")
-                .replace("MM", "%m")
-                .replace("dd", "%d")
-                .replace("hh", "%H")
-                .replace("mm", "%M")
-                .replace("ss", "%S")
-            )
-            return format_date_time(converted, datetime.now())
+            return format_date_time(_date_token_to_strftime(match.group(1)), datetime.now())
 
         return pattern.sub(repl, text)
     return format_date_time(text, datetime.now())
+
+
+# %date:...%, ComfyUI's own save path variables (kept for folder_paths), or one strftime code.
+_FILENAME_TOKEN = re.compile(r"%date:([^%]+)%|(%(?:width|height|year|month|day|hour|minute|second)%)|%[aAbBcdfGHIjmMpSuUVwWxXyYzZ%]")
+
+
+def resolve_filename_template(text: str) -> str:
+    """Resolve strftime codes and %date:...% in a save prefix, leaving other % text untouched."""
+    now = datetime.now()
+
+    def repl(match):
+        if match.group(1) is not None:
+            return format_date_time(_date_token_to_strftime(match.group(1)), now)
+        if match.group(2) is not None:
+            return match.group(2)
+        return format_date_time(match.group(0), now)
+
+    return _FILENAME_TOKEN.sub(repl, text)

@@ -1,7 +1,7 @@
 [project]
 name = "comfyui-mnemic-nodes"
-description = "Format Date Time: shared time option, locale option moved to Settings. Save Text File: folders from the filename, seconds no longer dropped"
-version = "3.3.4"
+description = "Added Save Video node with date-coded file names and final prompts in the file"
+version = "3.3.5"
 license = { file = "LICENSE" }
 dependencies = ["configparser", "groq", "transformers", "torch", "tiktoken", "imageio", "tqdm", "piexif", "requests", "colorama", "opencv-python", "python-dotenv"]
 

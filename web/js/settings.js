@@ -473,6 +473,14 @@ app.registerExtension({
       defaultValue: false,
     },
     {
+      id: "MNeMiC.SaveVideo.FilenamePrefix",
+      name: "Default filename prefix",
+      category: ["⚡MNeMiC Nodes", "Save Video", "Filename Prefix"],
+      tooltip: "filename_prefix for new Save Video (MNeMiC) nodes. Accepts strftime codes like %Y-%m-%d and %H.%M.%S, %date:yyyy-MM-dd% and %Node.widget% values; a / makes subfolders. Existing nodes keep their value.",
+      type: "text",
+      defaultValue: "%Y-%m-%d/%Y-%m-%d - %H.%M.%S",
+    },
+    {
       id: "MNeMiC.LoadRandomCheckpoint.ConsoleLogging",
       name: "Console logging",
       category: ["⚡MNeMiC Nodes", "Load Random Checkpoint", "Console Logging"],

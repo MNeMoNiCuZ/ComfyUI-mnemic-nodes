@@ -44,6 +44,7 @@ from .load_video_temporarily import LoadVideoTemporarily
 from .ideogram4_prompt_builder import Ideogram4PromptBuilder
 from .ideogram4_random_prompter import Ideogram4RandomPrompter
 from .image_save_with_metadata import ImageSaveWithMetadata
+from .save_video import SaveVideo
 from .video_compare_diff import VideoCompareDiff
 
 __all__ = [
@@ -93,5 +94,6 @@ __all__ = [
     "Ideogram4PromptBuilder",
     "Ideogram4RandomPrompter",
     "ImageSaveWithMetadata",
+    "SaveVideo",
     "VideoCompareDiff",
 ]
