@@ -43,6 +43,10 @@ Save images with Civitai-compatible metadata auto-detected from the workflow. Ad
 A versatile text processor that replaces wildcards with content from wildcard files or inline lists, with variables and `if{...}` blocks to pick text by a variable. The prompt box colors each `{a|b}` block, variable and wildcard so complex prompts stay readable.
 <img width="1649" height="417" alt="image" src="https://github.com/user-attachments/assets/ed495b54-3e53-44d7-8655-d7b5f105cc1f" />
 
+## 📝 [Wildcard Processor Advanced](./README/wildcard_processor.md#node-variants)
+
+Resolves the same wildcard syntax as Wildcard Processor, with a configurable separator for multiple picks and a seed output you can connect to a sampler.
+
 ## 🏷️ [LoRA Loader Prompt Tags](./README/lora_tag_loader.md)
 
 Loads LoRA models using `<lora:MyLoRA:1>` in the prompt.
@@ -95,9 +99,13 @@ Replaces every literal match in a string. Three single-line inputs: string, find
 Converts date / time into literal outputs. Useful for saving paths and files.
 <img width="1660" height="376" alt="image" src="https://github.com/user-attachments/assets/c44cdf70-acee-4062-aeb7-4d64b58e3a52" />
 
-## 🖼️+📝 [Load Text-Image Pairs](./README/load_text_image_pairs.md)
+## 🖼️+📝 [Load Text-Image Pair (Single)](./README/load_text_image_pairs.md#load-text-image-pair-single)
 
-Loads a folder of text and image pairs like a dataset, and gives you the image and string as separate outputs.
+Loads one image and its matching caption from a folder. The seed selects the pair.
+
+## 🖼️+📝 [Load Text-Image Pairs (List)](./README/load_text_image_pairs.md#load-text-image-pairs-list)
+
+Loads a batch of images with matching captions and paths. The seed selects the starting pair, and an optional limit controls how many pairs are returned.
 <img width="1615" height="553" alt="image" src="https://github.com/user-attachments/assets/7a013b7f-b600-4ffb-88ae-e81c33779cd2" />
 
 ## 🖼️📊 [Metadata Extractor (Single)](./README/metadata_extractor_single.md)
@@ -156,11 +164,15 @@ Creates a colorful random shape-based image. Use it as a starting latent for fun
 Creates a visualizer from an input audio. Custom visualizer scripts can be created, and outputs can be saved as images or video.
 <img width="2205" height="638" alt="image" src="https://github.com/user-attachments/assets/35e70f68-09f2-4dfe-9676-18fe54a9af89" />
 
+## [Image Compare](./web/docs/MNeMiC_ImageCompare.md)
+
+Compare images, image batches and videos with a two-source wipe, a four-way cross or rotating radial slices. Connect more sources to expand the comparison.
+
 ## 🎞️ [Video Compare Diff](./README/video_compare_diff.md)
 
 Plays two videos or images side by side with their difference. Connect them or drop files on it. Several diff modes, scrubbing, loop sections and sound. Exports the diff or a mask on demand or on every run.
 
-## 🧩 [Ideogram 4 Prompt Builder](./README/ideogram4_prompt_builder.md)
+## 🧩 [Ideogram 4 Prompt Builder w. String Inputs](./README/ideogram4_prompt_builder.md)
 
 Visual bounding-box for Ideogram 4 with added automatic string input for each region. Use with wildcard processor to get more variation in your prompts. Adapted from [kijai's ComfyUI-KJNodes](https://github.com/kijai/ComfyUI-KJNodes).
 <img width="1611" height="530" alt="image" src="https://github.com/user-attachments/assets/2da9abb0-60db-4d68-a6b2-bea3dc183623" />

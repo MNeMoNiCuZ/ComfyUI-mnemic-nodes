@@ -9,7 +9,7 @@ This node adds powerful dynamic capabilities to your prompts. Wildcards are gene
 ## Node Variants
 
 - **Wildcard Processor**: Lightweight/default node. Outputs only `processed_text`. Keeps wildcard processing features, but does not expose extra outputs.
-- **Wildcard Processor Advanced**: Full node behavior. Includes extra outputs like extracted tags, raw tags, and seed, plus advanced controls such as `multiple_separator`.
+- **Wildcard Processor Advanced** also returns the seed and lets you set the separator for multiple picks with `multiple_separator`.
 
 ## Syntax Highlighting
 
@@ -47,7 +47,7 @@ Highlighting works in both the classic node display and the Vue-based node displ
 
 ### Preview
 
-Both Wildcard Processor nodes have a collapsible **Preview** section. Click it to open it; after the workflow runs it shows the resolved prompt, with each part colored like the part of the template it came from. Hover a colored part to see the template text that produced it and, for wildcards, the file and line it was picked from. Variable values are shown in the variable's color. The text can be selected, and the mouse wheel scrolls a long preview. **Preview tooltip max length** (Wildcard Processing settings, default 800 characters, 0 for no limit) sets how much template text the hover shows.
+Both Wildcard Processor nodes have a collapsible **Preview** section. Click it to open it; after the workflow runs it shows the resolved prompt, with each part colored like the part of the template it came from. Hover a colored part to see the template text that produced it and, for wildcards, the file and line it was picked from. Variable values are shown in the variable's color. **Copy Output** copies the resolved prompt even when the preview is collapsed. **Preview tooltip max length** (Wildcard Processing settings, default 800 characters, 0 for no limit) sets how much template text the hover shows.
 
 Other nodes can opt in by adding their node id and text widget names to `WILDCARD_TEXT_WIDGETS` in `web/js/wildcard_highlight.js`, or by calling `attachWildcardHighlight(node, widgetName)` from their own script.
 
@@ -293,21 +293,10 @@ You can also use it to randomly select a random wildcard file from inside a fold
 
 ### Tag Extraction (Advanced)
 
-Advanced functionality that lets you extract encapsulated results from the final prompt.
+The four tag outputs shown below are retained for saved workflows and return empty values. Use **String Text Extractor** on the resolved prompt to extract delimited text.
 
 ![image](https://github.com/user-attachments/assets/b28b6a71-e19e-46bf-81c1-7276bd59e5a4)
 
-
--   **Syntax**: Define delimiter pairs in the `tag_extraction_tags` input (e.g., `[],<>`). Then use them in your prompt: `A prompt with [tagged content] and <more>`.
--   **Description**: Extracts content from the defined tags. The content is processed for wildcards and removed from the main prompt.
--   **Outputs**:
-    - `processed_text`: The prompt with tags removed.
-    - `extracted_tags_string`: Processed content from tags, joined by `|`.
-    - `extracted_tags_list`: A list of the processed tag contents.
-    - `raw_tags_string`: The re-assembled tags (including delimiters) with their content processed.
-    - `raw_tags_list`: A list of the re-assembled, processed tags.
--   **Tip**: Use the `String Text Splitter` node to split the `extracted_tags_string` output.
--   **Tip**: Use the `String Text Extractor` node to capture the values of the `raw_tags_string` output.
 
 ---
 
@@ -327,7 +316,6 @@ Advanced functionality that lets you extract encapsulated results from the final
 - **Comments & Whitespace**: Add comments (`#`) and line breaks inside `{}` blocks to keep your prompts readable.
 - **Intelligent File Matching**: When looking for `__wildcard__` files, the processor uses a smart matching system to find the best possible file, prioritizing exact matches and handling subdirectories gracefully.
 - **Console Logging**: Detailed processing steps can be printed to the console for debugging and verification. This is no longer a per-node input — enable it globally in ComfyUI's settings under **⚡MNeMiC Nodes → Wildcard Processing → Console Logging** (also used by Wildcard Processor Advanced and Batch Wildcard Sampler). The **Max Logged Candidates** setting in the same category controls how many candidate files are listed per match.
-- **Tag Extraction**: A powerful feature to pull specific parts out of your prompt for separate use, while removing them from the main text. (Note: This is currently disabled from the UI but can be re-enabled in the code.)
 
 ## How to Use
 
@@ -340,7 +328,7 @@ Advanced functionality that lets you extract encapsulated results from the final
 3.  **Connect Outputs**:
     -   `processed_text`: The final, cleaned text to be used as your prompt.
 
-For `Wildcard Processor Advanced`, use the same syntax but with additional inputs/outputs including `multiple_separator`, `seed` output, tag extraction fields, and extracted/raw tag outputs.
+For **Wildcard Processor Advanced**, connect the `seed` output to reuse the prompt seed and set `multiple_separator` to join multi-pick results.
 
 ---
 
@@ -459,8 +447,7 @@ A wildcard name can contain `${variables}` and `{...}` blocks. They are resolved
 ### Resolution Order
 
 1.  **Variable definitions**: every `${name=!value}` is removed from the template and its value is resolved once, in the order the definitions appear. A value can use the variables defined before it: `${name=!Anna} ${greeting=!Hello ${name}}`. A `${name}` never defined in the run becomes empty, with a console warning.
-2.  **Tags** (Advanced, when extraction is enabled) are removed and resolved separately with the same rules.
-3.  **Passes** over the remaining text, repeated until nothing changes or **Max nested passes** is reached. Each pass:
+2.  **Passes** over the remaining text, repeated until nothing changes or **Max nested passes** is reached. Each pass:
     1.  replaces every `${name}` with its value;
     2.  resolves `if{...}` blocks: picks a branch, then resolves it completely;
     3.  resolves `___{...}___` document choices;
@@ -482,37 +469,6 @@ To improve the readability of complex prompts, you can add comments and format y
     ```
 -   **Possible Output**: `A diamond ring set on a rose gold band`
 
-### Tag Extraction
-
-This feature allows you to define special tags in your prompt that will be extracted and processed separately. The tags and their content are removed from the main prompt, allowing you to isolate parts of your prompt for other uses, such as feeding them into other nodes.
-
--   **Syntax**: You define the tag delimiters in the `tag_extraction_tags` input field. For example, `[],**` would tell the node to look for content inside `[square brackets]` and `*asterisks*`.
--   **Wildcard Compatibility**: Wildcards work inside the extracted tags! The content is processed with the same seed as the main prompt.
--   **Invalid Characters**: The characters `( ) { } |` cannot be used as tag delimiters.
-
--   **Example Workflow**:
-    1.  **`wildcard_string` input**:
-        ```
-        A beautiful landscape, [photo by __artist__], style <{realistic|painterly}>
-        ```
-    2.  **`tag_extraction_tags` input**:
-        ```
-        [],<>
-        ```
-    3.  **Processing Steps**:
-        - The node finds `[photo by __artist__]` and `<{realistic|painterly}>`.
-        - It removes them from the main string, leaving: `A beautiful landscape, , style `
-        - It processes the content of the first tag: `photo by __artist__` might become `photo by Ansel Adams`.
-        - It processes the content of the second tag: `{realistic|painterly}` will become either `realistic` or `painterly`.
-    4.  **Outputs**:
-        -   **`processed_text`**: `A beautiful landscape, , style `
-        -   **`extracted_tags_string`**: `photo by Ansel Adams|realistic` (assuming `__artist__` resolved to `Ansel Adams` and `{...}` to `realistic`)
-        -   **`extracted_tags_list`**: `['photo by Ansel Adams', 'realistic']`
-        -   **`raw_tags_string`**: `[photo by Ansel Adams]<{realistic}>` (Note: wildcards inside the tags are resolved)
-        -   **`raw_tags_list`**: `['[photo by Ansel Adams]', '<_io.TextIOWrapper name='C:\Users\MNeMiC\Desktop\New Folder\ComfyUI-mnemic-nodes\README_WILDCARD.md' mode='r' encoding='utf-8'>']`
-
-This allows you to, for example, route the artist's name or a chosen style to another part of your workflow, while ensuring it doesn't appear in the final prompt sent to the sampler.
-
 ---
 
 ## Utility Nodes
@@ -521,7 +477,7 @@ These nodes are included in the Mnemic Nodes pack and are designed to work well 
 
 ### String Text Splitter
 
-This node is perfect for breaking up a string into multiple parts based on a delimiter. It's especially useful for handling the `extracted_tags_string` output from the Wildcard Processor, which is joined by `|`.
+Use this node to split the resolved prompt at a delimiter.
 
 -   **Inputs**:
     -   `input_string`: The text to split (e.g., `item1|item2|item3`).
