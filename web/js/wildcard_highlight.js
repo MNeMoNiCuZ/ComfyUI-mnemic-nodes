@@ -1,4 +1,5 @@
 import { app } from "../../../scripts/app.js";
+import { copyOutputButton } from "./copy_output.js";
 import {
     WildcardHighlighter,
     getWidgetTextarea,
@@ -154,6 +155,8 @@ const PREVIEW_STYLE = `
 .mnm-wildcard-preview { display: flex; flex-direction: column; flex: 0 0 auto !important; font-size: 12px; color: var(--input-text, #ddd); }
 .mnm-wildcard-preview-header { all: unset; cursor: pointer; user-select: none; padding: 2px 4px; opacity: 0.8; }
 .mnm-wildcard-preview-header:hover { opacity: 1; }
+.mnm-wildcard-preview-row { display:flex; align-items:center; gap:6px; }
+.mnm-wildcard-preview-header { flex:1; text-align:left; }
 .mnm-wildcard-preview-body { flex: none; box-sizing: border-box; min-height: 40px; resize: vertical; overflow: auto; white-space: pre-wrap; overflow-wrap: break-word;
   font-family: monospace; line-height: 1.5; padding: 4px 6px; border-radius: 6px;
   background: var(--comfy-input-bg, rgba(0,0,0,0.25));
@@ -221,10 +224,15 @@ function addPreview(node) {
     header.type = "button";
     const body = document.createElement("div");
     body.className = "mnm-wildcard-preview-body";
-    element.append(header, body);
+    const row = document.createElement("div");
+    row.className = "mnm-wildcard-preview-row";
+    element.append(row, body);
 
     node.properties ??= {};
-    const state = { data: null };
+    const state = { data: null, output: "" };
+    const copy = copyOutputButton(() => state.output);
+    copy.disabled = true;
+    row.append(header, copy);
     const isOpen = () => node.properties.mnmPreviewOpen === true;
     // The body keeps a fixed height, set by dragging its bottom edge, instead
     // of taking a share of the node's height.
@@ -301,8 +309,10 @@ function addPreview(node) {
 
     node.mnmWildcardPreview = {
         widget,
-        show(data) {
+        show(data, output) {
             state.data = data;
+            state.output = output;
+            copy.disabled = !output;
             render();
         },
         refresh: render,
@@ -348,7 +358,7 @@ app.registerExtension({
             nodeType.prototype.onExecuted = function (message) {
                 const result = onExecuted?.apply(this, arguments);
                 const data = message?.mnm_wildcard_preview?.[0];
-                if (data) this.mnmWildcardPreview?.show(data);
+                this.mnmWildcardPreview?.show(data, message?.text?.[0] ?? "");
                 return result;
             };
         }

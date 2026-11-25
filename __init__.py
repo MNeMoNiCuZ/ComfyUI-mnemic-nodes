@@ -53,6 +53,7 @@ from .nodes.ideogram4_random_prompter import Ideogram4RandomPrompter
 from .nodes.image_save_with_metadata import ImageSaveWithMetadata
 from .nodes.save_video import SaveVideo
 from .nodes.video_compare_diff import VideoCompareDiff, register_video_compare_diff_routes
+from .nodes.image_compare import ImageCompare
 from .utils.image_save_runtime_hook import install_runtime_hooks
 from .utils.llm_routes import register_llm_routes
 from .utils.workflow_folders import register_workflow_folder_routes
@@ -258,6 +259,7 @@ class MnemicExtension(ComfyExtension):
             ImageSaveWithMetadata,
             SaveVideo,
             VideoCompareDiff,
+            ImageCompare,
         ]
 
 

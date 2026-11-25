@@ -325,10 +325,8 @@ def run_codex(command, req, result, *, encoded_images, system, timeout, on_delta
             path = os.path.join(work, f"image_{i}.jpg")
             with open(path, "wb") as f:
                 f.write(base64.b64decode(data))
-            # --image=<file> takes exactly one value; "-i a b" would also
-            # swallow the "-" prompt argument as an image.
             args.append(f"--image={path}")
-        args.append("-")
+        # Codex reads the prompt from stdin. A bare "-" can break PowerShell wrappers.
         # Codex has no separate system prompt in exec mode.
         prompt = f"{system}\n\n---\n\n{req.user}" if system and req.user else (system or req.user)
         if not prompt and encoded_images:

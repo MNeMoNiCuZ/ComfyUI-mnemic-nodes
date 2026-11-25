@@ -46,6 +46,7 @@ from .ideogram4_random_prompter import Ideogram4RandomPrompter
 from .image_save_with_metadata import ImageSaveWithMetadata
 from .save_video import SaveVideo
 from .video_compare_diff import VideoCompareDiff
+from .image_compare import ImageCompare
 
 __all__ = [
     "DownloadImageFromURL",
@@ -96,4 +97,5 @@ __all__ = [
     "ImageSaveWithMetadata",
     "SaveVideo",
     "VideoCompareDiff",
+    "ImageCompare",
 ]

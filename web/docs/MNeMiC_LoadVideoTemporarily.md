@@ -4,11 +4,15 @@ Same idea as ComfyUI's Load Video, except uploads land in the `temp` folder inst
 
 ## Inputs
 
+- **framerate**: Leave at 0 to use the source frame rate. A positive value drops or repeats frames while keeping the audio at its original speed.
+
 - **video**: File to load from `temp`. New node instances start blank rather than pre-selecting whichever temp video happens to exist.
 
 ## Outputs
 
 - **video**: The loaded video, with its audio. Connect it to Save Video, Get Video Components or any other node that takes a video.
+- **images**: The video frames as an image batch, in playback order at the selected frame rate.
+- **audio**: The original audio track when present.
 
 ## Notes
 

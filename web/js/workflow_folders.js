@@ -1,5 +1,6 @@
 import { app } from "../../../scripts/app.js";
 import { api } from "../../../scripts/api.js";
+import { copyText } from "./copy_output.js";
 import {
     WORKFLOW_PREFIX, basename, isWithin, joinPath, nativeFolderPaths,
     parentPath, planWorkflowMove, reconcileWorkflowMove, validateName,
@@ -14,7 +15,7 @@ const PANEL = '[data-testid="workflows-sidebar"].workflows-sidebar-tab';
 const BROWSE = ".comfyui-workflows-browse";
 const SEARCH = ".comfyui-workflows-search-panel";
 const TREE_SECTION = `${BROWSE}, ${SEARCH}`;
-const ROW = ".p-tree-node-content";
+const ROW = '.p-tree-node-content, [role="treeitem"][data-tree-node-type]';
 const NODE = '.tree-node[data-testid^="tree-node-root/"]';
 const MIME = "application/x-mnemic-workflow-path";
 const ENDPOINT = "/mnemic/workflows/folders";
@@ -221,7 +222,8 @@ class WorkflowFolders {
         if (!row || !row.closest(TREE_SECTION) || !this.panel.contains(row)) return null;
         const node = row.querySelector(NODE);
         if (!node) return null;
-        return { row, node, path: this.pathFor(node), folder: node.classList.contains("tree-folder") };
+        const folder = row.dataset.treeNodeType === "folder" || node.classList.contains("tree-folder");
+        return { row, node, path: this.pathFor(node), folder };
     }
 
     decorate() {
@@ -643,18 +645,7 @@ class WorkflowFolders {
             const separator = this.info.path.includes("\\") ? "\\" : "/";
             const absolute = this.info.folder_paths?.[path]
                 ?? this.info.path + (path ? separator + path.split("/").join(separator) : "");
-            try { await navigator.clipboard.writeText(absolute); }
-            catch {
-                // Clipboard API may be unavailable on plain HTTP remote hosts.
-                const text = element("textarea");
-                text.value = absolute;
-                text.style.position = "fixed";
-                text.style.opacity = "0";
-                document.body.append(text);
-                text.select();
-                try { if (!document.execCommand("copy")) throw new Error("Clipboard access was denied."); }
-                finally { text.remove(); }
-            }
+            await copyText(absolute);
             this.setStatus("Folder path copied.");
         } catch (error) { this.setStatus(error.message, true); }
     }

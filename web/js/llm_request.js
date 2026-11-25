@@ -1,5 +1,6 @@
 import { app } from "../../../scripts/app.js";
 import { api } from "../../../scripts/api.js";
+import { copyOutputButton } from "./copy_output.js";
 
 // ✨ LLM Request — node UI.
 //
@@ -155,7 +156,8 @@ function addStylesheet() {
         .mnemic-llm-out summary { cursor:pointer; user-select:none; font-style:italic; }
         .mnemic-llm-thinking { white-space:pre-wrap; font-size:11px; border-left:2px solid var(--border-color); padding-left:6px; margin-top:4px; }
         .mnemic-llm-caret::after { content:"▍"; animation:mnemic-llm-pulse .8s steps(2) infinite; }
-        .mnemic-llm-stats { font-size:11px; opacity:.7; display:flex; gap:8px; flex-wrap:wrap; }
+        .mnemic-llm-result-row { display:flex; align-items:center; gap:8px; }
+        .mnemic-llm-stats { font-size:11px; opacity:.7; min-width:0; overflow-wrap:anywhere; }
         .mnemic-llm-pop { position:fixed; z-index:10000; width:420px; max-width:calc(100vw - 24px); max-height:60vh; display:flex; flex-direction:column;
             background:var(--comfy-menu-bg); color:var(--fg-color); border:1px solid var(--border-color); border-radius:8px;
             box-shadow:0 10px 30px rgba(0,0,0,.55); font:12.5px/1.4 system-ui, sans-serif; overflow:hidden; }
@@ -466,7 +468,7 @@ class LLMPanel {
                 <div class="mnemic-llm-custom-status"></div>
             </div>
             <div class="mnemic-llm-out empty">No reply yet.</div>
-            <div class="mnemic-llm-stats"></div>
+            <div class="mnemic-llm-result-row"><span class="mnemic-llm-stats"></span></div>
         `;
         this.dot = this.el.querySelector(".mnemic-llm-dot");
         this.where = this.el.querySelector('[data-role="where"]');
@@ -503,10 +505,14 @@ class LLMPanel {
         this.out.addEventListener("wheel", (e) => {
             if (this.out.scrollHeight > this.out.clientHeight) e.stopPropagation();
         }, { passive: true });
-        this.el.querySelectorAll("button").forEach((b) => b.addEventListener("click", (e) => {
+        this.el.querySelectorAll("button[data-act]").forEach((b) => b.addEventListener("click", (e) => {
             e.stopPropagation();
             this.onButton(b.dataset.act, b);
         }));
+
+        this.copyOutput = copyOutputButton(() => this.replyText);
+        this.copyOutput.hidden = true;
+        this.stats.after(this.copyOutput);
 
         const contentHeight = () => this.el.scrollHeight || 150;
         this.domWidget = node.addDOMWidget("llm_panel", "mnemic_llm_panel", this.el, {
@@ -841,11 +847,15 @@ class LLMPanel {
     // ---- output ---------------------------------------------------------
 
     showNote(text, isError) {
+        this.copyOutput.hidden = true;
+        this.replyText = "";
         this.out.className = `mnemic-llm-out empty${isError ? " err" : ""}`;
         this.out.textContent = text;
     }
 
     renderReply(text, thinking, streaming) {
+        this.replyText = text;
+        this.copyOutput.hidden = !text;
         this.out.className = "mnemic-llm-out";
         const pinned = this.out.scrollHeight - this.out.scrollTop - this.out.clientHeight < 24;
         const wasOpen = this.out.querySelector("details")?.open ?? false;
